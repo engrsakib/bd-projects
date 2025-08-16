@@ -41,7 +41,7 @@ class Service {
   sendOtp = async (number: string, otp: number): Promise<void> => {
     await this.sendSms({
       number,
-      message: `Your Gadget Glitz verification code is ${otp}`,
+      message: `Your Cloudy BD verification code is ${otp}`,
     });
   };
 

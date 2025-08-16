@@ -193,7 +193,7 @@ class Service {
     // send approval sms
     await SMSService.sendGeneralMessage(
       phone_number,
-      "Your Gadget Glitz account has been approved. Now, you can login and access your account"
+      "Your Cloudy BD account has been approved. Now, you can login and access your account"
     );
   }
 
