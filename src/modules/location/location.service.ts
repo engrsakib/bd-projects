@@ -3,6 +3,8 @@ import { ILocation } from "./location.interface";
 import { LocationModel } from "./location.model";
 import { HttpStatusCode } from "@/lib/httpStatus";
 import { SlugifyService } from "@/lib/slugify";
+import { paginationHelpers } from "@/helpers/paginationHelpers";
+import { IPaginationOptions } from "@/interfaces/pagination.interfaces";
 
 class Service {
   async create(data: ILocation) {
@@ -26,6 +28,44 @@ class Service {
       throw new ApiError(HttpStatusCode.NOT_FOUND, "Location not found.");
     }
     return location;
+  }
+
+  async getAllLocations(
+    options: IPaginationOptions,
+    search_query: string,
+    type?: "outlet" | "warehouse" | "distribution_center"
+  ) {
+    const filter: any = {};
+
+    if (type) {
+      filter.type = type;
+    }
+
+    if (search_query) {
+      filter.$or = [
+        { name: { $regex: search_query, $options: "i" } },
+        { slug: { $regex: search_query, $options: "i" } },
+        { "address.local_address": { $regex: search_query, $options: "i" } },
+      ];
+    }
+
+    const { page, limit, skip, sortBy, sortOrder } =
+      paginationHelpers.calculatePagination(options);
+    const locations = await LocationModel.find(filter)
+      .skip(skip)
+      .limit(limit)
+      .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 });
+
+    const total = await LocationModel.countDocuments(filter);
+    return {
+      data: locations,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 }
 
