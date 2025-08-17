@@ -57,6 +57,7 @@ class Service {
       .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 });
 
     const total = await LocationModel.countDocuments(filter);
+
     return {
       data: locations,
       meta: {
