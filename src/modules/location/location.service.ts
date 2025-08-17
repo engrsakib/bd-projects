@@ -17,6 +17,16 @@ class Service {
     data.slug = SlugifyService.generateSlug(data.name);
     await LocationModel.create(data);
   }
+
+  async getOne(identifier: string) {
+    const location = await LocationModel.findOne({
+      $or: [{ _id: identifier }, { slug: identifier }],
+    });
+    if (!location) {
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "Location not found.");
+    }
+    return location;
+  }
 }
 
 export const LocationService = new Service();
