@@ -15,6 +15,7 @@ class Controller extends BaseController {
       data: null,
     });
   });
+
   getAllLocations = this.catchAsync(async (req: Request, res: Response) => {
     const options = pickQueries(req.query, paginationFields);
     const data = await LocationService.getAllLocations(
@@ -25,7 +26,18 @@ class Controller extends BaseController {
     this.sendResponse(res, {
       statusCode: HttpStatusCode.OK,
       success: true,
-      message: `Locations retrieved successfully`,
+      message: "Locations retrieved successfully",
+      data,
+    });
+  });
+
+  getById = this.catchAsync(async (req: Request, res: Response) => {
+    const id = req.params.id as string;
+    const data = await LocationService.getById(id);
+    this.sendResponse(res, {
+      statusCode: HttpStatusCode.OK,
+      success: true,
+      message: "Location retrieved successfully",
       data,
     });
   });

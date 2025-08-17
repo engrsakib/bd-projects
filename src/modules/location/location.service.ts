@@ -20,10 +20,8 @@ class Service {
     await LocationModel.create(data);
   }
 
-  async getOne(identifier: string) {
-    const location = await LocationModel.findOne({
-      $or: [{ _id: identifier }, { slug: identifier }],
-    });
+  async getById(id: string) {
+    const location = await LocationModel.findById(id);
     if (!location) {
       throw new ApiError(HttpStatusCode.NOT_FOUND, "Location not found.");
     }
