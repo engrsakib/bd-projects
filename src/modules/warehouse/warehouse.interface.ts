@@ -1,8 +1,8 @@
 import { IAddress } from "@/interfaces/common.interface";
 
-export type IOutlet = {
+export type IWareHouse = {
   name: string;
+  description?: string;
   slug: string;
-  type: "OUTLET" | "WAREHOUSE";
   address: IAddress;
 };
