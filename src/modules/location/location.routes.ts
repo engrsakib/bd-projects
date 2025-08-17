@@ -23,4 +23,6 @@ router.get(
   LocationController.getBySlug
 );
 
+router.patch("/:id", JwtInstance.authenticate(), LocationController.update);
+
 export const locationRoutes = router;

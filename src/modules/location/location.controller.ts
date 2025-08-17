@@ -52,6 +52,17 @@ class Controller extends BaseController {
       data,
     });
   });
+
+  update = this.catchAsync(async (req: Request, res: Response) => {
+    const id = req.params.id as string;
+    await LocationService.update(id, req.body);
+    this.sendResponse(res, {
+      statusCode: HttpStatusCode.OK,
+      success: true,
+      message: "Location updated successfully",
+      data: null,
+    });
+  });
 }
 
 export const LocationController = new Controller();

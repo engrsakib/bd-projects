@@ -74,6 +74,45 @@ class Service {
       },
     };
   }
+
+  async update(id: string, data: Partial<ILocation>) {
+    const isExist = await LocationModel.findById(id);
+    if (!isExist) {
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "Location not found.");
+    }
+    if (data?.name) {
+      const isNameExist = await LocationModel.findOne({
+        name: data.name,
+        _id: { $ne: id },
+      });
+      if (isNameExist) {
+        throw new ApiError(
+          HttpStatusCode.CONFLICT,
+          "This location name already exists. Please use a different name."
+        );
+      }
+      data.slug = SlugifyService.generateSlug(data.name);
+    }
+
+    const updateData = this.flatten(data);
+    await LocationModel.findByIdAndUpdate(id, updateData);
+  }
+
+  private flatten(obj: any, prefix = ""): any {
+    return Object.keys(obj).reduce((acc: any, key) => {
+      const pre = prefix.length ? prefix + "." : "";
+      if (
+        typeof obj[key] === "object" &&
+        obj[key] !== null &&
+        !Array.isArray(obj[key])
+      ) {
+        Object.assign(acc, this.flatten(obj[key], pre + key));
+      } else {
+        acc[pre + key] = obj[key];
+      }
+      return acc;
+    }, {});
+  }
 }
 
 export const LocationService = new Service();
