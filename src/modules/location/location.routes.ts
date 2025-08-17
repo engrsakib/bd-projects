@@ -15,4 +15,6 @@ router.post(
 
 router.get("/", JwtInstance.authenticate(), LocationController.getAllLocations);
 
+router.get("/:id", JwtInstance.authenticate(), LocationController.getById);
+
 export const locationRoutes = router;
