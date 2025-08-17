@@ -6,7 +6,8 @@ export const addressSchema = new Schema<IAddress>({
   district: { type: String, default: "" },
   thana: { type: String, default: "" },
   zip_code: { type: String, default: "" },
-  location: {
+  local_address: { type: String, default: "" },
+  coordinates: {
     latitude: { type: Number, default: null },
     longitude: { type: Number, default: null },
   },
