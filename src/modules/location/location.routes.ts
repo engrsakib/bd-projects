@@ -13,4 +13,6 @@ router.post(
   LocationController.create
 );
 
+router.get("/", JwtInstance.authenticate(), LocationController.getAllLocations);
+
 export const locationRoutes = router;
