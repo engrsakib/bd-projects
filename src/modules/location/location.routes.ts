@@ -17,4 +17,10 @@ router.get("/", JwtInstance.authenticate(), LocationController.getAllLocations);
 
 router.get("/:id", JwtInstance.authenticate(), LocationController.getById);
 
+router.get(
+  "/slug/:slug",
+  JwtInstance.authenticate(),
+  LocationController.getBySlug
+);
+
 export const locationRoutes = router;
