@@ -21,3 +21,15 @@ export type IResetPassword = {
   phone_number: string;
   password: string;
 };
+
+export type IAddress = {
+  division?: string;
+  district?: string;
+  thana?: string;
+  zip_code?: string;
+  local_address?: string;
+  location?: {
+    latitude: number;
+    longitude: number;
+  };
+};
