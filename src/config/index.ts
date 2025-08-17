@@ -24,8 +24,8 @@ export const envConfig = {
     access_token_expires: process.env.ACCESS_TOKEN_EXPIRES_IN as string,
     refresh_token_expires: process.env.REFRESH_TOKEN_EXPIRES_IN as string,
     secret: process.env.JWT_TOKEN_SECRET as string,
-    access_cookie_name: "gg_atkn_4f1d9",
-    refresh_cookie_name: "gg_rtkn_a7e3b",
+    access_cookie_name: "cbd_atkn_91f2a",
+    refresh_cookie_name: "cbd_rtkn_7c4d1",
   },
   aws: {
     access_key_id: process.env.AWS_ACCESS_KEY_ID as string,
