@@ -25,4 +25,6 @@ router.get(
 
 router.patch("/:id", JwtInstance.authenticate(), LocationController.update);
 
+router.delete("/:id", JwtInstance.authenticate(), LocationController.remove);
+
 export const locationRoutes = router;

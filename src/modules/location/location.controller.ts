@@ -63,6 +63,17 @@ class Controller extends BaseController {
       data: null,
     });
   });
+
+  remove = this.catchAsync(async (req: Request, res: Response) => {
+    const id = req.params.id as string;
+    await LocationService.remove(id);
+    this.sendResponse(res, {
+      statusCode: HttpStatusCode.OK,
+      success: true,
+      message: "Location deleted successfully",
+      data: null,
+    });
+  });
 }
 
 export const LocationController = new Controller();

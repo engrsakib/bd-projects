@@ -98,6 +98,15 @@ class Service {
     await LocationModel.findByIdAndUpdate(id, updateData);
   }
 
+  async remove(id: string) {
+    const location = await LocationModel.findById(id);
+    if (!location) {
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "Location not found");
+    }
+
+    await LocationModel.findByIdAndDelete(id);
+  }
+
   private flatten(obj: any, prefix = ""): any {
     return Object.keys(obj).reduce((acc: any, key) => {
       const pre = prefix.length ? prefix + "." : "";
