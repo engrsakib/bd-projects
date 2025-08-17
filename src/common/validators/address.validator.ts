@@ -19,5 +19,5 @@ export const addressValidationSchema = z
       const definedProps = Object.values(data).filter((v) => v !== undefined);
       return definedProps.length >= 2;
     },
-    { message: "Address must have at least 2 properties defined." }
+    { message: "Address must have at least 2 fields defined." }
   );
