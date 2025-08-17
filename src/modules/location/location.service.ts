@@ -7,10 +7,10 @@ import { SlugifyService } from "@/lib/slugify";
 class Service {
   async create(data: ILocation) {
     const isExist = await LocationModel.findOne({ name: data.name });
-    if (!isExist) {
+    if (isExist) {
       throw new ApiError(
         HttpStatusCode.CONFLICT,
-        `This location: ${data.name} with type ${data?.type || "warehouse"} is already exist. Please enter a different name.`
+        `This location: '${data.name}' with type: '${data?.type || "warehouse"}' is already exist. Please enter a different name.`
       );
     }
     // generate slug from name
