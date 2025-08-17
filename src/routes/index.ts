@@ -5,6 +5,7 @@ import { ForgetPasswordRoutes } from "@/modules/forget-password/forgetPassword.r
 import { Router } from "express";
 import { SubCategoryRoutes } from "@/modules/subcategory/subcategory.routes";
 import { UserRoutes } from "@/modules/user/user.routes";
+import { locationRoutes } from "@/modules/location/location.routes";
 const router = Router();
 
 const moduleRoutes = [
@@ -31,6 +32,10 @@ const moduleRoutes = [
   {
     path: "/forget-password",
     route: ForgetPasswordRoutes,
+  },
+  {
+    path: "/location",
+    route: locationRoutes,
   },
 ];
 
