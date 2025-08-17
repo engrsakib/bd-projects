@@ -41,6 +41,17 @@ class Controller extends BaseController {
       data,
     });
   });
+
+  getBySlug = this.catchAsync(async (req: Request, res: Response) => {
+    const slug = req.params.slug as string;
+    const data = await LocationService.getBySlug(slug);
+    this.sendResponse(res, {
+      statusCode: HttpStatusCode.OK,
+      success: true,
+      message: "Location retrieved successfully",
+      data,
+    });
+  });
 }
 
 export const LocationController = new Controller();

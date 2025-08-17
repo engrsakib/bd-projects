@@ -28,6 +28,14 @@ class Service {
     return location;
   }
 
+  async getBySlug(slug: string) {
+    const location = await LocationModel.findOne({ slug });
+    if (!location) {
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "Location not found.");
+    }
+    return location;
+  }
+
   async getAllLocations(
     options: IPaginationOptions,
     search_query: string,
