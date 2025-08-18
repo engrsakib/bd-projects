@@ -42,6 +42,7 @@ const update = z.object({
         })
         .optional(),
       description: z.string().optional(),
+      category: z.string().optional(),
       serial: z
         .number({
           invalid_type_error: "Serial must be a number",
