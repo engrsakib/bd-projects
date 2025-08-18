@@ -1,10 +1,11 @@
 import z from "zod";
-import { zodPhoneNumberValidator } from "./phone-number-validator";
 
 export const loginValidation = z.object({
   body: z
     .object({
-      phone_number: zodPhoneNumberValidator(),
+      phone_number: z.string({
+        required_error: "Phone number must be provided",
+      }),
       password: z.string({
         required_error: "Password must be provided",
       }),

@@ -1,4 +1,3 @@
-import { zodPhoneNumberValidator } from "@/common/validators/phone-number-validator";
 import z from "zod";
 import { USER_ROLES } from "./user.enum";
 
@@ -11,7 +10,9 @@ const create = z.object({
           invalid_type_error: "Name must be string/text",
         })
         .min(3, "Name must be at least 3 characters"),
-      phone_number: zodPhoneNumberValidator(),
+      phone_number: z.string({
+        required_error: "Phone number must be provided",
+      }),
       email: z
         .string()
         .email({ message: "Please provide a valid email" })

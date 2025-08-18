@@ -1,11 +1,12 @@
-import { zodPhoneNumberValidator } from "@/common/validators/phone-number-validator";
 import z from "zod";
 
 const create = z.object({
   body: z
     .object({
       name: z.string().min(1, "Name is required"),
-      phone_number: zodPhoneNumberValidator(),
+      phone_number: z.string({
+        required_error: "Phone number must be provided",
+      }),
       password: z.string().min(6, "Password must be at least 6 characters"),
       image: z.string().url("Invalid image URL").optional(),
       designation: z.string().optional(),
@@ -27,7 +28,9 @@ const update = z.object({
 
 const approveAccount = z.object({
   body: z.object({
-    phone_number: zodPhoneNumberValidator(),
+    phone_number: z.string({
+      required_error: "Phone number must be provided",
+    }),
   }),
 });
 
