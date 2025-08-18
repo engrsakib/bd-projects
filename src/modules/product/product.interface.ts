@@ -1,75 +1,47 @@
 import { Types } from "mongoose";
 
-export type IVariantCombination = {
-  attribute_values: {
-    [key: string]: string;
-  };
-  sale_price: number;
-  regular_price: number;
-  sku: string;
-  barcode: string; // auto-generated
-  available_quantity: number;
-  image: string;
-};
-
 export type ISocialLink = {
   name: string;
   url: string;
 };
 
 export type IProduct = {
-  // ===== Basic Info =====
+  // Basic Info
   name: string;
   slug: string;
-  thumbnail: string;
-  slider_images: string[];
   description: string;
-  brand: string;
-  sku: string;
-  is_published: boolean;
 
-  // ===== Category Info =====
+  // Images
+  thumbnail: string;
+  slider_images?: string[];
+
+  // Category Reference
   category: Types.ObjectId;
   subcategory: Types.ObjectId;
 
-  created_by: Types.ObjectId;
+  // Stock & Order Constraints
+  min_order_qty?: number;
+  max_order_qty?: number;
+  total_sold?: number;
 
-  // ===== Pricing =====
-  sale_price: number;
-  regular_price: number;
+  // Delivery & Offers
+  approximately_delivery_time: string;
+  is_free_delivery?: boolean;
+  coin_per_order?: number;
+  shipping_cost?: number;
+  shipping_cost_per_unit?: number;
 
-  // ===== Inventory =====
-  inventory: {
-    total_quantity: number;
-    current_stock_qty: number;
-    total_sold: number;
-    min_order_qty: number;
-    max_order_qty: number;
-  };
+  // Policy
+  warranty?: string;
+  return_policy?: string;
 
-  // ===== Delivery Info =====
-  delivery: {
-    shipping_charge: number;
-    approximate_delivery_time: string;
-    warranty?: string;
-    return_policy?: string;
-    is_free_delivery: boolean;
-  };
+  // Tags
+  search_tags?: string[];
+  offer_tags?: string[];
 
-  // ===== Variants & Attributes =====
-  attributes?: string[];
-  variants?: IVariantCombination[];
+  // Social Links
+  social_links?: ISocialLink;
 
-  // ===== Search & Offers =====
-  search_tags: string[];
-  offer_tags: string[];
-
-  // ===== Social Links =====
-  social_links: ISocialLink[];
-
-  // ===== Ratings =====
-  ratings: {
-    total: number;
-    average: number;
-  };
+  // Visibility
+  is_published?: boolean;
 };
