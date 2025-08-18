@@ -14,8 +14,13 @@ const subcategoriesSchema = new Schema<ISubcategory>(
       unique: true,
       trim: true,
     },
+    image: {
+      type: String,
+      default: "",
+    },
     description: {
       type: String,
+      default: "",
     },
     serial: {
       type: Number,

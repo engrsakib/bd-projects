@@ -4,6 +4,7 @@ export type ISubcategory = {
   _id: Types.ObjectId | string;
   id: Types.ObjectId | string;
   name: string;
+  image: string;
   description: string;
   serial: number;
   category: Types.ObjectId;
