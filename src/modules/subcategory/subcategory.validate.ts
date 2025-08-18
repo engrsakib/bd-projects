@@ -12,14 +12,15 @@ const create = z.object({
         .min(3, "Subcategory name must be at least 3 characters")
         .max(100, "Subcategory name must be less than 100 characters"),
 
+      image: z.string().optional(),
       description: z.string().optional(),
       serial: z
         .number({
-          required_error: "Serial number is required",
           invalid_type_error: "Serial must be a number",
         })
         .int("Serial must be an integer")
-        .positive("Serial must be positive"),
+        .positive("Serial must be positive")
+        .optional(),
 
       category: z
         .string({

@@ -5,12 +5,16 @@ import { SubcategoryController } from "./subcategory.controller";
 import { JwtInstance } from "@/lib/jwt";
 import { ROLES } from "@/constants/roles";
 import { loggerMiddleware } from "@/middlewares/logger";
+import { upload } from "@/config/multer";
+import { SubcategoryMiddleware } from "@/middlewares/upload.subcategory.middleware";
 
 const router = Router();
 
 router.post(
   "/",
   JwtInstance.authenticate([ROLES.SUPER_ADMIN, ROLES.ADMIN]),
+  upload.single("image"),
+  SubcategoryMiddleware.uploadSubcategoryImage,
   validateRequest(subcategoryValidations.create),
   loggerMiddleware,
   SubcategoryController.create
