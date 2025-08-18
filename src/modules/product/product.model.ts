@@ -15,7 +15,13 @@ const socialLinkSchema = new Schema<ISocialLink>(
 const productSchema = new Schema<IProduct>(
   {
     // ===== Basic Info =====
-    name: { type: String, required: true, trim: true },
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+      unique: true,
+      index: true,
+    },
     slug: {
       type: String,
       required: true,
