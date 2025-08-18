@@ -42,6 +42,7 @@ const update = z.object({
           invalid_type_error: "Subcategory name must be a string",
         })
         .optional(),
+      image: z.string().optional(),
       description: z.string().optional(),
       category: z.string().optional(),
       serial: z

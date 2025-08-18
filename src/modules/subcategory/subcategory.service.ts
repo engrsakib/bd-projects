@@ -5,6 +5,7 @@ import { HttpStatusCode } from "@/lib/httpStatus";
 import slugify from "slugify";
 import { IPaginationOptions } from "@/interfaces/pagination.interfaces";
 import { paginationHelpers } from "@/helpers/paginationHelpers";
+import { emitter } from "@/events/eventEmitter";
 
 class Service {
   async create(data: ISubcategory) {
@@ -63,8 +64,8 @@ class Service {
   }
 
   async update(id: string, data: Partial<ISubcategory>) {
-    const result = await SubcategoryModel.findById(id);
-    if (!result) {
+    const isExist = await SubcategoryModel.findById(id);
+    if (!isExist) {
       throw new ApiError(
         HttpStatusCode.NOT_FOUND,
         "Sub category was not found!"
@@ -83,6 +84,19 @@ class Service {
       }
       data.slug = slugify(data.name, { lower: true });
     }
+
+    // check either image changed or not
+    if (data?.image) {
+      const isImageChanged = data?.image !== isExist?.image;
+      if (isImageChanged) {
+        console.log(`[Service] - Subcategory image updated`);
+        // fire event to delete the old image from AWS S3 bucket
+        emitter.emit("s3.file.deleted", isExist?.image);
+      }
+    } else {
+      console.log(`[Service] - Subcategory image not updated`);
+    }
+
     await SubcategoryModel.findByIdAndUpdate(id, data);
   }
 
