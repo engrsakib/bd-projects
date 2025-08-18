@@ -31,6 +31,8 @@ router.get("/by-category/:category_id", SubcategoryController.getByCategory);
 router.patch(
   "/:id",
   JwtInstance.authenticate([ROLES.SUPER_ADMIN, ROLES.ADMIN]),
+  upload.single("image"),
+  SubcategoryMiddleware.updateSubcategoryImage,
   validateRequest(subcategoryValidations.update),
   loggerMiddleware,
   SubcategoryController.update
