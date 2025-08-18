@@ -34,6 +34,7 @@ class Service {
     }
 
     const result = await SubcategoryModel.find({ ...searchCondition })
+      .populate("category")
       .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
       .skip(skip)
       .limit(limit);
@@ -51,7 +52,7 @@ class Service {
   }
 
   async getById(id: string) {
-    const result = await SubcategoryModel.findById(id);
+    const result = await SubcategoryModel.findById(id).populate("category");
     if (!result) {
       throw new ApiError(
         HttpStatusCode.NOT_FOUND,
@@ -86,11 +87,15 @@ class Service {
   }
 
   async getByCategory(category_id: string) {
-    return await SubcategoryModel.find({ category: category_id });
+    return await SubcategoryModel.find({ category: category_id }).populate(
+      "category"
+    );
   }
 
   async getBySlug(slug: string) {
-    const result = await SubcategoryModel.findOne({ slug });
+    const result = await SubcategoryModel.findOne({ slug }).populate(
+      "category"
+    );
     if (!result) {
       throw new ApiError(
         HttpStatusCode.NOT_FOUND,
