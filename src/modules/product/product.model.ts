@@ -1,24 +1,6 @@
 import { model, Schema } from "mongoose";
-import {
-  IProduct,
-  IVariantCombination,
-  ISocialLink,
-} from "./product.interface";
+import { IProduct, ISocialLink } from "./product.interface";
 import { schemaOptions } from "@/utils/schemaOptions";
-
-// ===== Variant Combination Schema =====
-const variantCombinationSchema = new Schema<IVariantCombination>(
-  {
-    attribute_values: { type: Map, of: String, required: true },
-    sale_price: { type: Number, required: true },
-    regular_price: { type: Number, required: true },
-    sku: { type: String, required: true, trim: true },
-    available_quantity: { type: Number, required: true },
-    barcode: { type: String, default: "" },
-    image: { type: String, default: "" },
-  },
-  schemaOptions
-);
 
 // ===== Social Link Schema =====
 const socialLinkSchema = new Schema<ISocialLink>(
@@ -41,12 +23,10 @@ const productSchema = new Schema<IProduct>(
       lowercase: true,
       trim: true,
     },
+    description: { type: String, required: true },
+
     thumbnail: { type: String, required: true },
     slider_images: { type: [String], default: [] },
-    description: { type: String, required: true },
-    brand: { type: String, default: "" },
-    sku: { type: String, required: true, trim: true },
-    is_published: { type: Boolean, default: false },
 
     // ===== Category Info =====
     category: { type: Schema.Types.ObjectId, ref: "Category", required: true },
@@ -55,36 +35,21 @@ const productSchema = new Schema<IProduct>(
       ref: "Subcategory",
     },
 
-    created_by: {
-      type: Schema.Types.ObjectId,
-      required: true,
-    },
-
-    // ===== Pricing =====
-    sale_price: { type: Number, required: true },
-    regular_price: { type: Number, required: true },
-
-    // ===== Inventory =====
-    inventory: {
-      total_quantity: { type: Number, required: true },
-      current_stock_qty: { type: Number, required: true },
-      total_sold: { type: Number, default: 0 },
-      min_order_qty: { type: Number, default: 1 },
-      max_order_qty: { type: Number, default: 1000 },
-    },
+    // Stock & Order Constraints
+    min_order_qty: { type: Number, default: 0 },
+    max_order_qty: { type: Number, default: 0 },
+    total_sold: { type: Number, default: 0 },
 
     // ===== Delivery Info =====
-    delivery: {
-      shipping_charge: { type: Number, default: 0 },
-      approximate_delivery_time: { type: String, default: "" },
-      warranty: { type: String, default: "" },
-      return_policy: { type: String, default: "" },
-      is_free_delivery: { type: Boolean, default: false },
-    },
+    approximately_delivery_time: { type: String, default: "" },
+    is_free_delivery: { type: Boolean, default: false },
+    coin_per_order: { type: Number, default: 0 },
+    shipping_cost: { type: Number, default: 0 },
+    shipping_cost_per_unit: { type: Number, default: 0 },
 
-    // ===== Variants & Attributes =====
-    attributes: { type: [String], default: [] },
-    variants: { type: [variantCombinationSchema], default: [] },
+    // policy
+    warranty: { type: String, default: "" },
+    return_policy: { type: String, default: "" },
 
     // ===== Search & Offers =====
     search_tags: { type: [String], default: [] },
@@ -93,11 +58,8 @@ const productSchema = new Schema<IProduct>(
     // ===== Social Links =====
     social_links: { type: [socialLinkSchema], default: [] },
 
-    // ===== Ratings =====
-    ratings: {
-      total: { type: Number, default: 0 },
-      average: { type: Number, default: 0 },
-    },
+    // Visibility
+    is_published: { type: Boolean, default: false },
   },
   schemaOptions
 );
