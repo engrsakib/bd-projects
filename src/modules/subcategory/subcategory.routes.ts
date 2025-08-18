@@ -16,17 +16,9 @@ router.post(
   SubcategoryController.create
 );
 
-router.get(
-  "/",
-  JwtInstance.authenticate([ROLES.SUPER_ADMIN, ROLES.ADMIN]),
-  SubcategoryController.getAll
-);
+router.get("/", SubcategoryController.getAll);
 
-router.get(
-  "/:id",
-  JwtInstance.authenticate([ROLES.SUPER_ADMIN, ROLES.ADMIN]),
-  SubcategoryController.getById
-);
+router.get("/:id", SubcategoryController.getById);
 
 router.get("/slug/:slug", SubcategoryController.getBySlug);
 
