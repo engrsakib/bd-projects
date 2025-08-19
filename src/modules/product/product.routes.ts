@@ -17,6 +17,8 @@ router.post(
 
 router.get("/", ProductController.getAllProducts);
 
+router.get("/published", ProductController.getAllPublishedProducts);
+
 router.get("/:id", ProductController.getById);
 
 router.get("/slug/:slug", ProductController.getBySlug);

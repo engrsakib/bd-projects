@@ -58,6 +58,48 @@ class Service {
     };
   }
 
+  async getAllPublishedProducts(
+    options: IPaginationOptions,
+    search_query: string
+  ) {
+    const {
+      limit = 10,
+      page = 1,
+      skip,
+      sortBy = "createdAt",
+      sortOrder = "desc",
+    } = paginationHelpers.calculatePagination(options);
+
+    const queries: any = {};
+    if (search_query) {
+      queries.$or = [{ name: { $regex: search_query, $options: "i" } }];
+    }
+
+    const result = await ProductModel.find({
+      ...queries,
+      is_published: true,
+    })
+      .populate("category")
+      .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    const total = await ProductModel.countDocuments({
+      ...queries,
+      is_published: true,
+    });
+
+    return {
+      meta: {
+        page,
+        limit,
+        total,
+      },
+      data: result,
+    };
+  }
+
   async getById(id: Types.ObjectId) {
     const product = await ProductModel.findById(id).populate("category").lean();
 

@@ -31,6 +31,22 @@ class Controller extends BaseController {
     });
   });
 
+  getAllPublishedProducts = this.catchAsync(
+    async (req: Request, res: Response) => {
+      const options = pickQueries(req.query, paginationFields);
+      const result = await ProductService.getAllPublishedProducts(
+        options,
+        req.query.search_query as string
+      );
+      this.sendResponse(res, {
+        statusCode: HttpStatusCode.OK,
+        success: true,
+        message: "Published products retrieved successfully",
+        data: result,
+      });
+    }
+  );
+
   getById = this.catchAsync(async (req: Request, res: Response) => {
     const id = req.params.id as unknown as Types.ObjectId;
     const result = await ProductService.getById(id);
