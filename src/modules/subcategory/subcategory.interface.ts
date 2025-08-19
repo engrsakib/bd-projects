@@ -1,4 +1,5 @@
 import { Types } from "mongoose";
+import { SUBCATEGORY_STATUS_ENUM } from "./subcategory.enums";
 
 export type ISubcategory = {
   _id: Types.ObjectId | string;
@@ -7,6 +8,7 @@ export type ISubcategory = {
   image: string;
   description: string;
   serial: number;
+  status: SUBCATEGORY_STATUS_ENUM;
   category: Types.ObjectId;
   slug: string;
   created_by: Types.ObjectId;

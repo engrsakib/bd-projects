@@ -22,6 +22,8 @@ router.post(
 
 router.get("/", SubcategoryController.getAll);
 
+router.get("/available", SubcategoryController.getAllAvailable);
+
 router.get("/:id", SubcategoryController.getById);
 
 router.get("/slug/:slug", SubcategoryController.getBySlug);

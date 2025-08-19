@@ -4,6 +4,7 @@ import { schemaOptions } from "@/utils/schemaOptions";
 import { CategoryModel } from "../category/category.model";
 import ApiError from "@/middlewares/error";
 import { HttpStatusCode } from "@/lib/httpStatus";
+import { SUBCATEGORY_STATUS_ENUM } from "./subcategory.enums";
 
 const subcategoriesSchema = new Schema<ISubcategory>(
   {
@@ -34,6 +35,11 @@ const subcategoriesSchema = new Schema<ISubcategory>(
       index: true,
       lowercase: true,
       trim: true,
+    },
+    status: {
+      type: String,
+      enum: Object.values(SUBCATEGORY_STATUS_ENUM),
+      default: SUBCATEGORY_STATUS_ENUM.APPROVED,
     },
     category: {
       type: Schema.Types.ObjectId,

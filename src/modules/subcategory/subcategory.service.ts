@@ -6,6 +6,10 @@ import slugify from "slugify";
 import { IPaginationOptions } from "@/interfaces/pagination.interfaces";
 import { paginationHelpers } from "@/helpers/paginationHelpers";
 import { emitter } from "@/events/eventEmitter";
+import {
+  ISubcategoryStatus,
+  SUBCATEGORY_STATUS_ENUM,
+} from "./subcategory.enums";
 
 class Service {
   async create(data: ISubcategory) {
@@ -20,7 +24,46 @@ class Service {
     await SubcategoryModel.create(data);
   }
 
-  async getAll(options: IPaginationOptions, search_query: string) {
+  async getAll(
+    options: IPaginationOptions,
+    search_query: string,
+    status: ISubcategoryStatus
+  ) {
+    const {
+      limit = 10,
+      page = 1,
+      skip,
+      sortBy = "createdAt",
+      sortOrder = "desc",
+    } = paginationHelpers.calculatePagination(options);
+
+    const queries: any = {};
+    if (search_query) {
+      queries.$or = [{ name: { $regex: search_query, $options: "i" } }];
+    }
+
+    if (status) {
+      queries.status = status;
+    }
+    const result = await SubcategoryModel.find({ ...queries })
+      .populate("category")
+      .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
+      .skip(skip)
+      .limit(limit);
+
+    const total = await SubcategoryModel.countDocuments(queries);
+
+    return {
+      meta: {
+        page,
+        limit,
+        total,
+      },
+      data: result,
+    };
+  }
+
+  async getAllAvailable(options: IPaginationOptions, search_query: string) {
     const {
       limit = 10,
       page = 1,
@@ -34,7 +77,10 @@ class Service {
       searchCondition.$or = [{ name: { $regex: search_query, $options: "i" } }];
     }
 
-    const result = await SubcategoryModel.find({ ...searchCondition })
+    const result = await SubcategoryModel.find({
+      ...searchCondition,
+      status: SUBCATEGORY_STATUS_ENUM.APPROVED,
+    })
       .populate("category")
       .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
       .skip(skip)

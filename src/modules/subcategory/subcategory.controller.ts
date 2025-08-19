@@ -4,6 +4,7 @@ import { SubcategoryService } from "./subcategory.service";
 import { HttpStatusCode } from "@/lib/httpStatus";
 import pickQueries from "@/shared/pickQueries";
 import { paginationFields } from "@/constants/paginationFields";
+import { ISubcategoryStatus } from "./subcategory.enums";
 
 class Controller extends BaseController {
   create = this.catchAsync(async (req: Request, res: Response) => {
@@ -19,12 +20,27 @@ class Controller extends BaseController {
     const options = pickQueries(req.query, paginationFields);
     const result = await SubcategoryService.getAll(
       options,
-      req.query.search_query as string
+      req.query.search_query as string,
+      req.query.status as ISubcategoryStatus
     );
     this.sendResponse(res, {
       statusCode: HttpStatusCode.OK,
       success: true,
       message: "Subcategories fetched successfully",
+      data: result,
+    });
+  });
+
+  getAllAvailable = this.catchAsync(async (req: Request, res: Response) => {
+    const options = pickQueries(req.query, paginationFields);
+    const result = await SubcategoryService.getAllAvailable(
+      options,
+      req.query.search_query as string
+    );
+    this.sendResponse(res, {
+      statusCode: HttpStatusCode.OK,
+      success: true,
+      message: "Available subcategories retrieved successfully",
       data: result,
     });
   });
