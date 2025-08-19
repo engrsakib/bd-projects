@@ -5,6 +5,7 @@ import { HttpStatusCode } from "@/lib/httpStatus";
 import { SlugifyService } from "@/lib/slugify";
 import { IPaginationOptions } from "@/interfaces/pagination.interfaces";
 import { paginationHelpers } from "@/helpers/paginationHelpers";
+import { Types } from "mongoose";
 
 class Service {
   async create(data: IProduct) {
@@ -54,6 +55,26 @@ class Service {
       },
       data: result,
     };
+  }
+
+  async getById(id: Types.ObjectId) {
+    const product = await ProductModel.findById(id).populate("category");
+
+    if (!product) {
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "Product was not found");
+    }
+
+    return product;
+  }
+
+  async getBySlug(slug: string) {
+    const product = await ProductModel.findOne({ slug }).populate("category");
+
+    if (!product) {
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "Product was not found");
+    }
+
+    return product;
   }
 }
 

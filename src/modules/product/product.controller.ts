@@ -4,6 +4,7 @@ import { ProductService } from "./product.service";
 import { HttpStatusCode } from "@/lib/httpStatus";
 import pickQueries from "@/shared/pickQueries";
 import { paginationFields } from "@/constants/paginationFields";
+import { Types } from "mongoose";
 
 class Controller extends BaseController {
   create = this.catchAsync(async (req: Request, res: Response) => {
@@ -26,6 +27,28 @@ class Controller extends BaseController {
       statusCode: HttpStatusCode.OK,
       success: true,
       message: "Products retrieved successfully",
+      data: result,
+    });
+  });
+
+  getById = this.catchAsync(async (req: Request, res: Response) => {
+    const id = req.params.id as unknown as Types.ObjectId;
+    const result = await ProductService.getById(id);
+    this.sendResponse(res, {
+      statusCode: HttpStatusCode.OK,
+      success: true,
+      message: "Product retrieved successfully",
+      data: result,
+    });
+  });
+
+  getBySlug = this.catchAsync(async (req: Request, res: Response) => {
+    const slug = req.params.slug as unknown as string;
+    const result = await ProductService.getBySlug(slug);
+    this.sendResponse(res, {
+      statusCode: HttpStatusCode.OK,
+      success: true,
+      message: "Product retrieved successfully",
       data: result,
     });
   });
