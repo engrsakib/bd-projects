@@ -86,6 +86,61 @@ class Middleware {
       );
     }
   }
+
+  async updateImages(req: Request, res: Response, next: NextFunction) {
+    try {
+      const files = req.files as any;
+
+      const thumbnailFile = files?.["thumbnail"]?.[0];
+
+      if (thumbnailFile) {
+        const newUrl = await AWSFileUploader.uploadSingleFile(
+          thumbnailFile,
+          folder
+        );
+        req.body.thumbnail = newUrl;
+      }
+
+      const sliderImageFiles = files?.["slider_images"] || [];
+      let sliderImageUrls: string[] = [];
+
+      const sliderImagesFromBody = req.body?.slider_images;
+
+      if (sliderImagesFromBody) {
+        // Normalize to array
+        const bodyImages = Array.isArray(sliderImagesFromBody)
+          ? sliderImagesFromBody
+          : [sliderImagesFromBody];
+
+        for (const img of bodyImages) {
+          if (typeof img === "string" && img.startsWith("http")) {
+            sliderImageUrls.push(img);
+          }
+        }
+      }
+
+      if (sliderImageFiles.length > 0) {
+        const newUrls = await AWSFileUploader.uploadMultipleFiles(
+          sliderImageFiles,
+          folder
+        );
+        sliderImageUrls = [...sliderImageUrls, ...newUrls];
+      }
+
+      req.body.slider_images = sliderImageUrls;
+
+      next();
+    } catch (error: any) {
+      next(
+        new ApiError(
+          error?.status ||
+            error?.statusCode ||
+            HttpStatusCode.INTERNAL_SERVER_ERROR,
+          error?.message || "Failed to upload images"
+        )
+      );
+    }
+  }
 }
 
 export const ProductMiddleware = new Middleware();
