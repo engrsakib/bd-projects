@@ -107,16 +107,20 @@ class Middleware {
       const sliderImagesFromBody = req.body?.slider_images;
 
       if (sliderImagesFromBody) {
-        // Normalize to array
-        const bodyImages = Array.isArray(sliderImagesFromBody)
-          ? sliderImagesFromBody
-          : [sliderImagesFromBody];
+        let bodyImages: string[];
 
-        for (const img of bodyImages) {
-          if (typeof img === "string" && img.startsWith("http")) {
-            sliderImageUrls.push(img);
-          }
+        if (Array.isArray(sliderImagesFromBody)) {
+          bodyImages = sliderImagesFromBody;
+        } else {
+          bodyImages = sliderImagesFromBody
+            .replace(/^\[|\]$/g, "")
+            .split(",")
+            .map((s: string) => s.trim());
         }
+
+        sliderImageUrls.push(
+          ...bodyImages.filter((img) => img.startsWith("http"))
+        );
       }
 
       if (sliderImageFiles.length > 0) {

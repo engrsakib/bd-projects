@@ -6,6 +6,7 @@ import { SlugifyService } from "@/lib/slugify";
 import { IPaginationOptions } from "@/interfaces/pagination.interfaces";
 import { paginationHelpers } from "@/helpers/paginationHelpers";
 import { Types } from "mongoose";
+import { emitter } from "@/events/eventEmitter";
 
 class Service {
   async create(data: IProduct) {
@@ -155,6 +156,32 @@ class Service {
         );
       }
       data.slug = SlugifyService.generateSlug(data.name);
+    }
+
+    if (data?.thumbnail) {
+      const isThumbnailChanged = isExist?.thumbnail !== data?.thumbnail;
+      if (isThumbnailChanged) {
+        console.log("Product thumbnail updated");
+        // fire event to delete the thumbnail from AWS S3
+        emitter.emit("s3.file.deleted", isExist?.thumbnail);
+      }
+    } else {
+      console.log("Product thumbnail not updated");
+    }
+
+    // find the deleted slider images
+    const newSliderImages = data?.slider_images || [];
+    const oldSliderImages = isExist?.slider_images || [];
+    const removedSliderImages = oldSliderImages.filter(
+      (img) => !newSliderImages.includes(img)
+    );
+
+    if (removedSliderImages && removedSliderImages?.length > 0) {
+      console.log("Product slider images updated");
+      // fire event to delete slider images from AWS S3
+      emitter.emit("s3.files.deleted", removedSliderImages);
+    } else {
+      console.log("Product slider images not updated");
     }
 
     await ProductModel.findByIdAndUpdate(id, data);
