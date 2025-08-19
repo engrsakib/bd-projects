@@ -33,9 +33,7 @@ class Middleware {
       try {
         const imageUrl = await AWSFileUploader.uploadSingleFile(image, folder);
         req.body.image = imageUrl;
-        next();
       } catch (error: any) {
-        console.log(error);
         return next(
           new ApiError(
             error?.statusCode || HttpStatusCode.INTERNAL_SERVER_ERROR,
@@ -48,6 +46,8 @@ class Middleware {
     if (req.body.serial) {
       req.body.serial = Number(req.body.serial);
     }
+
+    next();
   }
 
   async updateSubcategoryImage(
