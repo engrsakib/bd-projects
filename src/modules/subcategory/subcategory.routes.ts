@@ -10,6 +10,7 @@ import { SubcategoryMiddleware } from "@/middlewares/upload.subcategory.middlewa
 
 const router = Router();
 
+// ADMIN routes
 router.post(
   "/",
   JwtInstance.authenticate([ROLES.SUPER_ADMIN, ROLES.ADMIN]),
@@ -22,13 +23,9 @@ router.post(
 
 router.get("/", SubcategoryController.getAll);
 
-router.get("/available", SubcategoryController.getAllAvailable);
+router.get("/by-category/:category_id", SubcategoryController.getByCategory);
 
 router.get("/:id", SubcategoryController.getById);
-
-router.get("/slug/:slug", SubcategoryController.getBySlug);
-
-router.get("/by-category/:category_id", SubcategoryController.getByCategory);
 
 router.patch(
   "/:id",
@@ -39,5 +36,15 @@ router.patch(
   loggerMiddleware,
   SubcategoryController.update
 );
+
+// PUBLIC routes
+router.get("/available", SubcategoryController.getAllAvailable);
+
+router.get(
+  "/available/by-category/:category_id",
+  SubcategoryController.getAvailableByCategory
+);
+
+router.get("/slug/:slug", SubcategoryController.getBySlug);
 
 export const SubCategoryRoutes = router;

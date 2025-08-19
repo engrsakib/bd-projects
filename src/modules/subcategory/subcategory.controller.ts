@@ -7,6 +7,7 @@ import { paginationFields } from "@/constants/paginationFields";
 import { ISubcategoryStatus } from "./subcategory.enums";
 
 class Controller extends BaseController {
+  // ADMIN controllers
   create = this.catchAsync(async (req: Request, res: Response) => {
     await SubcategoryService.create({ ...req.body, created_by: req?.user?.id });
     this.sendResponse(res, {
@@ -31,20 +32,6 @@ class Controller extends BaseController {
     });
   });
 
-  getAllAvailable = this.catchAsync(async (req: Request, res: Response) => {
-    const options = pickQueries(req.query, paginationFields);
-    const result = await SubcategoryService.getAllAvailable(
-      options,
-      req.query.search_query as string
-    );
-    this.sendResponse(res, {
-      statusCode: HttpStatusCode.OK,
-      success: true,
-      message: "Available subcategories retrieved successfully",
-      data: result,
-    });
-  });
-
   getById = this.catchAsync(async (req: Request, res: Response) => {
     const id = req.params.id;
     const result = await SubcategoryService.getById(id);
@@ -53,6 +40,17 @@ class Controller extends BaseController {
       success: true,
       message: "Subcategories fetched successfully",
       data: result,
+    });
+  });
+
+  getByCategory = this.catchAsync(async (req: Request, res: Response) => {
+    const category_id = req.params.category_id;
+    const data = await SubcategoryService.getByCategory(category_id);
+    this.sendResponse(res, {
+      statusCode: HttpStatusCode.OK,
+      success: true,
+      message: "Subcategories fetched successfully",
+      data,
     });
   });
 
@@ -67,16 +65,33 @@ class Controller extends BaseController {
     });
   });
 
-  getByCategory = this.catchAsync(async (req: Request, res: Response) => {
-    const category_id = req.params.category_id;
-    const data = await SubcategoryService.getByCategory(category_id);
+  // PUBLIC controllers
+  getAllAvailable = this.catchAsync(async (req: Request, res: Response) => {
+    const options = pickQueries(req.query, paginationFields);
+    const result = await SubcategoryService.getAllAvailable(
+      options,
+      req.query.search_query as string
+    );
     this.sendResponse(res, {
       statusCode: HttpStatusCode.OK,
       success: true,
-      message: "Subcategories fetched successfully",
-      data,
+      message: "Available subcategories retrieved successfully",
+      data: result,
     });
   });
+
+  getAvailableByCategory = this.catchAsync(
+    async (req: Request, res: Response) => {
+      const category_id = req.params.category_id;
+      const data = await SubcategoryService.getAvailableByCategory(category_id);
+      this.sendResponse(res, {
+        statusCode: HttpStatusCode.OK,
+        success: true,
+        message: "Available subcategory fetched by category",
+        data,
+      });
+    }
+  );
 
   getBySlug = this.catchAsync(async (req: Request, res: Response) => {
     const slug = req.params.slug;

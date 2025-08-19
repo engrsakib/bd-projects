@@ -12,6 +12,7 @@ import {
 } from "./subcategory.enums";
 
 class Service {
+  // ==== ADMIN services ======
   async create(data: ISubcategory) {
     const isExist = await SubcategoryModel.findOne({ name: data.name });
     if (isExist) {
@@ -52,41 +53,6 @@ class Service {
       .limit(limit);
 
     const total = await SubcategoryModel.countDocuments(queries);
-
-    return {
-      meta: {
-        page,
-        limit,
-        total,
-      },
-      data: result,
-    };
-  }
-
-  async getAllAvailable(options: IPaginationOptions, search_query: string) {
-    const {
-      limit = 10,
-      page = 1,
-      skip,
-      sortBy = "createdAt",
-      sortOrder = "desc",
-    } = paginationHelpers.calculatePagination(options);
-
-    const searchCondition: any = {};
-    if (search_query) {
-      searchCondition.$or = [{ name: { $regex: search_query, $options: "i" } }];
-    }
-
-    const result = await SubcategoryModel.find({
-      ...searchCondition,
-      status: SUBCATEGORY_STATUS_ENUM.APPROVED,
-    })
-      .populate("category")
-      .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
-      .skip(skip)
-      .limit(limit);
-
-    const total = await SubcategoryModel.countDocuments(searchCondition);
 
     return {
       meta: {
@@ -152,10 +118,54 @@ class Service {
     );
   }
 
+  // ==== ADMIN services ======
+  async getAllAvailable(options: IPaginationOptions, search_query: string) {
+    const {
+      limit = 10,
+      page = 1,
+      skip,
+      sortBy = "createdAt",
+      sortOrder = "desc",
+    } = paginationHelpers.calculatePagination(options);
+
+    const searchCondition: any = {};
+    if (search_query) {
+      searchCondition.$or = [{ name: { $regex: search_query, $options: "i" } }];
+    }
+
+    const result = await SubcategoryModel.find({
+      ...searchCondition,
+      status: SUBCATEGORY_STATUS_ENUM.APPROVED,
+    })
+      .populate("category")
+      .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
+      .skip(skip)
+      .limit(limit);
+
+    const total = await SubcategoryModel.countDocuments(searchCondition);
+
+    return {
+      meta: {
+        page,
+        limit,
+        total,
+      },
+      data: result,
+    };
+  }
+
+  async getAvailableByCategory(category_id: string) {
+    return await SubcategoryModel.find({
+      category: category_id,
+      status: SUBCATEGORY_STATUS_ENUM.APPROVED,
+    }).populate("category");
+  }
+
   async getBySlug(slug: string) {
-    const result = await SubcategoryModel.findOne({ slug }).populate(
-      "category"
-    );
+    const result = await SubcategoryModel.findOne({
+      slug,
+      status: SUBCATEGORY_STATUS_ENUM.APPROVED,
+    }).populate("category");
     if (!result) {
       throw new ApiError(
         HttpStatusCode.NOT_FOUND,
