@@ -3,6 +3,8 @@ import { IProduct } from "./product.interface";
 import { ProductModel } from "./product.model";
 import { HttpStatusCode } from "@/lib/httpStatus";
 import { SlugifyService } from "@/lib/slugify";
+import { IPaginationOptions } from "@/interfaces/pagination.interfaces";
+import { paginationHelpers } from "@/helpers/paginationHelpers";
 
 class Service {
   async create(data: IProduct) {
@@ -18,6 +20,40 @@ class Service {
     data.slug = SlugifyService.generateSlug(data.name);
 
     await ProductModel.create(data);
+  }
+
+  async getAllProducts(options: IPaginationOptions, search_query: string) {
+    const {
+      limit = 10,
+      page = 1,
+      skip,
+      sortBy = "createdAt",
+      sortOrder = "desc",
+    } = paginationHelpers.calculatePagination(options);
+
+    const queries: any = {};
+    if (search_query) {
+      queries.$or = [{ name: { $regex: search_query, $options: "i" } }];
+    }
+
+    const result = await ProductModel.find({
+      ...queries,
+    })
+      .populate("category")
+      .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
+      .skip(skip)
+      .limit(limit);
+
+    const total = await ProductModel.countDocuments(queries);
+
+    return {
+      meta: {
+        page,
+        limit,
+        total,
+      },
+      data: result,
+    };
   }
 }
 
