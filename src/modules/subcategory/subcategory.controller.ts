@@ -65,6 +65,17 @@ class Controller extends BaseController {
     });
   });
 
+  updateStatus = this.catchAsync(async (req: Request, res: Response) => {
+    const id = req.params.id;
+    await SubcategoryService.updateStatus(id, req.body.status);
+    this.sendResponse(res, {
+      statusCode: HttpStatusCode.OK,
+      success: true,
+      message: "Subcategory status updated successfully",
+      data: null,
+    });
+  });
+
   // PUBLIC controllers
   getAllAvailable = this.catchAsync(async (req: Request, res: Response) => {
     const options = pickQueries(req.query, paginationFields);

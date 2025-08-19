@@ -112,6 +112,18 @@ class Service {
     await SubcategoryModel.findByIdAndUpdate(id, data);
   }
 
+  async updateStatus(id: string, status: ISubcategoryStatus) {
+    const isExist = await SubcategoryModel.findById(id);
+
+    if (!isExist) {
+      throw new ApiError(
+        HttpStatusCode.NOT_FOUND,
+        "Subcategory was not found!"
+      );
+    }
+    await SubcategoryModel.findByIdAndUpdate(id, { status });
+  }
+
   async getByCategory(category_id: string) {
     return await SubcategoryModel.find({ category: category_id }).populate(
       "category"

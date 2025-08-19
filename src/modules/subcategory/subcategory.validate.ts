@@ -1,5 +1,6 @@
 import { Types } from "mongoose";
 import z from "zod";
+import { SUBCATEGORY_STATUS_ENUM } from "./subcategory.enums";
 
 const create = z.object({
   body: z
@@ -20,6 +21,11 @@ const create = z.object({
         })
         .int("Serial must be an integer")
         .positive("Serial must be positive")
+        .optional(),
+
+      status: z
+        .enum(Object.values(SUBCATEGORY_STATUS_ENUM) as [string, ...string[]])
+        .default(SUBCATEGORY_STATUS_ENUM.APPROVED)
         .optional(),
 
       category: z
@@ -45,6 +51,10 @@ const update = z.object({
       image: z.string().optional(),
       description: z.string().optional(),
       category: z.string().optional(),
+      status: z
+        .enum(Object.values(SUBCATEGORY_STATUS_ENUM) as [string, ...string[]])
+        .default(SUBCATEGORY_STATUS_ENUM.APPROVED)
+        .optional(),
       serial: z
         .number({
           invalid_type_error: "Serial must be a number",
@@ -65,4 +75,14 @@ const update = z.object({
     ),
 });
 
-export const subcategoryValidations = { create, update };
+const updateStatus = z.object({
+  body: z
+    .object({
+      status: z.enum(
+        Object.values(SUBCATEGORY_STATUS_ENUM) as [string, ...string[]]
+      ),
+    })
+    .strict(),
+});
+
+export const subcategoryValidations = { create, update, updateStatus };

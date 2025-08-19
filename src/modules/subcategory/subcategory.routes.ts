@@ -37,6 +37,14 @@ router.patch(
   SubcategoryController.update
 );
 
+router.patch(
+  "/:id/status",
+  JwtInstance.authenticate([ROLES.SUPER_ADMIN, ROLES.ADMIN]),
+  validateRequest(subcategoryValidations.updateStatus),
+  loggerMiddleware,
+  SubcategoryController.updateStatus
+);
+
 // PUBLIC routes
 router.get("/available", SubcategoryController.getAllAvailable);
 
