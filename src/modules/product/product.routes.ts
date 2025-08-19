@@ -23,6 +23,16 @@ router.get("/:id", ProductController.getById);
 
 router.get("/slug/:slug", ProductController.getBySlug);
 
+router.patch(
+  "/:id",
+  upload.fields([
+    { name: "thumbnail", maxCount: 1 },
+    { name: "slider_images", maxCount: 5 },
+  ]),
+  ProductMiddleware.updateImages,
+  ProductController.update
+);
+
 router.patch("/:id/toggle-visibility", ProductController.toggleVisibility);
 
 export const ProductRoutes = router;

@@ -79,6 +79,17 @@ class Controller extends BaseController {
       data: null,
     });
   });
+
+  update = this.catchAsync(async (req: Request, res: Response) => {
+    const id = req.params.id as unknown as Types.ObjectId;
+    await ProductService.update(id, req.body);
+    this.sendResponse(res, {
+      statusCode: HttpStatusCode.OK,
+      success: true,
+      message: "Product updated successfully",
+      data: null,
+    });
+  });
 }
 
 export const ProductController = new Controller();

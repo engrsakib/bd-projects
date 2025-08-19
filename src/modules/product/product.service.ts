@@ -132,6 +132,33 @@ class Service {
       is_published: !product.is_published,
     });
   }
+
+  async update(id: Types.ObjectId, data: Partial<IProduct>) {
+    const isExist = await ProductModel.findById(id);
+
+    if (!isExist) {
+      throw new ApiError(
+        HttpStatusCode.NOT_FOUND,
+        "Product not found to update"
+      );
+    }
+
+    if (data?.name) {
+      const isNameExist = await ProductModel.findOne({
+        name: data.name,
+        _id: { $ne: id },
+      });
+      if (isNameExist) {
+        throw new ApiError(
+          HttpStatusCode.CONFLICT,
+          "This product name already exists. Please use a different name."
+        );
+      }
+      data.slug = SlugifyService.generateSlug(data.name);
+    }
+
+    await ProductModel.findByIdAndUpdate(id, data);
+  }
 }
 
 export const ProductService = new Service();
