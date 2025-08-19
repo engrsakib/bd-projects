@@ -1,10 +1,9 @@
 import { Types } from "mongoose";
 
-export type IVariantCombination = {
+export type IVariant = {
   attribute_values: {
     [key: string]: string;
   };
-
   regular_price: number;
   sale_price: number;
   buying_price?: number;
@@ -19,5 +18,5 @@ export type IInventory = {
   product: Types.ObjectId;
   location: Types.ObjectId;
   attributes: string[];
-  variants: IVariantCombination[];
+  variants: IVariant[];
 };
