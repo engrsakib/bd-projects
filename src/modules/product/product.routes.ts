@@ -15,8 +15,12 @@ router.post(
   ProductController.create
 );
 
+router.get("/", ProductController.getAllProducts);
+
 router.get("/:id", ProductController.getById);
 
 router.get("/slug/:slug", ProductController.getBySlug);
+
+router.patch("/:id/toggle-visibility", ProductController.toggleVisibility);
 
 export const ProductRoutes = router;

@@ -52,6 +52,17 @@ class Controller extends BaseController {
       data: result,
     });
   });
+
+  toggleVisibility = this.catchAsync(async (req: Request, res: Response) => {
+    const id = req.params.id as unknown as Types.ObjectId;
+    await ProductService.toggleVisibility(id);
+    this.sendResponse(res, {
+      statusCode: HttpStatusCode.OK,
+      success: true,
+      message: "Product visibility toggled successfully",
+      data: null,
+    });
+  });
 }
 
 export const ProductController = new Controller();

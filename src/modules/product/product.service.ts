@@ -43,7 +43,8 @@ class Service {
       .populate("category")
       .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
       .skip(skip)
-      .limit(limit);
+      .limit(limit)
+      .lean();
 
     const total = await ProductModel.countDocuments(queries);
 
@@ -58,7 +59,7 @@ class Service {
   }
 
   async getById(id: Types.ObjectId) {
-    const product = await ProductModel.findById(id).populate("category");
+    const product = await ProductModel.findById(id).populate("category").lean();
 
     if (!product) {
       throw new ApiError(HttpStatusCode.NOT_FOUND, "Product was not found");
@@ -68,13 +69,26 @@ class Service {
   }
 
   async getBySlug(slug: string) {
-    const product = await ProductModel.findOne({ slug }).populate("category");
+    const product = await ProductModel.findOne({ slug })
+      .populate("category")
+      .lean();
 
     if (!product) {
       throw new ApiError(HttpStatusCode.NOT_FOUND, "Product was not found");
     }
 
     return product;
+  }
+
+  async toggleVisibility(id: Types.ObjectId) {
+    const product = await ProductModel.findById(id).lean();
+    if (!product) {
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "Product was not found");
+    }
+
+    await ProductModel.findByIdAndUpdate(id, {
+      is_published: !product.is_published,
+    });
   }
 }
 
