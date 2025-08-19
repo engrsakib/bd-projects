@@ -39,6 +39,7 @@
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
+    "ean-generator": "^0.0.8",
     "eventemitter2": "^6.4.9",
     "express": "^4.18.3",
     "google-auth-library": "^10.1.0",
