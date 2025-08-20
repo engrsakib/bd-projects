@@ -12,7 +12,7 @@ const variantSchema = new Schema<IVariant>(
     regular_price: { type: Number, required: true },
     sale_price: { type: Number, required: true },
     buying_price: { type: Number, required: false, default: null },
-    sku: { type: String, required: true },
+    sku: { type: String, required: true, unique: true, index: true },
     available_quantity: { type: Number, required: true },
     barcode: {
       type: String,
@@ -32,6 +32,8 @@ const inventorySchema = new Schema<IInventory>(
       type: Schema.Types.ObjectId,
       ref: "Product",
       required: true,
+      unique: true,
+      index: true,
     },
 
     attributes: { type: [String], required: true, min: 1 },
@@ -40,6 +42,8 @@ const inventorySchema = new Schema<IInventory>(
       type: Schema.Types.ObjectId,
       ref: "location",
       required: true,
+      unique: true,
+      index: true,
     },
   },
   schemaOptions

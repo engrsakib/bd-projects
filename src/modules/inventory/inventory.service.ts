@@ -1,5 +1,5 @@
 import { BarcodeService } from "@/lib/barcode";
-import { IInventory, IInventoryFilters } from "./inventory.interface";
+import { IInventory, IInventoryFilters, IVariant } from "./inventory.interface";
 import { InventoryModel } from "./inventory.model";
 import { IPaginationOptions } from "@/interfaces/pagination.interfaces";
 import { paginationHelpers } from "@/helpers/paginationHelpers";
@@ -153,6 +153,19 @@ class Service {
       throw new ApiError(HttpStatusCode.NOT_FOUND, "Inventory was not found");
     }
     await InventoryModel.findByIdAndUpdate(id, data);
+  }
+
+  async addVariant(inventory_id: Types.ObjectId, data: IVariant) {
+    data.barcode = BarcodeService.generateEAN13();
+    const updated = await InventoryModel.findOneAndUpdate(
+      { _id: inventory_id },
+      { $push: { variants: data } },
+      { new: true, runValidators: true }
+    );
+
+    if (!updated) {
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "Inventory not found");
+    }
   }
 }
 

@@ -79,6 +79,17 @@ class Controller extends BaseController {
       data: result,
     });
   });
+
+  addVariant = this.catchAsync(async (req: Request, res: Response) => {
+    const inventory_id = req.params.inventory_id as unknown as Types.ObjectId;
+    await InventoryService.addVariant(inventory_id, req.body);
+    this.sendResponse(res, {
+      statusCode: HttpStatusCode.OK,
+      success: true,
+      message: "Variant added to the inventory successfully",
+      data: null,
+    });
+  });
 }
 
 export const InventoryController = new Controller();
