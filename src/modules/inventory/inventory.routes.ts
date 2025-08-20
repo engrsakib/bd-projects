@@ -20,4 +20,10 @@ router.get(
   InventoryController.getInventoriesByLocation
 );
 
+router.patch(
+  "/:id",
+  validateRequest(inventoryValidations.update),
+  InventoryController.updateInventory
+);
+
 export const InventoryRoutes = router;

@@ -68,6 +68,17 @@ class Controller extends BaseController {
       });
     }
   );
+
+  updateInventory = this.catchAsync(async (req: Request, res: Response) => {
+    const id = req.params.id as unknown as Types.ObjectId;
+    const result = await InventoryService.updateInventory(id, req.body);
+    this.sendResponse(res, {
+      statusCode: HttpStatusCode.OK,
+      success: true,
+      message: "Inventory updated successfully",
+      data: result,
+    });
+  });
 }
 
 export const InventoryController = new Controller();

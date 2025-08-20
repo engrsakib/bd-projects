@@ -4,6 +4,8 @@ import { InventoryModel } from "./inventory.model";
 import { IPaginationOptions } from "@/interfaces/pagination.interfaces";
 import { paginationHelpers } from "@/helpers/paginationHelpers";
 import { Types } from "mongoose";
+import ApiError from "@/middlewares/error";
+import { HttpStatusCode } from "@/lib/httpStatus";
 
 class Service {
   async create(data: IInventory) {
@@ -143,6 +145,14 @@ class Service {
       .sort({ createdAt: -1 });
 
     return result;
+  }
+
+  async updateInventory(id: Types.ObjectId, data: Partial<IInventory>) {
+    const isExist = await InventoryModel.findById(id);
+    if (!isExist) {
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "Inventory was not found");
+    }
+    await InventoryModel.findByIdAndUpdate(id, data);
   }
 }
 
