@@ -1,18 +1,20 @@
 import z from "zod";
 
-const variantSchema = z.object({
-  attribute_values: z.record(z.string(), z.string()),
-  regular_price: z.number().min(0, "Regular price must be >= 0"),
-  sale_price: z.number().min(0, "Sale price must be >= 0"),
-  buying_price: z.number().nullable().optional(),
-  sku: z.string().min(1, "SKU is required"),
-  available_quantity: z
-    .number()
-    .int()
-    .min(0, "Available quantity must be >= 0"),
-  total_sold: z.number().int().min(0).default(0),
-  image: z.string().url("Image must be a valid URL").optional().default(""),
-});
+const variantSchema = z
+  .object({
+    attribute_values: z.record(z.string(), z.string()),
+    regular_price: z.number().min(0, "Regular price must be >= 0"),
+    sale_price: z.number().min(0, "Sale price must be >= 0"),
+    buying_price: z.number().nullable().optional(),
+    sku: z.string().min(1, "SKU is required"),
+    available_quantity: z
+      .number()
+      .int()
+      .min(0, "Available quantity must be >= 0"),
+    total_sold: z.number().int().min(0).default(0),
+    image: z.string().url("Image must be a valid URL").optional().default(""),
+  })
+  .strict();
 
 const create = z.object({
   body: z
@@ -41,4 +43,8 @@ const update = z.object({
     .strict(),
 });
 
-export const inventoryValidations = { create, update };
+const addVariant = z.object({
+  body: variantSchema,
+});
+
+export const inventoryValidations = { create, update, addVariant };
