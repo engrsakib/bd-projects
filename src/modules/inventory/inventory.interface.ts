@@ -20,3 +20,20 @@ export type IInventory = {
   attributes: string[];
   variants: IVariant[];
 };
+
+export type IInventoryFilters = {
+  product?: Types.ObjectId;
+  location?: Types.ObjectId;
+  attributes?: string;
+  sku?: string;
+  barcode?: string;
+  attribute_values?: { [key: string]: string };
+  regular_price_min?: number;
+  regular_price_max?: number;
+  sale_price_min?: number;
+  sale_price_max?: number;
+  available_quantity_min?: number;
+  available_quantity_max?: number;
+  total_sold_min?: number;
+  total_sold_max?: number;
+};
