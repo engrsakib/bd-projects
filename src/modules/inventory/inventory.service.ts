@@ -184,6 +184,18 @@ class Service {
       throw new ApiError(HttpStatusCode.NOT_FOUND, "Variant not found");
     }
   }
+
+  async removeVariant(variant_id: Types.ObjectId) {
+    const updated = await InventoryModel.findOneAndUpdate(
+      { "variants._id": variant_id },
+      { $pull: { variants: { _id: variant_id } } },
+      { new: true }
+    );
+
+    if (!updated) {
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "Variant not found");
+    }
+  }
 }
 
 export const InventoryService = new Service();

@@ -101,6 +101,17 @@ class Controller extends BaseController {
       data: null,
     });
   });
+
+  removeVariant = this.catchAsync(async (req: Request, res: Response) => {
+    const variant_id = req.params.variant_id as unknown as Types.ObjectId;
+    await InventoryService.removeVariant(variant_id);
+    this.sendResponse(res, {
+      statusCode: HttpStatusCode.OK,
+      success: true,
+      message: "Variant removed successfully",
+      data: null,
+    });
+  });
 }
 
 export const InventoryController = new Controller();

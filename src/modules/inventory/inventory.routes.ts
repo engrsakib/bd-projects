@@ -38,4 +38,6 @@ router.patch(
   InventoryController.updateVariant
 );
 
+router.delete("/variant/:variant_id", InventoryController.removeVariant);
+
 export const InventoryRoutes = router;
