@@ -8,9 +8,7 @@ class Service {
       variant.barcode = BarcodeService.generateEAN13();
     }
 
-    const inventory = await InventoryModel.create(data);
-
-    return inventory;
+    await InventoryModel.create(data);
   }
 }
 
