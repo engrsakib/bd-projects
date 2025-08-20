@@ -15,20 +15,30 @@ const variantSchema = z.object({
 });
 
 const create = z.object({
-  body: z.object({
-    product: z
-      .string({ required_error: "Product ID is required" })
-      .min(1, "Product ID is required"),
-    attributes: z
-      .array(z.string())
-      .nonempty("At least one attribute is required"),
-    variants: z
-      .array(variantSchema)
-      .nonempty("At least one variant is required"),
-    location: z
-      .string({ required_error: "Location ID is required" })
-      .min(1, "Location ID is required"),
-  }),
+  body: z
+    .object({
+      product: z
+        .string({ required_error: "Product ID is required" })
+        .min(1, "Product ID is required"),
+      attributes: z
+        .array(z.string())
+        .nonempty("At least one attribute is required"),
+      variants: z
+        .array(variantSchema)
+        .nonempty("At least one variant is required"),
+      location: z
+        .string({ required_error: "Location ID is required" })
+        .min(1, "Location ID is required"),
+    })
+    .strict(),
 });
 
-export const inventoryValidations = { create };
+const update = z.object({
+  body: z
+    .object({
+      attributes: z.array(z.string()).optional(),
+    })
+    .strict(),
+});
+
+export const inventoryValidations = { create, update };
