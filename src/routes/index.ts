@@ -8,6 +8,7 @@ import { UserRoutes } from "@/modules/user/user.routes";
 import { locationRoutes } from "@/modules/location/location.routes";
 import { ProductRoutes } from "@/modules/product/product.routes";
 import { InventoryRoutes } from "@/modules/inventory/inventory.routes";
+import { UploadRoutes } from "@/modules/upload/upload.routes";
 const router = Router();
 
 const moduleRoutes = [
@@ -46,6 +47,10 @@ const moduleRoutes = [
   {
     path: "/inventory",
     route: InventoryRoutes,
+  },
+  {
+    path: "/upload",
+    route: UploadRoutes,
   },
 ];
 
