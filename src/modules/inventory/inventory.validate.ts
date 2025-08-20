@@ -25,9 +25,7 @@ const create = z.object({
       attributes: z
         .array(z.string())
         .nonempty("At least one attribute is required"),
-      variants: z
-        .array(variantSchema)
-        .nonempty("At least one variant is required"),
+      variants: z.array(variantSchema),
       location: z
         .string({ required_error: "Location ID is required" })
         .min(1, "Location ID is required"),

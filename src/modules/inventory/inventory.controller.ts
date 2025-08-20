@@ -90,6 +90,17 @@ class Controller extends BaseController {
       data: null,
     });
   });
+
+  updateVariant = this.catchAsync(async (req: Request, res: Response) => {
+    const variant_id = req.params.variant_id as unknown as Types.ObjectId;
+    await InventoryService.updateVariant(variant_id, req.body);
+    this.sendResponse(res, {
+      statusCode: HttpStatusCode.OK,
+      success: true,
+      message: "Variant updated successfully",
+      data: null,
+    });
+  });
 }
 
 export const InventoryController = new Controller();

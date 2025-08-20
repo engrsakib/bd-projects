@@ -167,6 +167,23 @@ class Service {
       throw new ApiError(HttpStatusCode.NOT_FOUND, "Inventory not found");
     }
   }
+
+  async updateVariant(variant_id: Types.ObjectId, data: Partial<IVariant>) {
+    const setData: Record<string, any> = {};
+    for (const [key, value] of Object.entries(data)) {
+      setData[`variants.$.${key}`] = value;
+    }
+
+    const updated = await InventoryModel.findOneAndUpdate(
+      { "variants._id": variant_id },
+      { $set: setData },
+      { new: true, runValidators: true }
+    );
+
+    if (!updated) {
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "Variant not found");
+    }
+  }
 }
 
 export const InventoryService = new Service();
