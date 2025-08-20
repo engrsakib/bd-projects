@@ -14,7 +14,7 @@ class Service {
   }
 
   async getAllInventories(
-    options: IPaginationOptions,
+    pagination: IPaginationOptions,
     filters: IInventoryFilters
   ) {
     const {
@@ -23,7 +23,7 @@ class Service {
       skip,
       sortBy = "createdAt",
       sortOrder = "desc",
-    } = paginationHelpers.calculatePagination(options);
+    } = paginationHelpers.calculatePagination(pagination);
 
     const {
       product,
@@ -31,7 +31,6 @@ class Service {
       attributes,
       sku,
       barcode,
-      attribute_values,
       regular_price_min,
       regular_price_max,
       sale_price_min,
@@ -62,12 +61,6 @@ class Service {
     }
     if (barcode) {
       variantConditions.push({ "variants.barcode": barcode });
-    }
-
-    if (attribute_values) {
-      for (const [key, value] of Object.entries(attribute_values)) {
-        variantConditions.push({ [`variants.attribute_values.${key}`]: value });
-      }
     }
 
     if (regular_price_min || regular_price_max) {
