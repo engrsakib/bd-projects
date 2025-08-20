@@ -34,8 +34,8 @@ const inventorySchema = new Schema<IInventory>(
       required: true,
     },
 
-    attributes: [{ type: String }],
-    variants: { type: [variantSchema], required: true },
+    attributes: { type: [String], required: true, min: 1 },
+    variants: { type: [variantSchema], required: true, min: 1 },
     location: {
       type: Schema.Types.ObjectId,
       ref: "location",
