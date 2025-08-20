@@ -4,7 +4,7 @@ import { InventoryService } from "./inventory.service";
 import { HttpStatusCode } from "@/lib/httpStatus";
 import pickQueries from "@/shared/pickQueries";
 import { paginationFields } from "@/constants/paginationFields";
-import { inventoryFilterableFields } from "./inventory.interface";
+import { inventoryFilterableFields } from "./inventory.constants";
 
 class Controller extends BaseController {
   create = this.catchAsync(async (req: Request, res: Response) => {
