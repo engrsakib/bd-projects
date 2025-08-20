@@ -21,7 +21,7 @@ const variantSchema = new Schema<IVariant>(
       index: true,
     },
     total_sold: { type: Number, default: 0 },
-    image: { type: String },
+    image: { type: String, default: "" },
   },
   schemaOptions
 );
