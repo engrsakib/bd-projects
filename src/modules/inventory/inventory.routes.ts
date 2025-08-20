@@ -15,4 +15,9 @@ router.get("/", InventoryController.getAllInventories);
 
 router.get("/product/:product_id", InventoryController.getInventoriesByProduct);
 
+router.get(
+  "/location/:location_id",
+  InventoryController.getInventoriesByLocation
+);
+
 export const InventoryRoutes = router;
