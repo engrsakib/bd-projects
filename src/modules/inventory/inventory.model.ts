@@ -17,6 +17,8 @@ const variantSchema = new Schema<IVariant>(
     barcode: {
       type: String,
       required: true,
+      unique: true,
+      index: true,
     },
     total_sold: { type: Number, default: 0 },
     image: { type: String },
