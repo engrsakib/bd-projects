@@ -32,6 +32,10 @@ router.post(
   InventoryController.addVariant
 );
 
-router.patch("/variant/:variant_id", InventoryController.updateVariant);
+router.patch(
+  "/variant/:variant_id",
+  validateRequest(inventoryValidations.updateVariant),
+  InventoryController.updateVariant
+);
 
 export const InventoryRoutes = router;

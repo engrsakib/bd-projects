@@ -45,4 +45,24 @@ const addVariant = z.object({
   body: variantSchema,
 });
 
-export const inventoryValidations = { create, update, addVariant };
+const updateVariant = z.object({
+  body: z
+    .object({
+      attribute_values: z.record(z.string(), z.string()).optional(),
+      regular_price: z.number().optional(),
+      sale_price: z.number().optional(),
+      buying_price: z.number().nullable().optional(),
+      sku: z.string().optional(),
+      available_quantity: z.number().int().optional(),
+      total_sold: z.number().int().optional(),
+      image: z.string().url("Image must be a valid URL").optional(),
+    })
+    .strict(),
+});
+
+export const inventoryValidations = {
+  create,
+  update,
+  addVariant,
+  updateVariant,
+};
