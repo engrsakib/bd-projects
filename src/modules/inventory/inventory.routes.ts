@@ -11,4 +11,6 @@ router.post(
   InventoryController.create
 );
 
+router.get("/", InventoryController.getAllInventories);
+
 export const InventoryRoutes = router;
