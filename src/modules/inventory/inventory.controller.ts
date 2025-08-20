@@ -50,6 +50,24 @@ class Controller extends BaseController {
       });
     }
   );
+
+  getInventoriesByLocation = this.catchAsync(
+    async (req: Request, res: Response) => {
+      const location_id = req.params.location_id as unknown as Types.ObjectId;
+      const result =
+        await InventoryService.getInventoriesByLocation(location_id);
+      this.sendResponse(res, {
+        statusCode:
+          result?.length > 0 ? HttpStatusCode.OK : HttpStatusCode.NOT_FOUND,
+        success: result?.length > 0 ? true : false,
+        message:
+          result?.length > 0
+            ? "Inventories retrieved successfully"
+            : "This location han no inventories",
+        data: result,
+      });
+    }
+  );
 }
 
 export const InventoryController = new Controller();

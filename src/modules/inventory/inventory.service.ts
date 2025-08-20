@@ -133,6 +133,17 @@ class Service {
 
     return result;
   }
+
+  async getInventoriesByLocation(location_id: Types.ObjectId) {
+    const result = await InventoryModel.find({
+      location: new Types.ObjectId(location_id),
+    })
+      .populate("product")
+      .populate("location")
+      .sort({ createdAt: -1 });
+
+    return result;
+  }
 }
 
 export const InventoryService = new Service();
