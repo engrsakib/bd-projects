@@ -3,6 +3,7 @@ import { IInventory, IInventoryFilters } from "./inventory.interface";
 import { InventoryModel } from "./inventory.model";
 import { IPaginationOptions } from "@/interfaces/pagination.interfaces";
 import { paginationHelpers } from "@/helpers/paginationHelpers";
+import { Types } from "mongoose";
 
 class Service {
   async create(data: IInventory) {
@@ -120,6 +121,17 @@ class Service {
       },
       data: result,
     };
+  }
+
+  async getInventoriesByProduct(product_id: Types.ObjectId) {
+    const result = await InventoryModel.find({
+      product: new Types.ObjectId(product_id),
+    })
+      .populate("product")
+      .populate("location")
+      .sort({ createdAt: -1 });
+
+    return result;
   }
 }
 

@@ -5,6 +5,7 @@ import { HttpStatusCode } from "@/lib/httpStatus";
 import pickQueries from "@/shared/pickQueries";
 import { paginationFields } from "@/constants/paginationFields";
 import { inventoryFilterableFields } from "./inventory.constants";
+import { Types } from "mongoose";
 
 class Controller extends BaseController {
   create = this.catchAsync(async (req: Request, res: Response) => {
@@ -32,6 +33,23 @@ class Controller extends BaseController {
       data: result,
     });
   });
+
+  getInventoriesByProduct = this.catchAsync(
+    async (req: Request, res: Response) => {
+      const product_id = req.params.product_id as unknown as Types.ObjectId;
+      const result = await InventoryService.getInventoriesByProduct(product_id);
+      this.sendResponse(res, {
+        statusCode:
+          result?.length > 0 ? HttpStatusCode.OK : HttpStatusCode.NOT_FOUND,
+        success: result?.length > 0 ? true : false,
+        message:
+          result?.length > 0
+            ? "Inventories retrieved successfully"
+            : "This product han no inventories",
+        data: result,
+      });
+    }
+  );
 }
 
 export const InventoryController = new Controller();

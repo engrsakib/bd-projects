@@ -13,4 +13,6 @@ router.post(
 
 router.get("/", InventoryController.getAllInventories);
 
+router.get("/product/:product_id", InventoryController.getInventoriesByProduct);
+
 export const InventoryRoutes = router;
