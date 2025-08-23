@@ -10,6 +10,7 @@ export const productSearchableFields = [
 export const productFilterableFields = [
   "stock",
   "category",
+  "subcategory",
   "search_query",
   "min_price",
   "max_price",

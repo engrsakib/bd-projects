@@ -86,6 +86,7 @@ class Service {
       search_query,
       stock,
       category,
+      subcategory,
       tags,
       max_price,
       min_price,
@@ -118,6 +119,12 @@ class Service {
     if (category && mongoose.isValidObjectId(category)) {
       andConditions.push({
         category: new mongoose.Types.ObjectId(category),
+      });
+    }
+
+    if (subcategory && mongoose.isValidObjectId(subcategory)) {
+      andConditions.push({
+        subcategory: new mongoose.Types.ObjectId(subcategory),
       });
     }
 
