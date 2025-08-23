@@ -5,6 +5,7 @@ import { HttpStatusCode } from "@/lib/httpStatus";
 import pickQueries from "@/shared/pickQueries";
 import { paginationFields } from "@/constants/paginationFields";
 import { Types } from "mongoose";
+import { productFilterableFields } from "./product.constants";
 
 class Controller extends BaseController {
   create = this.catchAsync(async (req: Request, res: Response) => {
@@ -19,10 +20,8 @@ class Controller extends BaseController {
 
   getAllProducts = this.catchAsync(async (req: Request, res: Response) => {
     const options = pickQueries(req.query, paginationFields);
-    const result = await ProductService.getAllProducts(
-      options,
-      req.query.search_query as string
-    );
+    const filters = pickQueries(req.query, productFilterableFields);
+    const result = await ProductService.getAllProducts(options, filters);
     this.sendResponse(res, {
       statusCode: HttpStatusCode.OK,
       success: true,

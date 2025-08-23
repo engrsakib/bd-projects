@@ -1,15 +1,16 @@
 import ApiError from "@/middlewares/error";
-import { IProduct } from "./product.interface";
+import { IProduct, IProductFilters } from "./product.interface";
 import { ProductModel } from "./product.model";
 import { HttpStatusCode } from "@/lib/httpStatus";
 import { SlugifyService } from "@/lib/slugify";
 import { IPaginationOptions } from "@/interfaces/pagination.interfaces";
 import { paginationHelpers } from "@/helpers/paginationHelpers";
-import { Types } from "mongoose";
+import mongoose, { Types } from "mongoose";
 import { emitter } from "@/events/eventEmitter";
 import { generateUniqueCode } from "@/utils/generateUniqueCode";
 import { VariantService } from "../variant/variant.service";
 import { IVariant } from "../variant/variant.interface";
+import { productSearchableFields } from "./product.constants";
 
 class Service {
   async create(data: IProduct): Promise<IProduct> {
@@ -62,41 +63,305 @@ class Service {
     }
   }
 
-  async getAllProducts(options: IPaginationOptions, search_query: string) {
-    const {
-      limit = 10,
-      page = 1,
-      skip,
-      sortBy = "createdAt",
-      sortOrder = "desc",
-    } = paginationHelpers.calculatePagination(options);
+  async getAllProducts(options: IPaginationOptions, filters: IProductFilters) {
+    // Start a session for transaction
+    const session = await ProductModel.startSession();
+    session.startTransaction();
 
-    const queries: any = {};
-    if (search_query) {
-      queries.$or = [{ name: { $regex: search_query, $options: "i" } }];
-    }
-
-    const result = await ProductModel.find({
-      ...queries,
-    })
-      .populate("category")
-      .populate("subcategory")
-      .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
-      .skip(skip)
-      .limit(limit)
-      .lean();
-
-    const total = await ProductModel.countDocuments(queries);
-
-    return {
-      meta: {
-        page,
+    try {
+      const {
         limit,
-        total,
-      },
-      data: result,
-    };
+        page,
+        skip,
+        sortBy = "createdAt",
+        sortOrder = "desc",
+      } = paginationHelpers.calculatePagination(options);
+      const {
+        search_query,
+        stock,
+        category,
+        tags,
+        max_price,
+        min_price,
+        color,
+        size,
+      } = filters;
+
+      // Build query conditions
+      const andConditions = [];
+
+      // Search query filter
+      if (search_query) {
+        andConditions.push({
+          $or: productSearchableFields.map((field: string) => {
+            if (field === "search_tags") {
+              return {
+                [field]: {
+                  $elemMatch: { $regex: search_query, $options: "i" },
+                },
+              };
+            }
+            return {
+              [field]: {
+                $regex: search_query,
+                $options: "i",
+              },
+            };
+          }),
+        });
+      }
+
+      // Filter by category ID
+      if (category && mongoose.isValidObjectId(category)) {
+        andConditions.push({
+          category: new mongoose.Types.ObjectId(category),
+        });
+      }
+
+      // Always show only published products
+      andConditions.push({
+        is_published: true,
+      });
+
+      // Tags filter
+      if (tags && Array.isArray(tags) && tags.length > 0) {
+        andConditions.push({
+          search_tags: { $in: tags },
+        });
+      }
+
+      const whereConditions =
+        andConditions.length > 0 ? { $and: andConditions } : {};
+
+      // Aggregation pipeline
+      const pipeline: any[] = [
+        { $match: whereConditions },
+        {
+          $lookup: {
+            from: "inventories",
+            localField: "_id",
+            foreignField: "product",
+            as: "inventory",
+          },
+        },
+        {
+          $unwind: {
+            path: "$inventory",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $unwind: {
+            path: "$inventory.variants",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $match: {
+            ...(color && {
+              "inventory.variants.attribute_values.Color": color,
+            }),
+            ...(size && { "inventory.variants.attribute_values.Size": size }),
+            ...(min_price !== undefined &&
+              !isNaN(min_price) && {
+                "inventory.variants.regular_price": { $gte: min_price },
+              }),
+            ...(max_price !== undefined &&
+              !isNaN(max_price) && {
+                "inventory.variants.regular_price": { $lte: max_price },
+              }),
+            ...(stock === "in" && {
+              "inventory.variants.available_quantity": { $gt: 0 },
+            }),
+            ...(stock === "out" && {
+              "inventory.variants.available_quantity": { $lte: 0 },
+            }),
+          },
+        },
+        {
+          $group: {
+            _id: {
+              productId: "$_id",
+              attribute_values: "$inventory.variants.attribute_values",
+            },
+            product: { $first: "$$ROOT" },
+            attributes: { $first: "$inventory.attributes" },
+            regular_price: { $last: "$inventory.variants.regular_price" },
+            sale_price: { $last: "$inventory.variants.sale_price" },
+            sku: { $last: "$inventory.variants.sku" },
+            barcode: { $last: "$inventory.variants.barcode" },
+            available_quantity: {
+              $sum: "$inventory.variants.available_quantity",
+            },
+            image: { $last: "$inventory.variants.image" },
+          },
+        },
+        {
+          $group: {
+            _id: "$_id.productId",
+            product: { $first: "$product" },
+            attributes: { $first: "$attributes" },
+            variants: {
+              $push: {
+                attribute_values: "$_id.attribute_values",
+                regular_price: "$regular_price",
+                sale_price: "$sale_price",
+                sku: "$sku",
+                barcode: "$barcode",
+                available_quantity: "$available_quantity",
+                queue_order_quantity: "$queue_order_quantity",
+                image: "$image",
+              },
+            },
+          },
+        },
+        {
+          $replaceRoot: {
+            newRoot: {
+              $mergeObjects: [
+                "$product",
+                {
+                  attributes: "$attributes",
+                  variants: "$variants",
+                },
+              ],
+            },
+          },
+        },
+        {
+          $match: {
+            attributes: { $ne: null, $not: { $size: 0 } },
+            variants: {
+              $elemMatch: {
+                attribute_values: { $ne: null },
+                regular_price: { $ne: null },
+                sale_price: { $ne: null },
+                sku: { $ne: null },
+                barcode: { $ne: null },
+                available_quantity: { $gt: 0 },
+              },
+            },
+          },
+        },
+        {
+          $lookup: {
+            from: "categories",
+            localField: "category",
+            foreignField: "_id",
+            as: "category",
+          },
+        },
+        { $unwind: { path: "$category", preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: "subcategories",
+            localField: "subcategory",
+            foreignField: "_id",
+            as: "subcategory",
+          },
+        },
+        { $unwind: { path: "$subcategory", preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            _id: 1,
+            name: 1,
+            slug: 1,
+            description: 1,
+            thumbnail: 1,
+            category: 1,
+            subcategory: 1,
+            is_published: 1,
+            search_tags: 1,
+            min_order_qty: 1,
+            max_order_qty: 1,
+            total_sold: 1,
+            approximately_delivery_time: 1,
+            is_free_delivery: 1,
+            coin_per_order: 1,
+            shipping_cost: 1,
+            shipping_cost_per_unit: 1,
+            warranty: 1,
+            return_policy: 1,
+            total_rating: 1,
+            offer_tags: 1,
+            reviews: 1,
+            createdAt: 1,
+            updatedAt: 1,
+            attributes: 1,
+            variants: {
+              $cond: {
+                if: { $isArray: "$variants" },
+                then: "$variants",
+                else: [],
+              },
+            },
+          },
+        },
+        { $sort: { [sortBy]: sortOrder === "asc" ? 1 : -1 } },
+        { $skip: skip },
+        { $limit: limit },
+        { $sample: { size: Number.MAX_SAFE_INTEGER } },
+      ];
+
+      // Execute aggregation
+      const result = await ProductModel.aggregate(pipeline).session(session);
+
+      // Get total count of products (before pagination)
+      const total =
+        await ProductModel.countDocuments(whereConditions).session(session);
+
+      await session.commitTransaction();
+      return {
+        meta: {
+          page,
+          limit,
+          total,
+        },
+        data: result,
+      };
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
   }
+
+  // async getAllProducts(options: IPaginationOptions, search_query: string) {
+  //   const {
+  //     limit = 10,
+  //     page = 1,
+  //     skip,
+  //     sortBy = "createdAt",
+  //     sortOrder = "desc",
+  //   } = paginationHelpers.calculatePagination(options);
+
+  //   const queries: any = {};
+  //   if (search_query) {
+  //     queries.$or = [{ name: { $regex: search_query, $options: "i" } }];
+  //   }
+
+  //   const result = await ProductModel.find({
+  //     ...queries,
+  //   })
+  //     .populate("category")
+  //     .populate("subcategory")
+  //     .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
+  //     .skip(skip)
+  //     .limit(limit)
+  //     .lean();
+
+  //   const total = await ProductModel.countDocuments(queries);
+
+  //   return {
+  //     meta: {
+  //       page,
+  //       limit,
+  //       total,
+  //     },
+  //     data: result,
+  //   };
+  // }
 
   async getAllPublishedProducts(
     options: IPaginationOptions,

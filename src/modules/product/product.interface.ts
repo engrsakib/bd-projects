@@ -59,7 +59,10 @@ export type IProduct = {
 export type IProductFilters = {
   stock?: "in" | "out";
   category?: string;
+  search_query?: string;
   min_price?: number;
   max_price?: number;
-  is_published?: boolean;
+  tags?: string[];
+  color?: string;
+  size?: string;
 };
