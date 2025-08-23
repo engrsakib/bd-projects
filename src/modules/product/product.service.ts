@@ -75,267 +75,235 @@ class Service {
   }
 
   async getAllProducts(options: IPaginationOptions, filters: IProductFilters) {
-    // Start a session for transaction
-    const session = await ProductModel.startSession();
-    session.startTransaction();
+    const {
+      limit = 10,
+      page = 1,
+      skip,
+      sortBy = "createdAt",
+      sortOrder = "desc",
+    } = paginationHelpers.calculatePagination(options);
+    const {
+      search_query,
+      stock,
+      category,
+      tags,
+      max_price,
+      min_price,
+      color,
+      size,
+    } = filters;
 
-    try {
-      const {
-        limit,
-        page,
-        skip,
-        sortBy = "createdAt",
-        sortOrder = "desc",
-      } = paginationHelpers.calculatePagination(options);
-      const {
-        search_query,
-        stock,
-        category,
-        tags,
-        max_price,
-        min_price,
-        color,
-        size,
-      } = filters;
+    const andConditions = [];
 
-      // Build query conditions
-      const andConditions = [];
-
-      // Search query filter
-      if (search_query) {
-        andConditions.push({
-          $or: productSearchableFields.map((field: string) => {
-            if (field === "search_tags") {
-              return {
-                [field]: {
-                  $elemMatch: { $regex: search_query, $options: "i" },
-                },
-              };
-            }
+    if (search_query) {
+      andConditions.push({
+        $or: productSearchableFields.map((field: string) => {
+          if (field === "search_tags") {
             return {
               [field]: {
-                $regex: search_query,
-                $options: "i",
+                $elemMatch: { $regex: search_query, $options: "i" },
               },
             };
-          }),
-        });
-      }
-
-      // Filter by category ID
-      if (category && mongoose.isValidObjectId(category)) {
-        andConditions.push({
-          category: new mongoose.Types.ObjectId(category),
-        });
-      }
-
-      // Always show only published products
-      andConditions.push({
-        is_published: true,
+          }
+          return {
+            [field]: {
+              $regex: search_query,
+              $options: "i",
+            },
+          };
+        }),
       });
-
-      // Tags filter
-      if (tags && Array.isArray(tags) && tags.length > 0) {
-        andConditions.push({
-          search_tags: { $in: tags },
-        });
-      }
-
-      const whereConditions =
-        andConditions.length > 0 ? { $and: andConditions } : {};
-
-      // Aggregation pipeline
-      const pipeline: any[] = [
-        { $match: whereConditions },
-        {
-          $lookup: {
-            from: "inventories",
-            localField: "_id",
-            foreignField: "product",
-            as: "inventory",
-          },
-        },
-        {
-          $unwind: {
-            path: "$inventory",
-            preserveNullAndEmptyArrays: true,
-          },
-        },
-        {
-          $unwind: {
-            path: "$inventory.variants",
-            preserveNullAndEmptyArrays: true,
-          },
-        },
-        {
-          $match: {
-            ...(color && {
-              "inventory.variants.attribute_values.Color": color,
-            }),
-            ...(size && { "inventory.variants.attribute_values.Size": size }),
-            ...(min_price !== undefined &&
-              !isNaN(min_price) && {
-                "inventory.variants.regular_price": { $gte: min_price },
-              }),
-            ...(max_price !== undefined &&
-              !isNaN(max_price) && {
-                "inventory.variants.regular_price": { $lte: max_price },
-              }),
-            ...(stock === "in" && {
-              "inventory.variants.available_quantity": { $gt: 0 },
-            }),
-            ...(stock === "out" && {
-              "inventory.variants.available_quantity": { $lte: 0 },
-            }),
-          },
-        },
-        {
-          $group: {
-            _id: {
-              productId: "$_id",
-              attribute_values: "$inventory.variants.attribute_values",
-            },
-            product: { $first: "$$ROOT" },
-            attributes: { $first: "$inventory.attributes" },
-            regular_price: { $last: "$inventory.variants.regular_price" },
-            sale_price: { $last: "$inventory.variants.sale_price" },
-            sku: { $last: "$inventory.variants.sku" },
-            barcode: { $last: "$inventory.variants.barcode" },
-            available_quantity: {
-              $sum: "$inventory.variants.available_quantity",
-            },
-            image: { $last: "$inventory.variants.image" },
-          },
-        },
-        {
-          $group: {
-            _id: "$_id.productId",
-            product: { $first: "$product" },
-            attributes: { $first: "$attributes" },
-            variants: {
-              $push: {
-                attribute_values: "$_id.attribute_values",
-                regular_price: "$regular_price",
-                sale_price: "$sale_price",
-                sku: "$sku",
-                barcode: "$barcode",
-                available_quantity: "$available_quantity",
-                queue_order_quantity: "$queue_order_quantity",
-                image: "$image",
-              },
-            },
-          },
-        },
-        {
-          $replaceRoot: {
-            newRoot: {
-              $mergeObjects: [
-                "$product",
-                {
-                  attributes: "$attributes",
-                  variants: "$variants",
-                },
-              ],
-            },
-          },
-        },
-        {
-          $match: {
-            attributes: { $ne: null, $not: { $size: 0 } },
-            variants: {
-              $elemMatch: {
-                attribute_values: { $ne: null },
-                regular_price: { $ne: null },
-                sale_price: { $ne: null },
-                sku: { $ne: null },
-                barcode: { $ne: null },
-                available_quantity: { $gt: 0 },
-              },
-            },
-          },
-        },
-        {
-          $lookup: {
-            from: "categories",
-            localField: "category",
-            foreignField: "_id",
-            as: "category",
-          },
-        },
-        { $unwind: { path: "$category", preserveNullAndEmptyArrays: true } },
-        {
-          $lookup: {
-            from: "subcategories",
-            localField: "subcategory",
-            foreignField: "_id",
-            as: "subcategory",
-          },
-        },
-        { $unwind: { path: "$subcategory", preserveNullAndEmptyArrays: true } },
-        {
-          $project: {
-            _id: 1,
-            name: 1,
-            slug: 1,
-            description: 1,
-            thumbnail: 1,
-            category: 1,
-            subcategory: 1,
-            is_published: 1,
-            search_tags: 1,
-            min_order_qty: 1,
-            max_order_qty: 1,
-            total_sold: 1,
-            approximately_delivery_time: 1,
-            is_free_delivery: 1,
-            coin_per_order: 1,
-            shipping_cost: 1,
-            shipping_cost_per_unit: 1,
-            warranty: 1,
-            return_policy: 1,
-            total_rating: 1,
-            offer_tags: 1,
-            reviews: 1,
-            createdAt: 1,
-            updatedAt: 1,
-            attributes: 1,
-            variants: {
-              $cond: {
-                if: { $isArray: "$variants" },
-                then: "$variants",
-                else: [],
-              },
-            },
-          },
-        },
-        { $sort: { [sortBy]: sortOrder === "asc" ? 1 : -1 } },
-        { $skip: skip },
-        { $limit: limit },
-        { $sample: { size: Number.MAX_SAFE_INTEGER } },
-      ];
-
-      // Execute aggregation
-      const result = await ProductModel.aggregate(pipeline).session(session);
-
-      // Get total count of products (before pagination)
-      const total =
-        await ProductModel.countDocuments(whereConditions).session(session);
-
-      await session.commitTransaction();
-      return {
-        meta: {
-          page,
-          limit,
-          total,
-        },
-        data: result,
-      };
-    } catch (error) {
-      await session.abortTransaction();
-      throw error;
-    } finally {
-      session.endSession();
     }
+
+    if (category && mongoose.isValidObjectId(category)) {
+      andConditions.push({
+        category: new mongoose.Types.ObjectId(category),
+      });
+    }
+
+    // Always show only published products
+    andConditions.push({
+      is_published: true,
+    });
+
+    if (tags && Array.isArray(tags) && tags.length > 0) {
+      andConditions.push({
+        search_tags: { $in: tags },
+      });
+    }
+
+    const whereConditions =
+      andConditions.length > 0 ? { $and: andConditions } : {};
+
+    const pipeline: any[] = [
+      { $match: whereConditions },
+
+      // ===== inventory queries will perform in future =====
+      // {
+      //   $lookup: {
+      //     from: "inventories",
+      //     localField: "_id",
+      //     foreignField: "product",
+      //     as: "inventory",
+      //   },
+      // },
+
+      {
+        $lookup: {
+          from: "variants",
+          localField: "variants",
+          foreignField: "_id",
+          as: "populated_variants",
+        },
+      },
+
+      {
+        $addFields: {
+          filtered_variants: {
+            $cond: {
+              if: {
+                $or: [
+                  { $ne: [color, null] },
+                  { $ne: [size, null] },
+                  { $ne: [min_price, null] },
+                  { $ne: [max_price, null] },
+                  { $ne: [stock, null] },
+                ],
+              },
+              then: {
+                $filter: {
+                  input: "$populated_variants",
+                  as: "variant",
+                  cond: {
+                    $and: [
+                      ...(color
+                        ? [
+                            {
+                              $eq: [
+                                {
+                                  $ifNull: [
+                                    "$$variant.attribute_values.Color",
+                                    "",
+                                  ],
+                                },
+                                color,
+                              ],
+                            },
+                          ]
+                        : []),
+                      ...(size
+                        ? [
+                            {
+                              $eq: [
+                                {
+                                  $ifNull: [
+                                    "$$variant.attribute_values.Size",
+                                    "",
+                                  ],
+                                },
+                                size,
+                              ],
+                            },
+                          ]
+                        : []),
+                      ...(min_price
+                        ? [{ $gte: ["$$variant.regular_price", min_price] }]
+                        : []),
+                      ...(max_price
+                        ? [{ $lte: ["$$variant.regular_price", max_price] }]
+                        : []),
+                      ...(stock === "in"
+                        ? [{ $gt: ["$$variant.available_quantity", 0] }]
+                        : []),
+                      ...(stock === "out"
+                        ? [{ $lte: ["$$variant.available_quantity", 0] }]
+                        : []),
+                    ],
+                  },
+                },
+              },
+              else: "$populated_variants",
+            },
+          },
+        },
+      },
+
+      {
+        $match: {
+          is_published: true,
+          $or: [
+            { filtered_variants: { $exists: true, $ne: [] } },
+            { populated_variants: { $exists: true, $ne: [] } },
+          ],
+        },
+      },
+
+      {
+        $lookup: {
+          from: "categories",
+          localField: "category",
+          foreignField: "_id",
+          as: "category",
+        },
+      },
+      { $unwind: { path: "$category", preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: "subcategories",
+          localField: "subcategory",
+          foreignField: "_id",
+          as: "subcategory",
+        },
+      },
+      { $unwind: { path: "$subcategory", preserveNullAndEmptyArrays: true } },
+
+      {
+        $project: {
+          _id: 1,
+          name: 1,
+          slug: 1,
+          description: 1,
+          thumbnail: 1,
+          category: 1,
+          subcategory: 1,
+          is_published: 1,
+          search_tags: 1,
+          min_order_qty: 1,
+          max_order_qty: 1,
+          total_sold: 1,
+          approximately_delivery_time: 1,
+          is_free_delivery: 1,
+          coin_per_order: 1,
+          shipping_cost: 1,
+          shipping_cost_per_unit: 1,
+          warranty: 1,
+          return_policy: 1,
+          total_rating: 1,
+          offer_tags: 1,
+          createdAt: 1,
+          updatedAt: 1,
+          attributes: "$inventory.attributes",
+          variants: "$filtered_variants",
+        },
+      },
+
+      { $sort: { [sortBy]: sortOrder === "asc" ? 1 : -1 } },
+      { $skip: skip },
+      { $limit: limit },
+    ];
+
+    const result = await ProductModel.aggregate(pipeline);
+
+    const total = await ProductModel.countDocuments(whereConditions);
+
+    return {
+      meta: {
+        page,
+        limit,
+        total,
+      },
+      data: result,
+    };
   }
 
   // async getAllProducts(options: IPaginationOptions, search_query: string) {
