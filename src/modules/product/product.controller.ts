@@ -6,6 +6,7 @@ import pickQueries from "@/shared/pickQueries";
 import { paginationFields } from "@/constants/paginationFields";
 import { Types } from "mongoose";
 import { productFilterableFields } from "./product.constants";
+import ApiError from "@/middlewares/error";
 
 class Controller extends BaseController {
   create = this.catchAsync(async (req: Request, res: Response) => {
@@ -48,11 +49,12 @@ class Controller extends BaseController {
   );
 
   getProductsByIds = this.catchAsync(async (req: Request, res: Response) => {
-    // get ids from query as comma separated string
+    if (!req.query.ids) {
+      throw new ApiError(HttpStatusCode.BAD_REQUEST, "Product IDs missing");
+    }
     const ids = (req.query.ids as string)
       .split(",")
       .map((id) => new Types.ObjectId(id.trim()));
-    console.log({ raw: req.query.ids, parsed: ids });
     const result = await ProductService.getProductsByIds(ids);
     this.sendResponse(res, {
       statusCode: HttpStatusCode.OK,
