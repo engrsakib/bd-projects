@@ -494,6 +494,7 @@ class Service {
     const product = await ProductModel.findById(id)
       .populate("category")
       .populate("subcategory")
+      .populate("variants")
       .lean();
 
     if (!product) {
@@ -504,9 +505,10 @@ class Service {
   }
 
   async getBySlug(slug: string) {
-    const product = await ProductModel.findOne({ slug })
+    const product = await ProductModel.findOne({ slug, is_published: true })
       .populate("category")
       .populate("subcategory")
+      .populate("variants")
       .lean();
 
     if (!product) {
