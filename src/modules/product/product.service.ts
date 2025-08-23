@@ -313,6 +313,166 @@ class Service {
     };
   }
 
+  async getAllProductsForAdmin(
+    options: IPaginationOptions,
+    filters: IProductFilters,
+    randomize: boolean = false
+  ) {
+    const {
+      limit,
+      page,
+      skip,
+      sortBy = "createdAt",
+      sortOrder = "desc",
+    } = paginationHelpers.calculatePagination(options);
+
+    const {
+      search_query,
+      category,
+      subcategory,
+      tags,
+      is_published,
+      location,
+      sku,
+    } = filters;
+
+    const andConditions: any[] = [];
+
+    if (search_query) {
+      andConditions.push({
+        $or: productSearchableFields.map((field: string) => {
+          if (field === "search_tags") {
+            return {
+              [field]: {
+                $elemMatch: { $regex: search_query, $options: "i" },
+              },
+            };
+          }
+          return { [field]: { $regex: search_query, $options: "i" } };
+        }),
+      });
+    }
+
+    if (category && mongoose.isValidObjectId(category)) {
+      andConditions.push({
+        category: new mongoose.Types.ObjectId(category),
+      });
+    }
+
+    if (subcategory && mongoose.isValidObjectId(subcategory)) {
+      andConditions.push({
+        subcategory: new mongoose.Types.ObjectId(subcategory),
+      });
+    }
+
+    if (is_published !== undefined) {
+      andConditions.push({ is_published });
+    }
+
+    if (tags && Array.isArray(tags) && tags.length > 0) {
+      andConditions.push({ search_tags: { $in: tags } });
+    }
+
+    const matcher: any =
+      andConditions.length > 0 ? { $and: andConditions } : {};
+
+    if (sku) {
+      matcher.sku = { $regex: sku, $options: "i" };
+    }
+
+    const pipeline: any[] = [
+      {
+        $lookup: {
+          from: "variants",
+          localField: "_id",
+          foreignField: "product",
+          as: "variants",
+        },
+      },
+
+      {
+        $lookup: {
+          from: "stocks",
+          let: { productId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ["$product", "$$productId"] },
+              },
+            },
+            {
+              $lookup: {
+                from: "locations",
+                localField: "location",
+                foreignField: "_id",
+                as: "location",
+              },
+            },
+          ],
+          as: "stocks",
+        },
+      },
+
+      // ✅ Apply location filter AFTER lookup
+      ...(location && mongoose.isValidObjectId(location)
+        ? [
+            {
+              $match: {
+                "stocks.location._id": new mongoose.Types.ObjectId(location),
+              },
+            },
+          ]
+        : []),
+
+      // Category
+      {
+        $lookup: {
+          from: "categories",
+          localField: "category",
+          foreignField: "_id",
+          as: "category",
+        },
+      },
+      { $unwind: { path: "$category", preserveNullAndEmptyArrays: true } },
+
+      // Subcategory
+      {
+        $lookup: {
+          from: "subcategories",
+          localField: "subcategory",
+          foreignField: "_id",
+          as: "subcategory",
+        },
+      },
+      { $unwind: { path: "$subcategory", preserveNullAndEmptyArrays: true } },
+      { $sort: { createdAt: -1 } },
+      // Randomize (if enabled)
+      ...(randomize ? [{ $sample: { size: limit } }] : []),
+
+      // Sort + Paginate
+      { $sort: { [sortBy]: sortOrder === "asc" ? 1 : -1 } },
+      ...(randomize ? [] : [{ $skip: skip }, { $limit: limit }]),
+    ];
+
+    const [agg] = await ProductModel.aggregate([
+      { $match: matcher },
+      {
+        $facet: {
+          data: [...pipeline, { $sort: { createdAt: -1 } }],
+          total: [{ $count: "total" }],
+        },
+      },
+    ]);
+
+    const data = agg?.data ?? [];
+    const total = agg?.total?.[0]?.total ?? 0;
+
+    return {
+      meta: { page, limit, total },
+      data,
+    };
+  }
+
   // async getAllProducts(options: IPaginationOptions, search_query: string) {
   //   const {
   //     limit = 10,

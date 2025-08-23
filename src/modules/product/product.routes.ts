@@ -16,9 +16,9 @@ router.post(
   ProductController.create
 );
 
-router.get("/", ProductController.getAllProducts);
+router.get("/published", ProductController.getAllProducts);
 
-router.get("/published", ProductController.getAllPublishedProducts);
+router.get("/", ProductController.getAllProductsForAdmin);
 
 router.get("/by-ids", ProductController.getProductsByIds);
 

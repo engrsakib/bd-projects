@@ -7,13 +7,11 @@ export type ISocialLink = {
 };
 
 export type IProduct = {
-  // Basic Info
   name: string;
   slug: string;
   description: string;
   sku: string;
 
-  // Images
   thumbnail: string;
   slider_images?: string[];
 
@@ -66,4 +64,7 @@ export type IProductFilters = {
   tags?: string[];
   color?: string;
   size?: string;
+  is_published?: boolean;
+  location?: string;
+  sku?: string;
 };

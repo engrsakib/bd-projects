@@ -25,22 +25,23 @@ class Controller extends BaseController {
     this.sendResponse(res, {
       statusCode: HttpStatusCode.OK,
       success: true,
-      message: "Products retrieved successfully",
+      message: "Published products retrieved successfully",
       data: result,
     });
   });
 
-  getAllPublishedProducts = this.catchAsync(
+  getAllProductsForAdmin = this.catchAsync(
     async (req: Request, res: Response) => {
       const options = pickQueries(req.query, paginationFields);
-      const result = await ProductService.getAllPublishedProducts(
+      const filters = pickQueries(req.query, productFilterableFields);
+      const result = await ProductService.getAllProductsForAdmin(
         options,
-        req.query.search_query as string
+        filters
       );
       this.sendResponse(res, {
         statusCode: HttpStatusCode.OK,
         success: true,
-        message: "Published products retrieved successfully",
+        message: "Products retrieved successfully",
         data: result,
       });
     }
