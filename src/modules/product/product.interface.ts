@@ -1,5 +1,19 @@
 import { Types } from "mongoose";
 
+export type IVariant = {
+  attributes: string[];
+  attribute_values: {
+    [key: string]: string;
+  };
+  regular_price: number;
+  sale_price: number;
+  buying_price?: number;
+  sku: string;
+  barcode: string;
+  image?: string;
+  product: Types.ObjectId;
+};
+
 export type ISocialLink = {
   name: string;
   url: string;
@@ -10,6 +24,7 @@ export type IProduct = {
   name: string;
   slug: string;
   description: string;
+  sku: string;
 
   // Images
   thumbnail: string;
@@ -18,6 +33,8 @@ export type IProduct = {
   // Category Reference
   category: Types.ObjectId;
   subcategory: Types.ObjectId;
+  sale_channels: { pos: boolean; website: boolean };
+  variants?: IVariant[];
 
   // Stock & Order Constraints
   min_order_qty?: number;
@@ -44,4 +61,20 @@ export type IProduct = {
 
   // Visibility
   is_published?: boolean;
+
+  // ratings
+  ratings: {
+    total: number;
+    average: number;
+  };
 };
+
+export interface IFilterRequest {
+  searchQuery?: string;
+  stock?: "in" | "out";
+  categoryId?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  tags?: string[];
+  isPublished?: boolean;
+}
