@@ -9,18 +9,19 @@ import mongoose, { Types } from "mongoose";
 import { emitter } from "@/events/eventEmitter";
 import { generateUniqueCode } from "@/utils/generateUniqueCode";
 import { VariantService } from "../variant/variant.service";
-import { IVariant } from "../variant/variant.interface";
 import { productSearchableFields } from "./product.constants";
+import { IVariant } from "../variant/variant.interface";
 
 class Service {
   async create(data: IProduct): Promise<IProduct> {
+    const { variants = [], ...rest } = data;
     // Start a session for transaction
     const session = await ProductModel.startSession();
     session.startTransaction();
 
     try {
-      if (data.name) {
-        const baseSlug = SlugifyService.generateSlug(data.name);
+      if (rest.name) {
+        const baseSlug = SlugifyService.generateSlug(rest.name);
         let slug: string = "";
         let exists = true;
 
@@ -31,24 +32,34 @@ class Service {
           exists = existProduct ? true : false;
         }
 
-        data.slug = slug;
+        rest.slug = slug;
       }
 
       //  ======== also need to generate SKU code from system ===========
 
-      const product = await ProductModel.create([data], {
+      const product = await ProductModel.create([rest], {
         session,
       }).then((res) => res[0]);
 
-      const variants = (data.variants || []) as IVariant[];
       if (variants && variants.length > 0) {
+        //  add product id
+        variants.forEach((variant: any) => {
+          variant.product = product._id as Types.ObjectId;
+        });
         // save all variants and get their ids
-        const newVariants = await VariantService.createMany(variants, session);
+        const newVariants = await VariantService.createMany(
+          variants as IVariant[],
+          session
+        );
+        console.log({ newVariants });
         const newVariantIds = newVariants.map(
           (variant) => variant._id
         ) as Types.ObjectId[];
+        console.log({ newVariantIds });
         product.variants = newVariantIds;
       }
+      // save the product with variants ids
+      await product.save({ session });
 
       await session.commitTransaction();
       return product;

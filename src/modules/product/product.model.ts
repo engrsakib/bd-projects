@@ -72,7 +72,10 @@ const productSchema = new Schema<IProduct>(
 
     // ===== Social Links =====
     social_links: { type: [socialLinkSchema], default: [] },
-
+    ratings: {
+      total: { type: Number, default: 0 },
+      average: { type: Number, default: 0 },
+    },
     // Visibility
     is_published: { type: Boolean, default: false },
   },

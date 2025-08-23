@@ -7,11 +7,12 @@ const router = Router();
 
 router.post(
   "/",
-  upload.fields([
-    { name: "thumbnail", maxCount: 1 },
-    { name: "slider_images", maxCount: 5 },
-  ]),
-  ProductMiddleware.uploadImages,
+  // now we are not receiving images. Direct images urls
+  // upload.fields([
+  //   { name: "thumbnail", maxCount: 1 },
+  //   { name: "slider_images", maxCount: 5 },
+  // ]),
+  // ProductMiddleware.uploadImages,
   ProductController.create
 );
 
