@@ -7,21 +7,59 @@ import { IPaginationOptions } from "@/interfaces/pagination.interfaces";
 import { paginationHelpers } from "@/helpers/paginationHelpers";
 import { Types } from "mongoose";
 import { emitter } from "@/events/eventEmitter";
+import { generateUniqueCode } from "@/utils/generateUniqueCode";
+import { VariantService } from "../variant/variant.service";
+import { IVariant } from "../variant/variant.interface";
 
 class Service {
-  async create(data: IProduct) {
-    const isExist = await ProductModel.findOne({ name: data.name });
-    if (isExist) {
+  async create(data: IProduct): Promise<IProduct> {
+    // Start a session for transaction
+    const session = await ProductModel.startSession();
+    session.startTransaction();
+
+    try {
+      if (data.name) {
+        const baseSlug = SlugifyService.generateSlug(data.name);
+        let slug: string = "";
+        let exists = true;
+
+        while (exists) {
+          const uniqueCode = generateUniqueCode();
+          slug = `${baseSlug}-${uniqueCode}`;
+          const existProduct = await ProductModel.findOne({ slug });
+          exists = existProduct ? true : false;
+        }
+
+        data.slug = slug;
+      }
+
+      //  ======== also need to generate SKU code from system ===========
+
+      const product = await ProductModel.create([data], {
+        session,
+      }).then((res) => res[0]);
+
+      const variants = (data.variants || []) as IVariant[];
+      if (variants && variants.length > 0) {
+        // save all variants and get their ids
+        const newVariants = await VariantService.createMany(variants, session);
+        const newVariantIds = newVariants.map(
+          (variant) => variant._id
+        ) as Types.ObjectId[];
+        product.variants = newVariantIds;
+      }
+
+      await session.commitTransaction();
+      return product;
+    } catch (error) {
+      await session.abortTransaction();
       throw new ApiError(
-        HttpStatusCode.CONFLICT,
-        "Product already exist with this name. Please choose a different name."
+        HttpStatusCode.INTERNAL_SERVER_ERROR,
+        "Failed to create product"
       );
+    } finally {
+      session.endSession();
     }
-
-    // generate slug from name
-    data.slug = SlugifyService.generateSlug(data.name);
-
-    await ProductModel.create(data);
   }
 
   async getAllProducts(options: IPaginationOptions, search_query: string) {

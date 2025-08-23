@@ -8,12 +8,12 @@ import { Types } from "mongoose";
 
 class Controller extends BaseController {
   create = this.catchAsync(async (req: Request, res: Response) => {
-    await ProductService.create(req.body);
+    const result = await ProductService.create(req.body);
     this.sendResponse(res, {
       statusCode: HttpStatusCode.CREATED,
       success: true,
       message: "Product created successfully",
-      data: null,
+      data: result,
     });
   });
 
