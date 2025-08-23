@@ -47,6 +47,21 @@ class Controller extends BaseController {
     }
   );
 
+  getProductsByIds = this.catchAsync(async (req: Request, res: Response) => {
+    // get ids from query as comma separated string
+    const ids = (req.query.ids as string)
+      .split(",")
+      .map((id) => new Types.ObjectId(id.trim()));
+    console.log({ raw: req.query.ids, parsed: ids });
+    const result = await ProductService.getProductsByIds(ids);
+    this.sendResponse(res, {
+      statusCode: HttpStatusCode.OK,
+      success: true,
+      message: "Products retrieved successfully",
+      data: result,
+    });
+  });
+
   getById = this.catchAsync(async (req: Request, res: Response) => {
     const id = req.params.id as unknown as Types.ObjectId;
     const result = await ProductService.getById(id);

@@ -103,6 +103,22 @@ class Service {
     };
   }
 
+  async getProductsByIds(ids: Types.ObjectId[]) {
+    const products = await ProductModel.find({
+      _id: { $in: ids },
+      is_published: true,
+    })
+      .populate("category")
+      .populate("subcategory")
+      .lean();
+
+    if (!products || products.length === 0) {
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "Products were not found");
+    }
+
+    return products;
+  }
+
   async getById(id: Types.ObjectId) {
     const product = await ProductModel.findById(id)
       .populate("category")

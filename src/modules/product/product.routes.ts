@@ -19,6 +19,8 @@ router.get("/", ProductController.getAllProducts);
 
 router.get("/published", ProductController.getAllPublishedProducts);
 
+router.get("/by-ids", ProductController.getProductsByIds);
+
 router.get("/:id", ProductController.getById);
 
 router.get("/slug/:slug", ProductController.getBySlug);
