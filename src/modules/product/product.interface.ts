@@ -1,19 +1,5 @@
 import { Types, Document } from "mongoose";
 
-export type IVariant = {
-  attributes: string[];
-  attribute_values: {
-    [key: string]: string;
-  };
-  regular_price: number;
-  sale_price: number;
-  buying_price?: number;
-  sku: string;
-  barcode: string;
-  image?: string;
-  product: Types.ObjectId;
-};
-
 export type ISocialLink = {
   name: string;
   url: string;
@@ -33,7 +19,7 @@ export type IProduct = {
   // Category Reference
   category: Types.ObjectId;
   subcategory: Types.ObjectId;
-  variants?: IVariant[];
+  variants?: Types.ObjectId[];
   sale_channels: { pos: boolean; website: boolean };
 
   // Stock & Order Constraints

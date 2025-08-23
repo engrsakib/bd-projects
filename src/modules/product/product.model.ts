@@ -1,33 +1,6 @@
 import { model, Schema } from "mongoose";
-import { IProduct, ISocialLink, IVariant } from "./product.interface";
+import { IProduct, ISocialLink } from "./product.interface";
 import { schemaOptions } from "@/utils/schemaOptions";
-
-const variantSchema = new Schema<IVariant>(
-  {
-    attributes: { type: [String], required: true },
-    attribute_values: { type: Map, of: String, required: true },
-    regular_price: { type: Number, required: true },
-    sale_price: { type: Number, required: true },
-    buying_price: { type: Number, default: 0 },
-    sku: {
-      type: String,
-      required: true,
-      unique: true,
-      lowercase: true,
-      trim: true,
-    },
-    barcode: {
-      type: String,
-      required: true,
-      unique: true,
-      lowercase: true,
-      trim: true,
-    },
-    image: { type: String },
-    product: { type: Schema.Types.ObjectId, ref: "Product", required: true },
-  },
-  schemaOptions
-);
 
 // ===== Social Link Schema =====
 const socialLinkSchema = new Schema<ISocialLink>(
@@ -75,7 +48,7 @@ const productSchema = new Schema<IProduct>(
       ref: "Subcategory",
     },
 
-    variants: { type: [variantSchema], default: [] },
+    variants: { type: [Schema.Types.ObjectId], ref: "Variant", default: [] },
 
     // Stock & Order Constraints
     min_order_qty: { type: Number, default: 0 },
