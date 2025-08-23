@@ -1,4 +1,4 @@
-import { Types } from "mongoose";
+import { Types, Document } from "mongoose";
 
 export type IVariant = {
   attributes: string[];
@@ -33,8 +33,8 @@ export type IProduct = {
   // Category Reference
   category: Types.ObjectId;
   subcategory: Types.ObjectId;
-  sale_channels: { pos: boolean; website: boolean };
   variants?: IVariant[];
+  sale_channels: { pos: boolean; website: boolean };
 
   // Stock & Order Constraints
   min_order_qty?: number;
@@ -57,7 +57,7 @@ export type IProduct = {
   offer_tags?: string[];
 
   // Social Links
-  social_links?: ISocialLink;
+  social_links?: ISocialLink[];
 
   // Visibility
   is_published?: boolean;
@@ -67,14 +67,12 @@ export type IProduct = {
     total: number;
     average: number;
   };
-};
+} & Document;
 
-export interface IFilterRequest {
-  searchQuery?: string;
+export type IProductFilters = {
   stock?: "in" | "out";
-  categoryId?: string;
-  minPrice?: number;
-  maxPrice?: number;
-  tags?: string[];
-  isPublished?: boolean;
-}
+  category?: string;
+  min_price?: number;
+  max_price?: number;
+  is_published?: boolean;
+};
