@@ -35,6 +35,17 @@ class Controller extends BaseController {
       data: result,
     });
   });
+
+  deleteVariant = this.catchAsync(async (req: Request, res: Response) => {
+    const id = req.params.id as unknown as Types.ObjectId;
+    const result = await VariantService.deleteVariant(id);
+    this.sendResponse(res, {
+      statusCode: HttpStatusCode.OK,
+      success: true,
+      message: "Variant deleted successfully",
+      data: result,
+    });
+  });
 }
 
 export const VariantController = new Controller();

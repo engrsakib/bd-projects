@@ -172,6 +172,36 @@ class Service {
 
     return await Promise.all(updates);
   }
+
+  async deleteVariant(id: Types.ObjectId) {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new ApiError(HttpStatusCode.BAD_REQUEST, "Invalid variant ID.");
+    }
+
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      const variant = await VariantModel.findByIdAndDelete(id, { session });
+      if (!variant) {
+        throw new ApiError(HttpStatusCode.NOT_FOUND, "Variant not found.");
+      }
+
+      await ProductModel.updateMany(
+        { variants: id },
+        { $pull: { variants: id } },
+        { session }
+      );
+
+      await session.commitTransaction();
+      return variant;
+    } catch (err) {
+      await session.abortTransaction();
+      throw err;
+    } finally {
+      session.endSession();
+    }
+  }
 }
 
 export const VariantService = new Service();
