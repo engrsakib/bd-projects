@@ -19,4 +19,6 @@ router.patch("/:id", ProductController.update);
 
 router.patch("/:id/toggle-visibility", ProductController.toggleVisibility);
 
+router.delete("/:id", ProductController.deleteProduct);
+
 export const ProductRoutes = router;

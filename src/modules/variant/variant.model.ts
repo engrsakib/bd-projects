@@ -8,7 +8,6 @@ const variantSchema = new Schema<IVariant>(
     attribute_values: { type: Map, of: String, required: true },
     regular_price: { type: Number, required: true },
     sale_price: { type: Number, required: true },
-    buying_price: { type: Number, default: 0 },
     sku: {
       type: String,
       required: true,

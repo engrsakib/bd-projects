@@ -107,6 +107,17 @@ class Controller extends BaseController {
       data: null,
     });
   });
+
+  deleteProduct = this.catchAsync(async (req: Request, res: Response) => {
+    const id = req.params.id as unknown as Types.ObjectId;
+    await ProductService.deleteProduct(id);
+    this.sendResponse(res, {
+      statusCode: HttpStatusCode.OK,
+      success: true,
+      message: "Product deleted successfully",
+      data: null,
+    });
+  });
 }
 
 export const ProductController = new Controller();

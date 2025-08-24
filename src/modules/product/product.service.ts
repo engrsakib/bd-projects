@@ -572,6 +572,27 @@ class Service {
     await ProductModel.findByIdAndUpdate(id, data);
   }
 
+  async deleteProduct(id: Types.ObjectId) {
+    // use session
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      const product = await ProductModel.findById(id).lean();
+      if (!product) {
+        throw new ApiError(HttpStatusCode.NOT_FOUND, "Product was not found");
+      }
+
+      await ProductModel.findByIdAndDelete(id);
+      await VariantService.removeVariantsByAProduct(id);
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
+  }
+
   private async generateProductUniqueSlug(name: string): Promise<string> {
     const baseSlug = SlugifyService.generateSlug(name);
     let slug: string = "";

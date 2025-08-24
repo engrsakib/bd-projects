@@ -202,6 +202,26 @@ class Service {
       session.endSession();
     }
   }
+
+  async removeVariantsByAProduct(
+    product_id: Types.ObjectId,
+    session?: mongoose.mongo.ClientSession
+  ) {
+    if (!Types.ObjectId.isValid(product_id)) {
+      throw new ApiError(HttpStatusCode.BAD_REQUEST, "Invalid product ID.");
+    }
+
+    const variants = await VariantModel.find({ product: product_id }).session(
+      session || null
+    );
+    const variantIds = variants.map((v) => v._id);
+
+    if (variantIds.length > 0) {
+      await VariantModel.deleteMany({ _id: { $in: variantIds } }).session(
+        session || null
+      );
+    }
+  }
 }
 
 export const VariantService = new Service();

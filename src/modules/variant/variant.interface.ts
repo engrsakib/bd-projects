@@ -8,7 +8,6 @@ export type IVariant = {
   };
   regular_price: number;
   sale_price: number;
-  buying_price?: number;
   sku: string;
   barcode: string;
   image?: string;
