@@ -4,12 +4,25 @@ import { VariantModel } from "./variant.model";
 import mongoose, { Types } from "mongoose";
 import ApiError from "@/middlewares/error";
 import { HttpStatusCode } from "@/lib/httpStatus";
+import { ProductModel } from "../product/product.model";
 
 class Service {
+  // this is for product service
   async createOne(
     data: IVariant,
     session?: mongoose.mongo.ClientSession
   ): Promise<IVariant> {
+    const skuExists = await VariantModel.findOne({ sku: data.sku }).session(
+      session || null
+    );
+
+    if (skuExists) {
+      throw new ApiError(
+        HttpStatusCode.CONFLICT,
+        "SKU already exists. Please use a different SKU."
+      );
+    }
+
     data.barcode = BarcodeService.generateEAN13();
     if (session) {
       const [variant] = await VariantModel.create([data], { session });
@@ -19,19 +32,51 @@ class Service {
     return variant.toObject();
   }
 
-  async createMany(
-    data: IVariant[],
-    session?: mongoose.mongo.ClientSession
-  ): Promise<IVariant[]> {
-    data.forEach((item) => {
-      item.barcode = BarcodeService.generateEAN13();
+  // create many from product service
+  async createMany(data: IVariant[], session?: mongoose.mongo.ClientSession) {
+    data.forEach((variant) => {
+      variant.barcode = BarcodeService.generateEAN13();
     });
     if (session) {
       const variants = await VariantModel.insertMany(data, { session });
-      return variants.map((variant) => variant.toObject());
+      return variants.map((v) => v.toObject());
     }
     const variants = await VariantModel.insertMany(data);
-    return variants.map((variant) => variant.toObject());
+    return variants.map((v) => v.toObject());
+  }
+
+  // this is for REST API
+  async createVariant(data: IVariant) {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+      const skuExists = await VariantModel.findOne({
+        sku: data.sku,
+      });
+      if (skuExists) {
+        throw new ApiError(
+          HttpStatusCode.CONFLICT,
+          "SKU already exists. Please use a different SKU."
+        );
+      }
+
+      data.barcode = BarcodeService.generateEAN13();
+      const [variant] = await VariantModel.create([data], { session });
+
+      await ProductModel.findByIdAndUpdate(
+        variant.product,
+        { $addToSet: { variants: variant._id } },
+        { session }
+      );
+
+      await session.commitTransaction();
+      return variant;
+    } catch (err) {
+      await session.abortTransaction();
+      throw err;
+    } finally {
+      session.endSession();
+    }
   }
 
   async updateOne(id: Types.ObjectId, data: Partial<IVariant>) {
@@ -90,9 +135,9 @@ class Service {
       }
     }
 
-    if (data.sku && data.sku.trim() !== existingVariant.sku) {
+    if (data.sku !== existingVariant.sku) {
       const skuExists = await VariantModel.findOne({
-        sku: data.sku.trim().toLowerCase(),
+        sku: data.sku,
         _id: { $ne: id },
       });
       if (skuExists) {

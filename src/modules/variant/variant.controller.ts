@@ -5,22 +5,12 @@ import { HttpStatusCode } from "@/lib/httpStatus";
 import { Types } from "mongoose";
 
 class Controller extends BaseController {
-  createOne = this.catchAsync(async (req: Request, res: Response) => {
-    const result = await VariantService.createOne(req.body);
+  createVariant = this.catchAsync(async (req: Request, res: Response) => {
+    const result = await VariantService.createVariant(req.body);
     this.sendResponse(res, {
       statusCode: HttpStatusCode.CREATED,
       success: true,
       message: "Variant created successfully",
-      data: result,
-    });
-  });
-
-  createMany = this.catchAsync(async (req: Request, res: Response) => {
-    const result = await VariantService.createMany(req.body);
-    this.sendResponse(res, {
-      statusCode: HttpStatusCode.CREATED,
-      success: true,
-      message: "Variants created successfully",
       data: result,
     });
   });

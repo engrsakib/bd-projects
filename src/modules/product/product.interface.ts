@@ -18,7 +18,7 @@ export type IProduct = {
   // Category Reference
   category: Types.ObjectId;
   subcategory: Types.ObjectId;
-  variants?: Types.ObjectId[] | IVariant[];
+  variants: Types.ObjectId[] | IVariant[];
   sale_channels: { pos: boolean; website: boolean };
 
   // Stock & Order Constraints

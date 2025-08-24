@@ -3,9 +3,7 @@ import { VariantController } from "./variant.controller";
 
 const router = Router();
 
-router.post("/", VariantController.createOne);
-
-router.post("/many", VariantController.createMany);
+router.post("/", VariantController.createVariant);
 
 router.patch("/:id", VariantController.updateOne);
 
