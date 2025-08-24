@@ -1,6 +1,7 @@
 import { Types, Document } from "mongoose";
 
 export type IVariant = {
+  _id: Types.ObjectId;
   attributes: string[];
   attribute_values: {
     [key: string]: string;
