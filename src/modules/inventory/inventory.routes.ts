@@ -26,18 +26,4 @@ router.patch(
   InventoryController.updateInventory
 );
 
-router.post(
-  "/variant/:inventory_id",
-  validateRequest(inventoryValidations.addVariant),
-  InventoryController.addVariant
-);
-
-router.patch(
-  "/variant/:variant_id",
-  validateRequest(inventoryValidations.updateVariant),
-  InventoryController.updateVariant
-);
-
-router.delete("/variant/:variant_id", InventoryController.removeVariant);
-
 export const InventoryRoutes = router;

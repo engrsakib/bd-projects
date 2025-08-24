@@ -9,13 +9,12 @@ import { Types } from "mongoose";
 
 class Controller extends BaseController {
   create = this.catchAsync(async (req: Request, res: Response) => {
-    await InventoryService.create(req.body);
-
+    const result = await InventoryService.create(req.body);
     this.sendResponse(res, {
       statusCode: HttpStatusCode.CREATED,
       success: true,
       message: "Inventory created successfully",
-      data: null,
+      data: result,
     });
   });
 
@@ -77,39 +76,6 @@ class Controller extends BaseController {
       success: true,
       message: "Inventory updated successfully",
       data: result,
-    });
-  });
-
-  addVariant = this.catchAsync(async (req: Request, res: Response) => {
-    const inventory_id = req.params.inventory_id as unknown as Types.ObjectId;
-    await InventoryService.addVariant(inventory_id, req.body);
-    this.sendResponse(res, {
-      statusCode: HttpStatusCode.OK,
-      success: true,
-      message: "Variant added to the inventory successfully",
-      data: null,
-    });
-  });
-
-  updateVariant = this.catchAsync(async (req: Request, res: Response) => {
-    const variant_id = req.params.variant_id as unknown as Types.ObjectId;
-    await InventoryService.updateVariant(variant_id, req.body);
-    this.sendResponse(res, {
-      statusCode: HttpStatusCode.OK,
-      success: true,
-      message: "Variant updated successfully",
-      data: null,
-    });
-  });
-
-  removeVariant = this.catchAsync(async (req: Request, res: Response) => {
-    const variant_id = req.params.variant_id as unknown as Types.ObjectId;
-    await InventoryService.removeVariant(variant_id);
-    this.sendResponse(res, {
-      statusCode: HttpStatusCode.OK,
-      success: true,
-      message: "Variant removed successfully",
-      data: null,
     });
   });
 }

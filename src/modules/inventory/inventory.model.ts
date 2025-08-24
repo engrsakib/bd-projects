@@ -1,30 +1,6 @@
 import { Schema, model } from "mongoose";
-import { IInventory, IVariant } from "./inventory.interface";
+import { IInventory } from "./inventory.interface";
 import { schemaOptions } from "@/utils/schemaOptions";
-
-const variantSchema = new Schema<IVariant>(
-  {
-    attribute_values: {
-      type: Map,
-      of: String,
-      required: true,
-    },
-    regular_price: { type: Number, required: true },
-    sale_price: { type: Number, required: true },
-    buying_price: { type: Number, required: false, default: null },
-    sku: { type: String, required: true, unique: true, index: true },
-    available_quantity: { type: Number, required: true },
-    barcode: {
-      type: String,
-      required: true,
-      unique: true,
-      index: true,
-    },
-    total_sold: { type: Number, default: 0 },
-    image: { type: String, default: "" },
-  },
-  schemaOptions
-);
 
 const inventorySchema = new Schema<IInventory>(
   {
@@ -35,9 +11,7 @@ const inventorySchema = new Schema<IInventory>(
       unique: true,
       index: true,
     },
-
-    attributes: { type: [String], required: true, min: 1 },
-    variants: { type: [variantSchema], required: true, min: 1 },
+    variants: { type: [Schema.Types.ObjectId], required: true, min: 1 },
     location: {
       type: Schema.Types.ObjectId,
       ref: "location",
@@ -48,5 +22,7 @@ const inventorySchema = new Schema<IInventory>(
   },
   schemaOptions
 );
+
+inventorySchema.index({ product: 1, location: 1 }, { unique: true });
 
 export const InventoryModel = model<IInventory>("Inventory", inventorySchema);
