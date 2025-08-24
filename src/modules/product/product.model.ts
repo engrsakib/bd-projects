@@ -29,8 +29,6 @@ const productSchema = new Schema<IProduct>(
       required: true,
       unique: true,
       index: true,
-      lowercase: true,
-      trim: true,
     },
     description: { type: String, required: true },
 
@@ -68,6 +66,10 @@ const productSchema = new Schema<IProduct>(
 
     // ===== Social Links =====
     social_links: { type: [socialLinkSchema], default: [] },
+    sale_channels: {
+      pos: { type: Boolean, default: false },
+      website: { type: Boolean, default: false },
+    },
     ratings: {
       total: { type: Number, default: 0 },
       average: { type: Number, default: 0 },
