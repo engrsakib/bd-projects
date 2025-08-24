@@ -21,18 +21,7 @@ class Service {
 
     try {
       if (rest.name) {
-        const baseSlug = SlugifyService.generateSlug(rest.name);
-        let slug: string = "";
-        let exists = true;
-
-        while (exists) {
-          const uniqueCode = generateUniqueCode();
-          slug = `${baseSlug}-${uniqueCode}`;
-          const existProduct = await ProductModel.findOne({ slug });
-          exists = existProduct ? true : false;
-        }
-
-        rest.slug = slug;
+        rest.slug = await this.generateProductUniqueSlug(rest.name);
       }
 
       //  ======== also need to generate SKU code from system ===========
@@ -51,11 +40,9 @@ class Service {
           variants as IVariant[],
           session
         );
-        console.log({ newVariants });
         const newVariantIds = newVariants.map(
           (variant) => variant._id
         ) as Types.ObjectId[];
-        console.log({ newVariantIds });
         product.variants = newVariantIds;
       }
       // save the product with variants ids
@@ -539,18 +526,22 @@ class Service {
       );
     }
 
-    if (data?.name) {
-      const isNameExist = await ProductModel.findOne({
-        name: data.name,
+    // disallow duplicate SKU
+    if (data?.sku) {
+      const isSkuExist = await ProductModel.findOne({
+        sku: data.sku,
         _id: { $ne: id },
       });
-      if (isNameExist) {
+      if (isSkuExist) {
         throw new ApiError(
-          HttpStatusCode.CONFLICT,
-          "This product name already exists. Please use a different name."
+          HttpStatusCode.BAD_REQUEST,
+          `The SKU: ${data.sku} is already exists. Please choose a different one.`
         );
       }
-      data.slug = SlugifyService.generateSlug(data.name);
+    }
+
+    if (data?.name) {
+      data.slug = await this.generateProductUniqueSlug(data.name);
     }
 
     if (data?.thumbnail) {
@@ -578,8 +569,22 @@ class Service {
     } else {
       console.log("Product slider images not updated");
     }
-
     await ProductModel.findByIdAndUpdate(id, data);
+  }
+
+  private async generateProductUniqueSlug(name: string): Promise<string> {
+    const baseSlug = SlugifyService.generateSlug(name);
+    let slug: string = "";
+    let exists = true;
+
+    while (exists) {
+      const uniqueCode = generateUniqueCode();
+      slug = `${baseSlug}-${uniqueCode}`;
+      const existProduct = await ProductModel.findOne({ slug });
+      exists = existProduct ? true : false;
+    }
+
+    return slug;
   }
 }
 
