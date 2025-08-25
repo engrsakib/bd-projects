@@ -12,11 +12,13 @@ const variantSchema = new Schema<IVariant>(
       type: String,
       required: true,
       unique: true,
+      index: true,
     },
     barcode: {
       type: String,
       required: true,
       unique: true,
+      index: true,
     },
     image: { type: String },
     product: { type: Schema.Types.ObjectId, ref: "Product", required: true },

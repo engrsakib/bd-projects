@@ -1,4 +1,4 @@
-import { Types, Document } from "mongoose";
+import { Types } from "mongoose";
 import { IVariant } from "../variant/variant.interface";
 
 export type ISocialLink = {
@@ -6,7 +6,7 @@ export type ISocialLink = {
   url: string;
 };
 
-export type IProduct = {
+export interface IProduct extends Document {
   name: string;
   slug: string;
   description: string;
@@ -55,7 +55,12 @@ export type IProduct = {
     total: number;
     average: number;
   };
-} & Document;
+}
+
+export interface ICreateProductPayload extends IProduct {
+  variants: IVariant[];
+  attributes: string[];
+}
 
 export type IProductFilters = {
   stock?: "in" | "out";

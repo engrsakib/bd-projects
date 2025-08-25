@@ -1,6 +1,6 @@
 import { Types, Document } from "mongoose";
 
-export type IVariant = {
+export interface IVariant extends Document {
   _id: Types.ObjectId;
   attributes: string[];
   attribute_values: {
@@ -12,4 +12,9 @@ export type IVariant = {
   barcode: string;
   image?: string;
   product: Types.ObjectId;
-} & Document;
+}
+
+export interface IUpdateVariantByProduct {
+  variants: IVariant[];
+  attributes?: string[];
+}

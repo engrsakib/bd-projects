@@ -1,5 +1,5 @@
 import { BarcodeService } from "@/lib/barcode";
-import { IVariant } from "./variant.interface";
+import { IUpdateVariantByProduct, IVariant } from "./variant.interface";
 import { VariantModel } from "./variant.model";
 import mongoose, { Types } from "mongoose";
 import ApiError from "@/middlewares/error";
@@ -220,6 +220,179 @@ class Service {
       await VariantModel.deleteMany({ _id: { $in: variantIds } }).session(
         session || null
       );
+    }
+  }
+
+  private toPlainAttrValues = (val: any): Record<string, string> => {
+    if (!val) return {};
+    if (val instanceof Map)
+      return Object.fromEntries(val as Map<string, string>);
+    return { ...val };
+  };
+
+  private makeSignature = (av: any): string => {
+    const obj = this.toPlainAttrValues(av);
+    return Object.keys(obj)
+      .sort((a, b) => a.localeCompare(b))
+      .map((k) => `${k}:${String(obj[k]).trim()}`)
+      .join("|"); // e.g. "Color:Black|Size:39"
+  };
+
+  async ensureNoIncomingSkuDupes(
+    variants: Array<{ sku?: string; attribute_values?: any }>
+  ) {
+    const seen = new Map<string, string>(); // sku -> signature
+    for (const v of variants) {
+      if (!v.sku) continue;
+      const sig = this.makeSignature(v.attribute_values);
+      const prev = seen.get(v.sku);
+      if (prev && prev !== sig) {
+        throw new Error(
+          `Duplicate SKU in payload with different variants: ${v.sku}`
+        );
+      }
+      seen.set(v.sku, sig);
+    }
+  }
+
+  async updateVariantsOfAProduct(
+    product_id: string,
+    updateVariantPayload: IUpdateVariantByProduct
+  ) {
+    const session = await VariantModel.startSession();
+    session.startTransaction();
+
+    try {
+      // 0) Validate payload
+      if (!Array.isArray(updateVariantPayload.variants)) {
+        throw new Error("variants array is required");
+      }
+
+      // 1) Check duplicate SKUs in incoming payload
+      await this.ensureNoIncomingSkuDupes(updateVariantPayload.variants);
+
+      // 2) Load existing variants
+      const existingVariants = await VariantModel.find({
+        product: product_id,
+      }).session(session);
+
+      // 3) Index existing variants
+      const existingBySig = new Map<string, any>();
+      const existingBySku = new Map<string, any>();
+      for (const v of existingVariants) {
+        const sig = this.makeSignature(v.attribute_values);
+        if (sig) existingBySig.set(sig, v);
+        if (v.sku) existingBySku.set(v.sku, v);
+      }
+
+      // 4) Track used variants
+      const keepIds = new Set<string>();
+
+      // 5) Process incoming payload
+      for (const v of updateVariantPayload.variants) {
+        const sig = this.makeSignature(v.attribute_values);
+        const incSku = v.sku?.trim();
+
+        if (!sig) throw new Error("attribute_values required for each variant");
+
+        const target = existingBySig.get(sig);
+
+        if (target) {
+          // update in-place
+          if (incSku) {
+            const skuOwner = existingBySku.get(incSku);
+            if (skuOwner && String(skuOwner._id) !== String(target._id)) {
+              throw new Error(
+                `SKU already exists on another variant: ${incSku}`
+              );
+            }
+          }
+
+          await VariantModel.updateOne(
+            { _id: target._id },
+            {
+              $set: {
+                attributes: updateVariantPayload.attributes,
+                attribute_values: this.toPlainAttrValues(v.attribute_values),
+                regular_price: v.regular_price,
+                sale_price: v.sale_price,
+                sku: incSku || target.sku,
+                image: v.image ?? target.image ?? null,
+              },
+            },
+            { session }
+          );
+
+          keepIds.add(String(target._id));
+        } else {
+          // create new
+          if (incSku) {
+            const skuOwner = existingBySku.get(incSku);
+            if (skuOwner) {
+              throw new Error(
+                `SKU already exists on another variant: ${incSku}`
+              );
+            }
+          }
+
+          const newDoc = new VariantModel({
+            barcode:
+              v.barcode && v.barcode.trim()
+                ? v.barcode.trim()
+                : BarcodeService.generateEAN13(),
+            attributes: updateVariantPayload.attributes,
+            attribute_values: this.toPlainAttrValues(v.attribute_values),
+            regular_price: v.regular_price,
+            sale_price: v.sale_price,
+            sku: incSku || undefined,
+            image: v.image ?? null,
+            product: product_id,
+          });
+
+          const saved = await newDoc.save({ session });
+          keepIds.add(String(saved._id));
+
+          // update indices
+          existingBySig.set(sig, saved);
+          if (incSku) existingBySku.set(incSku, saved);
+        }
+      }
+
+      // 6) Delete unused variants
+      const toDelete = existingVariants.filter(
+        (ev) => !keepIds.has(String(ev._id))
+      );
+      if (toDelete.length) {
+        await VariantModel.deleteMany(
+          { _id: { $in: toDelete.map((d) => d._id) }, product: product_id },
+          { session }
+        );
+      }
+
+      // 7) Return updated list
+      const updated = await VariantModel.find({ product: product_id })
+        .session(session)
+        .lean();
+
+      // update product's variants
+      await ProductModel.updateOne(
+        { _id: product_id },
+        { $set: { variants: updated.map((v) => v._id) } },
+        { session }
+      );
+
+      await session.commitTransaction();
+      return updated;
+    } catch (err: any) {
+      await session.abortTransaction();
+      if (err?.code === 11000 && err?.keyPattern?.sku) {
+        throw new Error(
+          `Duplicate SKU not allowed: ${err?.keyValue?.sku || "unknown"}`
+        );
+      }
+      throw err;
+    } finally {
+      session.endSession();
     }
   }
 }

@@ -1,11 +1,15 @@
 import mongoose, { Types } from "mongoose";
 import StockTransferHistoryModel from "./transfer.model";
-import { LotModel, StockModel } from "./stock.model";
+import { StockModel } from "./stock.model";
 import { IExpenseApplied } from "../purchase/purchase.interface";
-import { ILot, IStock } from "./stock.interface";
+import { IStock } from "./stock.interface";
 import { ProductModel } from "../product/product.model";
 import ApiError from "@/middlewares/error";
 import { HttpStatusCode } from "@/lib/httpStatus";
+import { LotService } from "../lot/lot.service";
+import { TransferService } from "../transfer/transfer.service";
+import { ILot } from "../lot/lot.interface";
+import { LotModel } from "../lot/lot.model";
 
 const generateTransferNumber = async () => `TRF-${Date.now()}`;
 
@@ -161,24 +165,27 @@ class Service {
           const newLotNumber = `${transfer_number}-${String(src._id).slice(-6)}`;
 
           // Create new lot and get the document
-          const [newLot] = await LotModel.create(
-            [
-              {
-                variant: src.variant,
-                product: src.product,
-                business_location: toBusinessLocation,
-                lot_number: newLotNumber,
-                received_at: src.received_at, // preserve original date for FIFO
-                cost_per_unit: src.cost_per_unit,
-                qty_total: a.qty,
-                qty_available: a.qty,
-                status: "active",
-                source: { type: "transfer_in", ref_id: src._id },
-                stock: destStock._id, // Use the retrieved _id
+          const newLot = await LotService.createLot(
+            {
+              stock: destStock._id,
+              variant: src.variant,
+              product: src.product,
+              location: toBusinessLocation,
+              lot_number: newLotNumber,
+              received_at: src.received_at, // preserve original date for FIFO
+              cost_per_unit: src.cost_per_unit,
+              qty_total: a.qty,
+              qty_available: a.qty,
+              source: {
+                type: "transfer_in",
+                ref_id: src._id as Types.ObjectId,
               },
-            ],
-            { session }
+              createdBy: transferData.user_id as string,
+              status: "active",
+            },
+            session
           );
+
           console.log(newLot);
 
           // Added: Record transfer_in movement (replaces TODO)
@@ -217,11 +224,11 @@ class Service {
             cost_per_unit: a.lot.cost_per_unit,
           })),
         });
-      } // end for items
+      }
+      // end for items
 
       // 6) Create Transfer doc (include _id)
-      const transferDoc = new StockTransferHistoryModel({
-        _id: transferId,
+      const transferPayload = {
         from: new Types.ObjectId(transferData.from),
         to: new Types.ObjectId(transferData.to),
         transferBy: transferData.user_id
@@ -229,9 +236,12 @@ class Service {
           : undefined,
         expenses_applied: transferData.expenses_applied || [],
         items: transferItemsPayload,
-      });
+      };
+      const transferDoc = await TransferService.create(
+        transferPayload,
+        session
+      );
 
-      await transferDoc.save({ session });
       await session.commitTransaction();
       return transferDoc;
     } catch (error) {

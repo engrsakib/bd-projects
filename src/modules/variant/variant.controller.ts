@@ -46,6 +46,22 @@ class Controller extends BaseController {
       data: result,
     });
   });
+
+  updateVariantsOfAProduct = this.catchAsync(
+    async (req: Request, res: Response) => {
+      const product_id = req.params.product_id as string;
+      const result = await VariantService.updateVariantsOfAProduct(
+        product_id,
+        req.body
+      );
+      this.sendResponse(res, {
+        statusCode: HttpStatusCode.OK,
+        success: true,
+        message: "Variants updated successfully",
+        data: result,
+      });
+    }
+  );
 }
 
 export const VariantController = new Controller();

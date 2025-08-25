@@ -1,5 +1,9 @@
 import ApiError from "@/middlewares/error";
-import { IProduct, IProductFilters } from "./product.interface";
+import {
+  ICreateProductPayload,
+  IProduct,
+  IProductFilters,
+} from "./product.interface";
 import { ProductModel } from "./product.model";
 import { HttpStatusCode } from "@/lib/httpStatus";
 import { SlugifyService } from "@/lib/slugify";
@@ -13,7 +17,7 @@ import { productSearchableFields } from "./product.constants";
 import { IVariant } from "../variant/variant.interface";
 
 class Service {
-  async create(data: IProduct): Promise<IProduct> {
+  async create(data: ICreateProductPayload): Promise<IProduct> {
     const { variants = [], ...rest } = data;
     // Start a session for transaction
     const session = await ProductModel.startSession();
@@ -34,7 +38,9 @@ class Service {
         //  add product id
         variants.forEach((variant: any) => {
           variant.product = product._id as Types.ObjectId;
+          variant.attributes = rest.attributes;
         });
+
         // save all variants and get their ids
         const newVariants = await VariantService.createMany(
           variants as IVariant[],
