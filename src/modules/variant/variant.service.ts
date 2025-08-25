@@ -240,6 +240,7 @@ class Service {
     }
 
     const result = await VariantModel.find({ ...searchCondition })
+      .populate("product", "name slug sku thumbnail")
       .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
       .skip(skip)
       .limit(limit);

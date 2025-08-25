@@ -46,11 +46,10 @@ class JWT {
 
   public authenticate(allowedRoles?: IRoles[]) {
     return async (req: Request, res: Response, next: NextFunction) => {
-      const access_token = req?.cookies[envConfig.jwt.access_cookie_name];
-      const refresh_token = req?.cookies[envConfig.jwt.refresh_cookie_name];
+      const { access_token, refresh_token } = this.extractTokens(req, "header");
 
-      if (!access_token || !refresh_token) {
-        next(
+      if (!access_token && !refresh_token) {
+        return next(
           new ApiError(
             HttpStatusCode.UNAUTHORIZED,
             "Unauthenticated access. Please login to access resource(s)"
@@ -59,19 +58,31 @@ class JWT {
       }
 
       try {
+        if (!access_token) {
+          return next(
+            new ApiError(
+              HttpStatusCode.UNAUTHORIZED,
+              "Unauthenticated access. Please login to access resource(s)"
+            )
+          );
+        }
         const payload = jwt.verify(
           access_token,
           envConfig.jwt.secret
-        ) as IJWtPayload;
+        ) as unknown as IJWtPayload;
 
-        if (!payload) {
-          next(
+        console.log("Payload1", { payload });
+
+        if (!payload.id) {
+          return next(
             new ApiError(
               HttpStatusCode.UNAUTHORIZED,
               "Invalid authentication token"
             )
           );
         }
+
+        console.log("Payload2", { payload });
 
         if (Array.isArray(allowedRoles) && allowedRoles.length > 0) {
           if (!allowedRoles.includes(payload.role as IRoles)) {
@@ -84,19 +95,51 @@ class JWT {
         next();
       } catch (error: any) {
         if (error instanceof TokenExpiredError) {
+          if (!refresh_token) {
+            return next(
+              new ApiError(
+                HttpStatusCode.UNAUTHORIZED,
+                "Unauthenticated access. Please login to access resource(s)"
+              )
+            );
+          }
           return this.handleExpiredAccessToken(refresh_token, res, next);
         }
 
         if (error?.statusCode === HttpStatusCode.FORBIDDEN) {
-          next(
+          return next(
             new ApiError(HttpStatusCode.FORBIDDEN, "Forbidden: Access denied")
           );
         }
-        next(
+        return next(
           new ApiError(HttpStatusCode.UNAUTHORIZED, "Authentication failed")
         );
       }
     };
+  }
+
+  private extractTokens(
+    req: Request,
+    sourceType: "cookie" | "header"
+  ): {
+    access_token: string | undefined;
+    refresh_token: string | undefined;
+  } {
+    let access_token = undefined;
+    let refresh_token = undefined;
+
+    if (sourceType === "cookie") {
+      access_token = req.cookies[envConfig.jwt.access_cookie_name] || undefined;
+      refresh_token =
+        req.cookies[envConfig.jwt.refresh_cookie_name] || undefined;
+    } else if (sourceType === "header") {
+      access_token = req.headers["authorization"] || undefined;
+      refresh_token = req.headers["x-refresh-token"] || undefined;
+    }
+
+    console.log({ sourceType, access_token, refresh_token });
+
+    return { access_token, refresh_token };
   }
 
   private handleExpiredAccessToken = async (
