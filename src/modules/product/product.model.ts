@@ -70,6 +70,8 @@ const productSchema = new Schema<IProduct>(
       pos: { type: Boolean, default: false },
       website: { type: Boolean, default: false },
     },
+    // pre order
+    is_pre_order: { type: Boolean, default: false },
     ratings: {
       total: { type: Number, default: 0 },
       average: { type: Number, default: 0 },
