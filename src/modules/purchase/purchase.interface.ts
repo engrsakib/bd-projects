@@ -31,6 +31,7 @@ export type IPurchase = {
   items: IPurchaseItem[];
   expenses_applied?: IExpenseApplied[];
   attachments?: string[];
+  additional_note?: string;
   status: PURCHASE_STATUS_ENUM;
   created_at: Date;
   updated_at: Date;
