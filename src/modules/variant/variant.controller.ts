@@ -3,6 +3,8 @@ import { Request, Response } from "express";
 import { VariantService } from "./variant.service";
 import { HttpStatusCode } from "@/lib/httpStatus";
 import { Types } from "mongoose";
+import { paginationFields } from "@/constants/paginationFields";
+import pickQueries from "@/shared/pickQueries";
 
 class Controller extends BaseController {
   createVariant = this.catchAsync(async (req: Request, res: Response) => {
@@ -62,6 +64,20 @@ class Controller extends BaseController {
       });
     }
   );
+
+  searchVariantsBySku = this.catchAsync(async (req: Request, res: Response) => {
+    const options = pickQueries(req.query, paginationFields);
+    const result = await VariantService.searchVariantsBySku(
+      req.query.search_query as string,
+      options
+    );
+    this.sendResponse(res, {
+      statusCode: HttpStatusCode.OK,
+      success: true,
+      message: "Variants fetched successfully",
+      data: result,
+    });
+  });
 }
 
 export const VariantController = new Controller();
