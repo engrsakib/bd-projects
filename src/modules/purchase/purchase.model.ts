@@ -54,6 +54,7 @@ const purchaseSchema = new Schema<IPurchase>(
     items: { type: [purchaseItemSchema], required: true },
     expenses_applied: { type: [expenseAppliedSchema], default: [] },
     attachments: { type: [String], default: [] },
+    additional_note: { type: String, default: "" },
     status: {
       type: String,
       enum: Object.values(PURCHASE_STATUS_ENUM),
