@@ -11,10 +11,11 @@ export type ILot = {
   cost_per_unit: number; // landed/unit cost (expense-apportioned)
   qty_total: number; // মোট কত এসেছিল
   qty_available: number; // এখন কত বাকি
+  qty_reserved?: number; // এখন কত রিজার্ভড
   source: {
     // এই lot কোথা থেকে এলো
     type: "purchase" | "transfer_in" | "return" | "adjustment";
-    ref_id: Types.ObjectId; // PO/Transfer/SaleReturn ইত্যাদির আইডি
+    ref_id: Types.ObjectId | string; // PO/Transfer/SaleReturn ইত্যাদির আইডি
   };
   expiry_date?: Date | null; // থাকলে মেয়াদ
 

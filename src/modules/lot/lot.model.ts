@@ -40,6 +40,7 @@ const lotsSchema = new Schema<ILot>(
     lot_number: { type: String, required: true },
     expiry_date: { type: Date, default: null },
     qty_total: { type: Number, required: true },
+    qty_reserved: { type: Number, required: true },
     status: {
       type: String,
       enum: ["active", "expired", "quarantined", "closed"],

@@ -1,23 +1,17 @@
 import { Types } from "mongoose";
-// import StocksModel, { LotsModel } from "../stocks/stocks.module";
 import { PurchaseModel } from "./purchase.model";
 import {
   IPurchase,
   IPurchaseFilters,
   IPurchaseStatus,
 } from "./purchase.interface";
-// import { InventoryMovementModel } from "../inventory_movements/inventory_movements.module";
 import { parseDateRange } from "@/utils/parseDateRange";
 import { IPaginationOptions } from "@/interfaces/pagination.interfaces";
 import { paginationHelpers } from "@/helpers/paginationHelpers";
+import { StockService } from "../stock/stock.service";
+import { LotService } from "../lot/lot.service";
 
 class Service {
-  // Updated createPurchase function
-  // Changes made:
-  // 1. Pre-generate purchaseId to use as ref in movements.
-  // 2. When creating PurchaseModel, include _id: purchaseId.
-  // 3. After creating each lot, create an InventoryMovement for "purchase_receive" with positive qty and reference to the new lot.
-  // No other logic changes; movements are logged per item (since one lot per purchase item).
   async createPurchase(data: IPurchase): Promise<IPurchase> {
     const session = await PurchaseModel.startSession();
     session.startTransaction();
@@ -70,65 +64,44 @@ class Service {
           variant: item.variant,
           location: data.location,
         };
-        console.log({ stockQuery, effectiveUnitCost });
-        // const stock = await StocksModel.findOneAndUpdate(
-        //   stockQuery,
-        //   {
-        //     $setOnInsert: {
-        //       product: item.product,
-        //       variant: item.variant,
-        //       location: data.location,
-        //     },
-        //     $inc: {
-        //       available_quantity: item.qty,
-        //       total_received: item.qty,
-        //     },
-        //   },
-        //   { upsert: true, new: true, session }
-        // );
+        const stock = await StockService.findOneAndUpdateByPurchase(
+          stockQuery,
+          {
+            product: item.product,
+            variant: item.variant,
+            location: data.location,
+            available_quantity: item.qty,
+            total_received: item.qty,
+          },
+          session
+        );
 
         // Create lot
-        // const lot = new LotsModel({
-        //   qty_available: item.qty,
-        //   cost_per_unit: effectiveUnitCost,
-        //   received_at: data.received_at || Date.now(),
-        //   createdBy: data.created_by,
-        //   variant: item.variant,
-        //   product: item.product,
-        //   location: data.location,
-        //   source: {
-        //     type: "purchase",
-        //     ref_id: purchase._id,
-        //   },
-        //   lot_number:
-        //     item.lot_number ||
-        //     `PUR-${purchase.purchase_number}-${String(item.variant).slice(-4)}`,
-        //   expiry_date: item.expiry_date || null,
-        //   qty_total: item.qty,
-        //   qty_reserved: 0,
-        //   status: "active",
-        //   notes: "",
-        //   stock: stock._id,
-        // });
-        // await lot.save({ session });
-
-        // Added: Create inventory movement for purchase_receive (per item/lot)
-        // await InventoryMovementModel.create(
-        //   [
-        //     {
-        //       type: "purchase_receive",
-        //       ref: purchaseId, // Reference to the purchase doc
-        //       variant: item.variant,
-        //       product: item.product,
-        //       location: data.location,
-        //       qty: item.qty, // Positive for receive (in)
-        //       cost_per_unit: effectiveUnitCost,
-        //       lot: lot._id, // Reference to the new lot created
-        //       note: `received via purchase ${purchase.purchase_number}`,
-        //     },
-        //   ],
-        //   { session }
-        // );
+        await LotService.createLot(
+          {
+            qty_available: item.qty,
+            cost_per_unit: effectiveUnitCost,
+            received_at: data.received_at || Date.now(),
+            createdBy: data.created_by,
+            variant: item.variant,
+            product: item.product,
+            location: data.location,
+            source: {
+              type: "purchase",
+              ref_id: purchase._id,
+            },
+            lot_number:
+              item.lot_number ||
+              `PUR-${purchase.purchase_number}-${String(item.variant).slice(-4)}`,
+            expiry_date: item.expiry_date || null,
+            qty_total: item.qty,
+            qty_reserved: 0,
+            status: "active",
+            notes: "",
+            stock: stock._id,
+          },
+          session
+        );
       }
 
       await session.commitTransaction();
