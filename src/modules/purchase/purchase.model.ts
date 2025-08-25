@@ -32,8 +32,8 @@ export const expenseAppliedSchema = new Schema<IExpenseApplied>(
 
 const purchaseSchema = new Schema<IPurchase>(
   {
-    created_by: { type: Schema.Types.ObjectId, required: true, ref: "User" },
-    received_by: { type: Schema.Types.ObjectId, required: true, ref: "User" },
+    created_by: { type: Schema.Types.ObjectId, required: true, ref: "Admin" },
+    received_by: { type: Schema.Types.ObjectId, required: true, ref: "Admin" },
     received_at: { type: Date, default: Date.now },
 
     location: {

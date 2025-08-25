@@ -206,11 +206,13 @@ class Service {
         },
         {
           path: "created_by",
-          model: "User",
+          model: "Admin",
+          select: "-password",
         },
         {
           path: "received_by",
-          model: "User",
+          model: "Admin",
+          select: "-password",
         },
         {
           path: "items.variant",
