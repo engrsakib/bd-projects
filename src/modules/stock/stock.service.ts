@@ -14,14 +14,41 @@ import { LotModel } from "../lot/lot.model";
 const generateTransferNumber = async () => `TRF-${Date.now()}`;
 
 class Service {
-  // Updated transferStocks function
-  // Changes made:
-  // 1. Pre-generate transferId to use as ref in movements.
-  // 2. When creating StockTransferHistoryModel, include _id: transferId.
-  // 3. In the FIFO allocation loop for source (after updating source lot), create "transfer_out" movement with negative qty and source lot ref.
-  // 4. When creating destination lot, get the created lot doc and create "transfer_in" movement with positive qty and new lot ref.
-  // 5. Replaced TODO comments with actual movement creation.
-  // No other logic changes; movements are logged per allocation (multiple per item if FIFO splits).
+  // this is for purchase service
+  async findOneAndUpdateByPurchase(
+    params: {
+      product: string | Types.ObjectId;
+      variant: string | Types.ObjectId;
+      location: string | Types.ObjectId;
+    },
+    data: {
+      product: string | Types.ObjectId;
+      variant: string | Types.ObjectId;
+      location: string | Types.ObjectId;
+      available_quantity: number;
+      total_received: number;
+    },
+    session: mongoose.mongo.ClientSession
+  ) {
+    const stock = await StockModel.findOneAndUpdate(
+      params,
+      {
+        $setOnInsert: {
+          product: data.product,
+          variant: data.variant,
+          location: data.location,
+        },
+        $inc: {
+          available_quantity: data.available_quantity,
+          total_received: data.total_received,
+        },
+      },
+      { upsert: true, new: true, session }
+    );
+
+    return stock;
+  }
+
   async transferStocks(transferData: {
     from: string;
     to: string;
@@ -109,30 +136,12 @@ class Service {
             cost_per_unit: lot.cost_per_unit,
           });
           remaining -= take;
-
-          // Added: Record transfer_out movement per allocation (replaces TODO)
-          // await InventoryMovementModel.create(
-          //   [
-          //     {
-          //       type: "transfer_out",
-          //       ref: transferId, // Reference to the transfer doc
-          //       variant: variantId,
-          //       product: productId,
-          //       business_location_from: fromBusinessLocation,
-          //       business_location_to: toBusinessLocation,
-          //       qty: -take, // Negative for out
-          //       cost_per_unit: lot.cost_per_unit,
-          //       lot: lot._id, // Source lot
-          //       note: `transferred via ${transfer_number}`,
-          //     },
-          //   ],
-          //   { session }
-          // );
         }
 
         if (remaining > 0) {
           throw new Error("FIFO allocation failed: not enough available lots.");
         }
+
         // 3) Update stocks summary (source & destination)
         // source: available_quantity -= requestedQty
         await StockModel.updateOne(
@@ -165,7 +174,7 @@ class Service {
           const newLotNumber = `${transfer_number}-${String(src._id).slice(-6)}`;
 
           // Create new lot and get the document
-          const newLot = await LotService.createLot(
+          await LotService.createLot(
             {
               stock: destStock._id,
               variant: src.variant,
@@ -185,27 +194,6 @@ class Service {
             },
             session
           );
-
-          console.log(newLot);
-
-          // Added: Record transfer_in movement (replaces TODO)
-          // await InventoryMovementModel.create(
-          //   [
-          //     {
-          //       type: "transfer_in",
-          //       ref: transferId, // Reference to the transfer doc
-          //       variant: variantId,
-          //       product: productId,
-          //       business_location_from: fromBusinessLocation,
-          //       business_location_to: toBusinessLocation,
-          //       qty: a.qty, // Positive for in
-          //       cost_per_unit: a.cost_per_unit,
-          //       lot: newLot._id, // Destination lot
-          //       note: `transferred via ${transfer_number}`,
-          //     },
-          //   ],
-          //   { session }
-          // );
         }
 
         // 5) Build transfer item payload (optional avg cost calc for reporting)
@@ -237,6 +225,7 @@ class Service {
         expenses_applied: transferData.expenses_applied || [],
         items: transferItemsPayload,
       };
+
       const transferDoc = await TransferService.create(
         transferPayload,
         session
