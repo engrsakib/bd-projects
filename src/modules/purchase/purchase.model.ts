@@ -58,7 +58,7 @@ const purchaseSchema = new Schema<IPurchase>(
     status: {
       type: String,
       enum: Object.values(PURCHASE_STATUS_ENUM),
-      required: true,
+      default: PURCHASE_STATUS_ENUM.RECEIVED,
     },
   },
   schemaOptions

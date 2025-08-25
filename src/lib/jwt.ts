@@ -71,8 +71,6 @@ class JWT {
           envConfig.jwt.secret
         ) as unknown as IJWtPayload;
 
-        console.log("Payload1", { payload });
-
         if (!payload.id) {
           return next(
             new ApiError(
@@ -81,8 +79,6 @@ class JWT {
             )
           );
         }
-
-        console.log("Payload2", { payload });
 
         if (Array.isArray(allowedRoles) && allowedRoles.length > 0) {
           if (!allowedRoles.includes(payload.role as IRoles)) {

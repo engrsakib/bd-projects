@@ -7,7 +7,7 @@ const router = Router();
 
 router.post(
   "/",
-  validateRequest(PurchaseValidationSchema.createPurchaseSchema),
+  // validateRequest(PurchaseValidationSchema.createPurchaseSchema),
   //  verifyToken([
   //     UserRole.ADMIN,
   //     UserRole.INVENTORY_MANAGER,
