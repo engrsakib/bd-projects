@@ -1,0 +1,294 @@
+import { Types } from "mongoose";
+// import StocksModel, { LotsModel } from "../stocks/stocks.module";
+import { PurchaseModel } from "./purchase.model";
+import {
+  IPurchase,
+  IPurchaseFilters,
+  IPurchaseStatus,
+} from "./purchase.interface";
+// import { InventoryMovementModel } from "../inventory_movements/inventory_movements.module";
+import { parseDateRange } from "@/utils/parseDateRange";
+import { IPaginationOptions } from "@/interfaces/pagination.interfaces";
+import { paginationHelpers } from "@/helpers/paginationHelpers";
+
+class Service {
+  // Updated createPurchase function
+  // Changes made:
+  // 1. Pre-generate purchaseId to use as ref in movements.
+  // 2. When creating PurchaseModel, include _id: purchaseId.
+  // 3. After creating each lot, create an InventoryMovement for "purchase_receive" with positive qty and reference to the new lot.
+  // No other logic changes; movements are logged per item (since one lot per purchase item).
+  async createPurchase(data: IPurchase): Promise<IPurchase> {
+    const session = await PurchaseModel.startSession();
+    session.startTransaction();
+    try {
+      const purchase_number =
+        (await PurchaseModel.countDocuments({
+          location: data.location,
+        }).session(session)) + 1;
+      data.purchase_number = purchase_number;
+      // Calculate subtotal from items
+      let subtotal = 0;
+      for (const item of data.items) {
+        const itemTotal =
+          item.qty * item.unit_cost - (item.discount || 0) + (item.tax || 0);
+        subtotal += itemTotal;
+      }
+
+      // Calculate total expenses
+      let totalExpenses = 0;
+      for (const expense of data.expenses_applied || []) {
+        totalExpenses += expense.amount;
+      }
+
+      // Set total_cost on the purchase data
+      data.total_cost = subtotal + totalExpenses;
+
+      // Pre-generate purchaseId for use in movement refs
+      const purchaseId = new Types.ObjectId();
+
+      // Create and save the purchase (include _id)
+      const purchase = await new PurchaseModel({
+        ...data,
+        _id: purchaseId,
+      }).save({ session });
+
+      // Process each item to update/create stock and create lot
+      for (const item of data.items) {
+        const itemTotal =
+          item.qty * item.unit_cost - (item.discount || 0) + (item.tax || 0);
+        const apportionedExpense =
+          subtotal > 0 ? (itemTotal / subtotal) * totalExpenses : 0;
+        const effectiveUnitCost =
+          item.qty > 0
+            ? (itemTotal + apportionedExpense) / item.qty
+            : item.unit_cost;
+
+        // Upsert stock
+        const stockQuery = {
+          product: item.product,
+          variant: item.variant,
+          location: data.location,
+        };
+        console.log({ stockQuery, effectiveUnitCost });
+        // const stock = await StocksModel.findOneAndUpdate(
+        //   stockQuery,
+        //   {
+        //     $setOnInsert: {
+        //       product: item.product,
+        //       variant: item.variant,
+        //       location: data.location,
+        //     },
+        //     $inc: {
+        //       available_quantity: item.qty,
+        //       total_received: item.qty,
+        //     },
+        //   },
+        //   { upsert: true, new: true, session }
+        // );
+
+        // Create lot
+        // const lot = new LotsModel({
+        //   qty_available: item.qty,
+        //   cost_per_unit: effectiveUnitCost,
+        //   received_at: data.received_at || Date.now(),
+        //   createdBy: data.created_by,
+        //   variant: item.variant,
+        //   product: item.product,
+        //   location: data.location,
+        //   source: {
+        //     type: "purchase",
+        //     ref_id: purchase._id,
+        //   },
+        //   lot_number:
+        //     item.lot_number ||
+        //     `PUR-${purchase.purchase_number}-${String(item.variant).slice(-4)}`,
+        //   expiry_date: item.expiry_date || null,
+        //   qty_total: item.qty,
+        //   qty_reserved: 0,
+        //   status: "active",
+        //   notes: "",
+        //   stock: stock._id,
+        // });
+        // await lot.save({ session });
+
+        // Added: Create inventory movement for purchase_receive (per item/lot)
+        // await InventoryMovementModel.create(
+        //   [
+        //     {
+        //       type: "purchase_receive",
+        //       ref: purchaseId, // Reference to the purchase doc
+        //       variant: item.variant,
+        //       product: item.product,
+        //       location: data.location,
+        //       qty: item.qty, // Positive for receive (in)
+        //       cost_per_unit: effectiveUnitCost,
+        //       lot: lot._id, // Reference to the new lot created
+        //       note: `received via purchase ${purchase.purchase_number}`,
+        //     },
+        //   ],
+        //   { session }
+        // );
+      }
+
+      await session.commitTransaction();
+      return purchase;
+    } catch (error) {
+      console.log(error);
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
+  }
+
+  async getAllPurchases(
+    options: IPaginationOptions,
+    filters: IPurchaseFilters
+  ) {
+    const {
+      limit = 10,
+      page = 1,
+      skip,
+      sortBy = "createdAt",
+      sortOrder = "desc",
+    } = paginationHelpers.calculatePagination(options);
+
+    const {
+      location,
+      created_at_end_date,
+      created_at_start_date,
+      purchase_date_end,
+      purchase_date_start,
+      purchase_number,
+      status,
+      supplier,
+      received_at_end_date,
+      received_at_start_date,
+    } = filters;
+    const startCreateAtDateRange = parseDateRange(
+      created_at_start_date as string
+    );
+    const endCreateAtDateRange = parseDateRange(created_at_end_date as string);
+    const startPurchaseDateRange = parseDateRange(
+      purchase_date_start as string
+    );
+    const endPurchaseDateRange = parseDateRange(purchase_date_end as string);
+    const receivedAtStartRange = parseDateRange(
+      received_at_start_date as string
+    );
+    const receivedAtEndRange = parseDateRange(received_at_end_date as string);
+    const queries: any = {};
+
+    if (supplier) {
+      queries.supplier = supplier;
+    }
+    if (location) {
+      queries.location = location;
+    }
+    if (status) {
+      queries.status = status;
+    }
+    if (received_at_start_date || received_at_end_date) {
+      queries.received_at = {};
+    }
+    if (received_at_start_date) {
+      queries.received_at.$gte = receivedAtStartRange?.start;
+    }
+
+    if (received_at_end_date) {
+      queries.received_at.$lte = receivedAtEndRange?.end;
+    }
+    if (startCreateAtDateRange || endCreateAtDateRange) {
+      queries.created_at = {};
+    }
+    if (startCreateAtDateRange) {
+      queries.created_at.$gte = startCreateAtDateRange.start;
+    }
+    if (endCreateAtDateRange) {
+      queries.created_at.$lte = endCreateAtDateRange.end;
+    }
+    if (startPurchaseDateRange || endPurchaseDateRange) {
+      queries.purchase_date = {};
+    }
+    if (startPurchaseDateRange) {
+      queries.purchase_date.$gte = startPurchaseDateRange.start;
+    }
+    if (endPurchaseDateRange) {
+      queries.purchase_date.$lte = endPurchaseDateRange.end;
+    }
+    if (purchase_number) {
+      queries.purchase_number = parseInt(purchase_number as string, 10);
+    }
+
+    const purchases = await PurchaseModel.find(queries)
+      .sort({ [sortBy]: sortOrder === "asc" ? 1 : -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate([
+        {
+          path: "location",
+        },
+        {
+          path: "supplier",
+        },
+        {
+          path: "created_by",
+        },
+        {
+          path: "received_by",
+        },
+        {
+          path: "items.variant",
+          model: "Variants",
+        },
+        {
+          path: "items.product",
+          model: "Products",
+          select: "name brand category",
+        },
+      ])
+      .exec();
+
+    const total = await PurchaseModel.countDocuments(queries);
+
+    return {
+      meta: {
+        page,
+        limit,
+        total,
+      },
+      data: purchases,
+    };
+  }
+
+  async getPurchaseById(id: string): Promise<IPurchase | null> {
+    return PurchaseModel.findById(id).exec();
+  }
+
+  async updatePurchase(
+    id: string,
+    updateData: Partial<IPurchase>
+  ): Promise<IPurchase | null> {
+    return PurchaseModel.findByIdAndUpdate(id, updateData, {
+      new: true,
+    }).exec();
+  }
+
+  async updateStatus(
+    id: string,
+    status: IPurchaseStatus
+  ): Promise<IPurchase | null> {
+    return PurchaseModel.findByIdAndUpdate(
+      id,
+      { status },
+      { new: true }
+    ).exec();
+  }
+
+  async deletePurchase(id: string): Promise<IPurchase | null> {
+    return PurchaseModel.findByIdAndDelete(id).exec();
+  }
+}
+
+export const PurchaseService = new Service();
