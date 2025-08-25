@@ -5,10 +5,11 @@ import {
   IPurchaseItem,
 } from "./purchase.interface";
 import { PURCHASE_STATUS_ENUM } from "./purchase.constants";
+import { schemaOptions } from "@/utils/schemaOptions";
 
 const purchaseItemSchema = new Schema<IPurchaseItem>(
   {
-    variant: { type: Schema.Types.ObjectId, required: true, ref: "Variants" },
+    variant: { type: Schema.Types.ObjectId, required: true, ref: "Variant" },
     product: { type: Schema.Types.ObjectId, required: true, ref: "Product" },
     qty: { type: Number, required: true },
     unit_cost: { type: Number, required: true },
@@ -17,10 +18,7 @@ const purchaseItemSchema = new Schema<IPurchaseItem>(
     lot_number: { type: String, default: null },
     expiry_date: { type: Date, default: null },
   },
-  {
-    timestamps: true,
-    versionKey: false,
-  }
+  schemaOptions
 );
 
 export const expenseAppliedSchema = new Schema<IExpenseApplied>(
@@ -29,10 +27,7 @@ export const expenseAppliedSchema = new Schema<IExpenseApplied>(
     amount: { type: Number, required: true },
     note: { type: String, default: "" },
   },
-  {
-    timestamps: true,
-    versionKey: false,
-  }
+  schemaOptions
 );
 
 const purchaseSchema = new Schema<IPurchase>(
@@ -65,10 +60,7 @@ const purchaseSchema = new Schema<IPurchase>(
       required: true,
     },
   },
-  {
-    timestamps: true,
-    versionKey: false,
-  }
+  schemaOptions
 );
 
 export const PurchaseModel = model<IPurchase>("Purchase", purchaseSchema);
