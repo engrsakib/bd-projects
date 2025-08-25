@@ -6,8 +6,8 @@ class Controller extends BaseController {
     const purchaseData = req.body;
     const newPurchase = await PurchaseService.createPurchase({
       ...purchaseData,
-      created_by: req?.user?.id,
-      received_by: req?.user?.id,
+      created_by: req?.user?.id || req.body.created_by,
+      received_by: req?.user?.id || req.body.received_by,
     });
     this.sendResponse(res, {
       statusCode: 201,
