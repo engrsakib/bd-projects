@@ -5,11 +5,13 @@ const router = Router();
 
 router.post("/", ProductController.create);
 
-router.get("/published", ProductController.getAllProducts);
-
 router.get("/", ProductController.getAllProductsForAdmin);
 
+router.get("/published", ProductController.getAllProducts);
+
 router.get("/by-ids", ProductController.getProductsByIds);
+
+router.get("/dropdown", ProductController.findAllProducts);
 
 router.get("/:id", ProductController.getById);
 

@@ -460,6 +460,51 @@ class Service {
     };
   }
 
+  async findAllProducts(
+    search_query?: string,
+    is_published?: boolean,
+    fields?: string[]
+  ) {
+    const defaultProjection: Record<string, number> = {
+      name: 1,
+      slug: 1,
+      thumbnail: 1,
+    };
+    if (fields && fields.length > 0) {
+      // make the fields array as key-value object like {[key] : 1}
+      fields.forEach((key) => {
+        if (key) {
+          defaultProjection[key] = 1;
+        }
+      });
+    }
+
+    console.log({ defaultProjection, fields });
+
+    const andConditions: any[] = [];
+
+    if (search_query) {
+      andConditions.push({
+        $or: productSearchableFields.map((field) => ({
+          [field]: { $regex: search_query, $options: "i" },
+        })),
+      });
+    }
+
+    if (is_published !== undefined) {
+      andConditions.push({ is_published });
+    }
+
+    const whereConditions =
+      andConditions.length > 0 ? { $and: andConditions } : {};
+
+    const products = await ProductModel.find(whereConditions)
+      .select(defaultProjection)
+      .lean();
+
+    return products;
+  }
+
   async getProductsByIds(ids: Types.ObjectId[]) {
     const products = await ProductModel.find({
       _id: { $in: ids },

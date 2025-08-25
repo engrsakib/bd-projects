@@ -31,6 +31,29 @@ class Controller extends BaseController {
     });
   });
 
+  // find all product are available in db without pagination
+  findAllProducts = this.catchAsync(async (req: Request, res: Response) => {
+    console.log("Finding all products");
+    const search_query = req.query?.search_query as string;
+    const is_published = req.query?.is_published as unknown as boolean;
+    // fields will be comma separated string, we have to make it string[]
+    const fields = ((req.query?.fields as string) || "")
+      .split(",")
+      .map((field) => field.trim());
+    const result = await ProductService.findAllProducts(
+      search_query,
+      is_published,
+      fields
+    );
+
+    this.sendResponse(res, {
+      statusCode: HttpStatusCode.OK,
+      success: true,
+      message: "All products retrieved successfully",
+      data: result,
+    });
+  });
+
   getAllProductsForAdmin = this.catchAsync(
     async (req: Request, res: Response) => {
       const options = pickQueries(req.query, paginationFields);
