@@ -5,6 +5,8 @@ import mongoose, { Types } from "mongoose";
 import ApiError from "@/middlewares/error";
 import { HttpStatusCode } from "@/lib/httpStatus";
 import { ProductModel } from "../product/product.model";
+import { IPaginationOptions } from "@/interfaces/pagination.interfaces";
+import { paginationHelpers } from "@/helpers/paginationHelpers";
 
 class Service {
   // this is for product service
@@ -221,6 +223,37 @@ class Service {
         session || null
       );
     }
+  }
+
+  async searchVariantsBySku(search_query: string, options: IPaginationOptions) {
+    const {
+      limit = 10,
+      page = 1,
+      skip,
+      sortBy = "createdAt",
+      sortOrder = "desc",
+    } = paginationHelpers.calculatePagination(options);
+
+    const searchCondition: any = {};
+    if (search_query) {
+      searchCondition.$or = [{ sku: { $regex: search_query, $options: "i" } }];
+    }
+
+    const result = await VariantModel.find({ ...searchCondition })
+      .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
+      .skip(skip)
+      .limit(limit);
+
+    const total = await VariantModel.countDocuments(searchCondition);
+
+    return {
+      meta: {
+        page,
+        limit,
+        total,
+      },
+      data: result,
+    };
   }
 
   private toPlainAttrValues = (val: any): Record<string, string> => {

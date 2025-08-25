@@ -16,4 +16,6 @@ router.patch(
 
 router.delete("/:id", VariantController.deleteVariant);
 
+router.get("/search-by-sku", VariantController.searchVariantsBySku);
+
 export const VariantRoutes = router;
