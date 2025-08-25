@@ -19,16 +19,15 @@ class Controller extends BaseController {
   });
 
   verifyAccount = this.catchAsync(async (req: Request, res: Response) => {
-    const { access_token, refresh_token, user } =
-      await AdminService.verifyAccount(req.body);
-    cookieManager.setTokens(res, access_token, refresh_token);
+    const result = await AdminService.verifyAccount(req.body);
+    // cookieManager.setTokens(res, access_token, refresh_token);
 
     this.sendResponse(res, {
       statusCode: HttpStatusCode.OK,
       success: true,
       message:
         "Your account has been verified successfully. Please wait until admin approve your account",
-      data: user,
+      data: result,
     });
   });
 
@@ -59,15 +58,13 @@ class Controller extends BaseController {
   });
 
   adminLogin = this.catchAsync(async (req: Request, res: Response) => {
-    const { access_token, refresh_token, user } = await AdminService.adminLogin(
-      req.body
-    );
-    cookieManager.setTokens(res, access_token, refresh_token);
+    const result = await AdminService.adminLogin(req.body);
+    // cookieManager.setTokens(res, access_token, refresh_token);
     this.sendResponse(res, {
       statusCode: HttpStatusCode.OK,
       success: true,
       message: "You've logged in successfully.",
-      data: user,
+      data: result,
     });
   });
 

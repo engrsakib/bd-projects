@@ -16,16 +16,15 @@ class Controller extends BaseController {
   });
 
   verifyAccount = this.catchAsync(async (req: Request, res: Response) => {
-    const { access_token, refresh_token, user } =
-      await UserService.verifyAccount(req.body);
+    const result = await UserService.verifyAccount(req.body);
     // store tokens on cookie
-    cookieManager.setTokens(res, access_token, refresh_token);
+    // cookieManager.setTokens(res, access_token, refresh_token);
 
     this.sendResponse(res, {
       statusCode: HttpStatusCode.OK,
       success: true,
       message: "Your account has been verified and logged in successfully",
-      data: user,
+      data: result,
     });
   });
 
@@ -43,17 +42,15 @@ class Controller extends BaseController {
   );
 
   login = this.catchAsync(async (req: Request, res: Response) => {
-    const { access_token, refresh_token, user } = await UserService.login(
-      req.body
-    );
+    const result = await UserService.login(req.body);
     // store tokens on cookie
-    cookieManager.setTokens(res, access_token, refresh_token);
+    // cookieManager.setTokens(res, access_token, refresh_token);
 
     this.sendResponse(res, {
       statusCode: HttpStatusCode.OK,
       success: true,
       message: "You've logged in successfully",
-      data: user,
+      data: result,
     });
   });
 
