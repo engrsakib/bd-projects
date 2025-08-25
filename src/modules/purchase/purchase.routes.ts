@@ -1,12 +1,15 @@
 import { Router } from "express";
 import { PurchaseController } from "./purchase.controller";
 import validateRequest from "../../middlewares/validateRequest";
-import { PurchaseValidationSchema } from "./purchase.zod";
+import { PurchaseValidationSchema } from "./purchase.validate";
+import { JwtInstance } from "@/lib/jwt";
+import { ROLES } from "@/constants/roles";
 
 const router = Router();
 
 router.post(
   "/",
+  JwtInstance.authenticate([ROLES.ADMIN, ROLES.SUPER_ADMIN]),
   // validateRequest(PurchaseValidationSchema.createPurchaseSchema),
   //  verifyToken([
   //     UserRole.ADMIN,

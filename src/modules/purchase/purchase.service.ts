@@ -195,32 +195,36 @@ class Service {
     }
 
     const purchases = await PurchaseModel.find(queries)
-      .sort({ [sortBy]: sortOrder === "asc" ? 1 : -1 })
-      .skip(skip)
-      .limit(limit)
       .populate([
         {
           path: "location",
+          model: "Location",
         },
         {
           path: "supplier",
+          model: "Supplier",
         },
         {
           path: "created_by",
+          model: "User",
         },
         {
           path: "received_by",
+          model: "User",
         },
         {
           path: "items.variant",
-          model: "Variants",
+          model: "Variant",
         },
         {
           path: "items.product",
-          model: "Products",
-          select: "name brand category",
+          model: "Product",
+          select: "name slug sku thumbnail category",
         },
       ])
+      .sort({ [sortBy]: sortOrder === "asc" ? 1 : -1 })
+      .skip(skip)
+      .limit(limit)
       .exec();
 
     const total = await PurchaseModel.countDocuments(queries);
