@@ -47,6 +47,9 @@ export type IProduct = {
   // Visibility
   is_published?: boolean;
 
+  // pre order
+  is_pre_order?: boolean;
+
   // ratings
   ratings: {
     total: number;
