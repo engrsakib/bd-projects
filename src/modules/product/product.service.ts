@@ -246,6 +246,15 @@ class Service {
       },
       { $unwind: { path: "$subcategory", preserveNullAndEmptyArrays: true } },
 
+      // Add min_price, max_price, and unique offer_tags per product
+      {
+        $addFields: {
+          min_price: { $min: "$filtered_variants.regular_price" },
+          max_price: { $max: "$filtered_variants.regular_price" },
+          offer_tags: { $setUnion: "$offer_tags" }, // unique tags per product
+        },
+      },
+
       {
         $project: {
           _id: 1,
@@ -285,11 +294,46 @@ class Service {
 
     const total = await ProductModel.countDocuments(whereConditions);
 
+    const { min_price: lowest_price, max_price: highest_price } =
+      await VariantService.getMinMaxOfferTags();
+    const offerTagsResult = await ProductModel.aggregate([
+      { $unwind: "$offer_tags" },
+      {
+        $group: {
+          _id: null,
+          offer_tags: {
+            $addToSet: {
+              $replaceAll: {
+                input: {
+                  $replaceAll: {
+                    input: { $toUpper: "$offer_tags" },
+                    find: "-",
+                    replacement: " ",
+                  },
+                },
+                find: "_",
+                replacement: " ",
+              },
+            },
+          },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          offer_tags: { $sortArray: { input: "$offer_tags", sortBy: 1 } },
+        },
+      },
+    ]);
+
     return {
       meta: {
         page,
         limit,
         total,
+        min_price: lowest_price,
+        max_price: highest_price,
+        offer_tags: offerTagsResult[0]?.offer_tags || [],
       },
       data: result,
     };
