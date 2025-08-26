@@ -32,16 +32,16 @@ jobs:
           password: ${{ env.DOCKER_PASSWORD }}
 
       - name: Build the Docker image
-        run: docker build . --file Dockerfile --tag ${{ env.DOCKER_USERNAME }}/backend-rsleatherbd:${GITHUB_REF##*/}
+        run: docker build . --file Dockerfile --tag ${{ env.DOCKER_USERNAME }}/cloudybd-admin:${GITHUB_REF##*/}
 
       - name: Docker Push
-        run: docker push ${{ env.DOCKER_USERNAME }}/backend-rsleatherbd:${GITHUB_REF##*/}
+        run: docker push ${{ env.DOCKER_USERNAME }}/cloudybd-admin:${GITHUB_REF##*/}
 
       - name: Tag Docker image with version
-        run: docker tag  ${{ env.DOCKER_USERNAME }}/backend-rsleatherbd:${GITHUB_REF##*/} ${{ env.DOCKER_USERNAME }}/backend-rsleatherbd:$(jq -r '.version' package.json)
+        run: docker tag  ${{ env.DOCKER_USERNAME }}/cloudybd-admin:${GITHUB_REF##*/} ${{ env.DOCKER_USERNAME }}/cloudybd-admin:$(jq -r '.version' package.json)
 
       - name: Docker Push version
-        run: docker push ${{ env.DOCKER_USERNAME }}/backend-rsleatherbd:$(jq -r '.version' package.json)
+        run: docker push ${{ env.DOCKER_USERNAME }}/cloudybd-admin:$(jq -r '.version' package.json)
   discord:
     runs-on: ubuntu-latest
     needs: build
@@ -51,7 +51,7 @@ jobs:
         if: success()
         with:
           severity: info
-          username: RS Leather BD API - Production
+          username: Cloudy BD API - Production
           details: "The deployment was successful without any issues."
           webhookUrl: ${{ env.DISCORD_WEBHOOK }}
       - name: Test Failure
@@ -59,7 +59,7 @@ jobs:
         if: failure()
         with:
           severity: error
-          username: RS Leather BD API - Production
+          username: Cloudy BD API - Production
           details: Test Failed!
           webhookUrl: ${{ env.DISCORD_WEBHOOK }}
       - name: Test Cancelled
@@ -67,6 +67,6 @@ jobs:
         if: cancelled()
         with:
           severity: warn
-          username: RS Leather BD API - Production
+          username: Cloudy BD API - Production
           details: Test Cancelled!
           webhookUrl: ${{ env.DISCORD_WEBHOOK }}
