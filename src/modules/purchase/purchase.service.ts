@@ -242,7 +242,39 @@ class Service {
   }
 
   async getPurchaseById(id: string): Promise<IPurchase | null> {
-    return PurchaseModel.findById(id).exec();
+    const result = await PurchaseModel.findById(id)
+      .populate([
+        {
+          path: "location",
+          model: "Location",
+        },
+        {
+          path: "supplier",
+          model: "Supplier",
+        },
+        {
+          path: "created_by",
+          model: "Admin",
+          select: "-password",
+        },
+        {
+          path: "received_by",
+          model: "Admin",
+          select: "-password",
+        },
+        {
+          path: "items.variant",
+          model: "Variant",
+        },
+        {
+          path: "items.product",
+          model: "Product",
+          select: "name slug sku thumbnail category",
+        },
+      ])
+      .exec();
+
+    return result;
   }
 
   async updatePurchase(
