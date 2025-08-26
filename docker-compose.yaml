@@ -1,14 +1,24 @@
 services:
-  cloudybd-server:
+  api-service:
     build:
       context: .
       dockerfile: Dockerfile
-    ports:
-      - "5001:5001"
+    restart: unless-stopped
     env_file:
       - .env
+    ports:
+      - "4446:5000"
+    volumes:
+      - ./logs:/usr/src/app/logs
     networks:
-      - cloudybd-server-network
+      - rsleather-network
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4446/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
 networks:
-  cloudybd-server-network:
+  rsleather-network:
     driver: bridge
