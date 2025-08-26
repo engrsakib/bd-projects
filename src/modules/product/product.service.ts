@@ -137,17 +137,6 @@ class Service {
 
     const pipeline: any[] = [
       { $match: whereConditions },
-
-      // ===== inventory queries will perform in future =====
-      // {
-      //   $lookup: {
-      //     from: "inventories",
-      //     localField: "_id",
-      //     foreignField: "product",
-      //     as: "inventory",
-      //   },
-      // },
-
       {
         $lookup: {
           from: "variants",
