@@ -1,5 +1,6 @@
 import BaseController from "@/shared/baseController";
 import { PurchaseService } from "./purchase.service";
+import { HttpStatusCode } from "@/lib/httpStatus";
 
 class Controller extends BaseController {
   createPurchase = this.catchAsync(async (req, res) => {
@@ -10,7 +11,7 @@ class Controller extends BaseController {
       received_by: req?.user?.id || req.body.received_by,
     });
     this.sendResponse(res, {
-      statusCode: 201,
+      statusCode: HttpStatusCode.CREATED,
       success: true,
       message: "Purchase created successfully",
       data: newPurchase,
@@ -20,10 +21,9 @@ class Controller extends BaseController {
   getAllPurchases = this.catchAsync(async (req, res) => {
     const options = req.query;
     const filters = req.query;
-    // console.log({filters,options});
     const purchases = await PurchaseService.getAllPurchases(options, filters);
     this.sendResponse(res, {
-      statusCode: 200,
+      statusCode: HttpStatusCode.OK,
       success: true,
       message: "Purchases retrieved successfully",
       data: purchases,
@@ -34,7 +34,7 @@ class Controller extends BaseController {
     const { id } = req.params;
     const purchase = await PurchaseService.getPurchaseById(id);
     this.sendResponse(res, {
-      statusCode: 200,
+      statusCode: HttpStatusCode.OK,
       success: true,
       message: "Purchase retrieved successfully",
       data: purchase,
@@ -49,7 +49,7 @@ class Controller extends BaseController {
       purchaseData
     );
     this.sendResponse(res, {
-      statusCode: 200,
+      statusCode: HttpStatusCode.OK,
       success: true,
       message: "Purchase updated successfully",
       data: updatedPurchase,
@@ -63,7 +63,7 @@ class Controller extends BaseController {
       req.body.status
     );
     this.sendResponse(res, {
-      statusCode: 200,
+      statusCode: HttpStatusCode.OK,
       success: true,
       message: "Purchase status updated successfully",
       data: updatedPurchase,
@@ -74,7 +74,7 @@ class Controller extends BaseController {
     const { id } = req.params;
     await PurchaseService.deletePurchase(id);
     this.sendResponse(res, {
-      statusCode: 204,
+      statusCode: HttpStatusCode.OK,
       success: true,
       message: "Purchase deleted successfully",
     });
