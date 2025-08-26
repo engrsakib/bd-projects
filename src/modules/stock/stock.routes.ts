@@ -1,50 +1,50 @@
 import { Router } from "express";
 import { StockController } from "./stock.controller";
+import { JwtInstance } from "@/lib/jwt";
+import { ROLES } from "@/constants/roles";
 
 const router = Router();
 
-// Admin routes
 router.post(
   "/transfer",
-  // verifyToken([
-  //   UserRole.ADMIN,
-  //   UserRole.INVENTORY_MANAGER,
-  //   UserRole.SUPER_ADMIN,
-  //   UserRole.OUTLET_MANAGER,
-  // ]),
+  JwtInstance.authenticate([ROLES.ADMIN, ROLES.SUPER_ADMIN]),
   StockController.transferStocks
 );
 
 router.get(
-  "/transfer-history/:business_location_id",
-  // verifyToken([
-  //   UserRole.ADMIN,
-  //   UserRole.INVENTORY_MANAGER,
-  //   UserRole.SUPER_ADMIN,
-  //   UserRole.OUTLET_MANAGER,
-  // ]),
-  StockController.transferHistoryByBusinessLocation
-);
-
-router.get(
-  "/admin/transfer-history",
-  // verifyToken([
-  //   UserRole.ADMIN,
-  //   UserRole.INVENTORY_MANAGER,
-  //   UserRole.SUPER_ADMIN,
-  //   UserRole.OUTLET_MANAGER,
-  // ]),
-  StockController.transferHistoryForAdmin
-);
-
-router.get(
   "/",
-  // verifyToken([
-  //   UserRole.ADMIN,
-  //   UserRole.INVENTORY_MANAGER,
-  //   UserRole.SUPER_ADMIN,
-  // ]),
+  JwtInstance.authenticate([ROLES.ADMIN, ROLES.SUPER_ADMIN]),
   StockController.getAllStocks
 );
 
-export const stocksRoutes = router;
+router.get(
+  "/:id",
+  JwtInstance.authenticate([ROLES.ADMIN, ROLES.SUPER_ADMIN]),
+  StockController.getStockById
+);
+
+router.get(
+  "/product/:slug",
+  JwtInstance.authenticate([ROLES.ADMIN, ROLES.SUPER_ADMIN]),
+  StockController.getStockByAProduct
+);
+
+router.get(
+  "/:id",
+  JwtInstance.authenticate([ROLES.ADMIN, ROLES.SUPER_ADMIN]),
+  StockController.getStockById
+);
+
+router.patch(
+  "/:id",
+  JwtInstance.authenticate([ROLES.ADMIN, ROLES.SUPER_ADMIN]),
+  StockController.updateStock
+);
+
+router.delete(
+  "/:id",
+  JwtInstance.authenticate([ROLES.ADMIN, ROLES.SUPER_ADMIN]),
+  StockController.deleteStock
+);
+
+export const StocksRoutes = router;

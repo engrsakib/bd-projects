@@ -12,6 +12,8 @@ import { UploadRoutes } from "@/modules/upload/upload.routes";
 import { VariantRoutes } from "@/modules/variant/variant.routes";
 import { SupplierRoutes } from "@/modules/supplier/supplier.routes";
 import { PurchaseRoutes } from "@/modules/purchase/purchase.routes";
+import { StocksRoutes } from "@/modules/stock/stock.routes";
+import { TransferRoutes } from "@/modules/transfer/transfer.routes";
 const router = Router();
 
 const moduleRoutes = [
@@ -66,6 +68,14 @@ const moduleRoutes = [
   {
     path: "/purchase",
     route: PurchaseRoutes,
+  },
+  {
+    path: "/stock",
+    route: StocksRoutes,
+  },
+  {
+    path: "/transfer",
+    route: TransferRoutes,
   },
 ];
 

@@ -1,19 +1,21 @@
 import mongoose, { Types } from "mongoose";
-import StockTransferHistoryModel from "./transfer.model";
 import { StockModel } from "./stock.model";
 import { IExpenseApplied } from "../purchase/purchase.interface";
-import { IStock } from "./stock.interface";
-import { ProductModel } from "../product/product.model";
+import { IStock, IStockFilters } from "./stock.interface";
 import ApiError from "@/middlewares/error";
 import { HttpStatusCode } from "@/lib/httpStatus";
 import { LotService } from "../lot/lot.service";
 import { TransferService } from "../transfer/transfer.service";
 import { ILot } from "../lot/lot.interface";
 import { LotModel } from "../lot/lot.model";
-
-const generateTransferNumber = async () => `TRF-${Date.now()}`;
+import { IPaginationOptions } from "@/interfaces/pagination.interfaces";
+import { paginationHelpers } from "@/helpers/paginationHelpers";
+import { ProductService } from "../product/product.service";
 
 class Service {
+  private async generateTransferNumber(): Promise<string> {
+    return `TRF-${Date.now()}`;
+  }
   // this is for purchase service
   async findOneAndUpdateByPurchase(
     params: {
@@ -62,12 +64,16 @@ class Service {
 
     try {
       if (transferData.from === transferData.to) {
-        throw new Error("Source and destination outlets must be different.");
+        throw new ApiError(
+          HttpStatusCode.BAD_REQUEST,
+          "Source and destination outlets must be different."
+        );
       }
+
       if (!transferData.items?.length) {
-        throw new Error("No items to transfer.");
+        throw new ApiError(HttpStatusCode.BAD_REQUEST, "No items to transfer.");
       }
-      const transfer_number = await generateTransferNumber();
+      const transfer_number = await this.generateTransferNumber();
       const transferItemsPayload: any[] = [];
 
       // Pre-generate transferId for use in movement refs
@@ -81,17 +87,22 @@ class Service {
         const toBusinessLocation = new Types.ObjectId(transferData.to);
         const requestedQty = it.qty;
 
-        if (requestedQty <= 0) throw new Error("Transfer qty must be > 0");
+        if (requestedQty <= 0)
+          throw new ApiError(
+            HttpStatusCode.BAD_REQUEST,
+            "Transfer qty must be > 0"
+          );
 
         // 1) Read available qty at source (quick guard)
         const srcStock = await StockModel.findOne({
           variant: variantId,
-          business_location: fromBusinessLocation,
+          location: fromBusinessLocation,
         }).session(session);
 
         const available = srcStock?.available_quantity || 0;
         if (available < requestedQty) {
-          throw new Error(
+          throw new ApiError(
+            HttpStatusCode.BAD_REQUEST,
             `Insufficient available stock for variant ${variantId} at source.`
           );
         }
@@ -106,7 +117,7 @@ class Service {
 
         const srcLots = await LotModel.find({
           variant: variantId,
-          business_location: fromBusinessLocation,
+          location: fromBusinessLocation,
           status: "active",
           qty_available: { $gt: 0 },
         })
@@ -122,7 +133,10 @@ class Service {
           lot.qty_available = Number(lot.qty_available) - take;
           //lot.qty_total = Number(lot.qty_total) - take; // current total physically left in that lot
           if (lot.qty_total < 0 || lot.qty_available < 0) {
-            throw new Error("Lot math underflow");
+            throw new ApiError(
+              HttpStatusCode.BAD_REQUEST,
+              "Lot math underflow"
+            );
           }
           // Set status to "closed" if qty_available becomes zero
           if (lot.qty_available === 0) {
@@ -139,13 +153,16 @@ class Service {
         }
 
         if (remaining > 0) {
-          throw new Error("FIFO allocation failed: not enough available lots.");
+          throw new ApiError(
+            HttpStatusCode.BAD_REQUEST,
+            "FIFO allocation failed: not enough available lots."
+          );
         }
 
         // 3) Update stocks summary (source & destination)
         // source: available_quantity -= requestedQty
         await StockModel.updateOne(
-          { variant: variantId, business_location: fromBusinessLocation },
+          { variant: variantId, location: fromBusinessLocation },
           {
             $inc: { available_quantity: -requestedQty },
             $set: { updatedAt: new Date() },
@@ -155,7 +172,7 @@ class Service {
 
         // destination: upsert & add, and retrieve the document
         const destStock = await StockModel.findOneAndUpdate(
-          { variant: variantId, business_location: toBusinessLocation },
+          { variant: variantId, location: toBusinessLocation },
           {
             $setOnInsert: {
               product: productId,
@@ -241,286 +258,87 @@ class Service {
     }
   }
 
-  async transferHistoryByBusinessLocation({
-    page,
-    limit,
-    business_location_id,
-  }: {
-    page: number;
-    limit: number;
-    business_location_id: string;
-  }) {
-    // Start a session for transaction
-    const session = await StockTransferHistoryModel.startSession();
-    session.startTransaction();
+  async getStockByAProduct(slug: string): Promise<any> {
+    const product = await ProductService.getBySlug(slug);
+    const stock = await StockModel.find({ product: product?._id })
+      .populate("location")
+      .populate("variant")
+      .lean();
 
-    try {
-      const stockTransferHistory = await StockTransferHistoryModel.find({
-        $or: [
-          {
-            from: business_location_id,
-          },
-          {
-            to: business_location_id,
-          },
-        ],
-      })
-        .populate([
-          {
-            path: "from",
-            model: "Business_location",
-          },
-          {
-            path: "to",
-            model: "Business_location",
-          },
-          {
-            path: "transferBy",
-            model: "User",
-          },
-          {
-            path: "items.variant",
-            model: "Variants",
-          },
-        ])
-        .skip((page - 1) * limit)
-        .limit(limit)
-        .session(session)
-        .lean();
-
-      const total = await StockTransferHistoryModel.countDocuments({
-        $or: [
-          {
-            from: business_location_id,
-          },
-          {
-            to: business_location_id,
-          },
-        ],
-      }).session(session);
-
-      await session.commitTransaction();
-      return {
-        meta: {
-          total: total,
-          page: page || 1,
-          limit: limit || 10,
-        },
-        stockTransferHistory,
-      };
-    } catch (error) {
-      await session.abortTransaction();
-      throw error;
-    } finally {
-      session.endSession();
-    }
-  }
-
-  async transferHistoryForAdmin({
-    page,
-    limit,
-    from,
-    to,
-  }: {
-    page: number;
-    limit: number;
-    from?: string;
-    to?: string;
-  }) {
-    // Start a session for transaction
-    const session = await StockTransferHistoryModel.startSession();
-    session.startTransaction();
-    const query: any = {};
-    if (from) {
-      query.from = from;
-    }
-    if (to) {
-      query.to = to;
-    }
-
-    try {
-      const stockTransferHistory = await StockTransferHistoryModel.find(query)
-        .populate([
-          {
-            path: "from",
-            model: "Business_location",
-          },
-          {
-            path: "to",
-            model: "Business_location",
-          },
-          {
-            path: "transferBy",
-            model: "User",
-          },
-          {
-            path: "items.variant",
-            model: "Variants",
-          },
-        ])
-        .skip((page - 1) * limit)
-        .limit(limit)
-        .session(session)
-        .lean();
-
-      const total =
-        await StockTransferHistoryModel.countDocuments(query).session(session);
-
-      await session.commitTransaction();
-      return {
-        meta: {
-          total: total,
-          page: page || 1,
-          limit: limit || 10,
-        },
-        stockTransferHistory,
-      };
-    } catch (error) {
-      await session.abortTransaction();
-      throw error;
-    } finally {
-      session.endSession();
-    }
-  }
-
-  async getProductStock(slug: string): Promise<any> {
-    // Start a session for transaction
-    const session = await StockModel.startSession();
-    session.startTransaction();
-
-    try {
-      // Find the product by slug
-      const product = await ProductModel.findOne({ slug }).session(session);
-      if (!product) {
-        throw new ApiError(
-          HttpStatusCode.NOT_FOUND,
-          "Product not found for the given slug: " + slug
-        );
-      }
-      const inventory = await StockModel.find({ product: product?._id })
-        .populate("outlet")
-        .populate("warehouse")
-        .session(session)
-        .lean();
-
-      await session.commitTransaction();
-      return { inventory, product };
-    } catch (error) {
-      await session.abortTransaction();
-      throw error;
-    } finally {
-      session.endSession();
-    }
+    return { stock, product };
   }
 
   async getStockById(id: string): Promise<IStock | null> {
-    // Start a session for transaction
-    const session = await StockModel.startSession();
-    session.startTransaction();
+    const stock = await StockModel.findById(id)
+      .populate("product")
+      .populate("location")
+      .populate("variant")
+      .lean();
 
-    try {
-      const inventory = await StockModel.findById(id)
-        .populate("product outlet")
-        .session(session)
-        .lean();
-
-      await session.commitTransaction();
-      return inventory;
-    } catch (error) {
-      await session.abortTransaction();
-      throw error;
-    } finally {
-      session.endSession();
-    }
+    return stock;
   }
 
   async updateStock(
     id: string,
-    inventoryData: Partial<IStock>
+    stockData: Partial<IStock>
   ): Promise<IStock | null> {
-    // Start a session for transaction
-    const session = await StockModel.startSession();
-    session.startTransaction();
+    const updatedStock = await StockModel.findByIdAndUpdate(id, stockData, {
+      new: true,
+      runValidators: true,
+    })
+      .populate("product")
+      .populate("location")
+      .populate("variant")
+      .lean();
 
-    try {
-      const updatedStock = await StockModel.findByIdAndUpdate(
-        id,
-        inventoryData,
-        {
-          new: true,
-          runValidators: true,
-        }
-      )
-        .populate("product outlet")
-        .session(session)
-        .lean();
-
-      await session.commitTransaction();
-      return updatedStock;
-    } catch (error) {
-      await session.abortTransaction();
-      throw error;
-    } finally {
-      session.endSession();
-    }
+    return updatedStock;
   }
 
-  async getAllStocks(filterOptions: {
-    businessLocationId?: string;
-    productId?: string;
-    variantId?: string;
-    categoryId?: string;
-    subcategoryId?: string;
-    sku?: string;
-    searchQuery?: string;
-    minQty?: number;
-    maxQty?: number;
-    page?: number;
-    limit?: number;
-    sortBy?: string;
-    sortOrder?: "asc" | "desc";
-  }) {
+  async getAllStocks(
+    options: IPaginationOptions,
+    filterOptions: IStockFilters
+  ) {
     const {
-      businessLocationId,
-      productId,
-      variantId,
-      categoryId,
-      subcategoryId,
+      location,
+      product,
+      variant,
+      category,
+      subcategory,
       sku,
-      searchQuery,
-      minQty,
-      maxQty,
-      page = 1,
-      limit = 20,
-      sortBy = "updatedAt",
-      sortOrder = "desc",
+      search_query,
+      min_qty,
+      max_qty,
     } = filterOptions;
 
-    const skip = (page - 1) * limit;
+    const {
+      limit = 10,
+      page = 1,
+      skip,
+      sortBy = "createdAt",
+      sortOrder = "desc",
+    } = paginationHelpers.calculatePagination(options);
 
     const matchConditions: any = {};
 
-    if (businessLocationId) {
-      if (!mongoose.isValidObjectId(businessLocationId)) {
-        throw new ApiError(400, "Invalid businessLocationId");
+    if (location) {
+      if (!mongoose.isValidObjectId(location)) {
+        throw new ApiError(HttpStatusCode.BAD_REQUEST, "Invalid location");
       }
-      matchConditions.business_location = new mongoose.Types.ObjectId(
-        businessLocationId
-      );
+      matchConditions.location = new mongoose.Types.ObjectId(location);
     }
 
-    if (productId && mongoose.isValidObjectId(productId)) {
-      matchConditions.product = new mongoose.Types.ObjectId(productId);
+    if (product && mongoose.isValidObjectId(product)) {
+      matchConditions.product = new mongoose.Types.ObjectId(product);
     }
-    if (variantId && mongoose.isValidObjectId(variantId)) {
-      matchConditions.variant = new mongoose.Types.ObjectId(variantId);
+    if (variant && mongoose.isValidObjectId(variant)) {
+      matchConditions.variant = new mongoose.Types.ObjectId(variant);
     }
-    if (minQty !== undefined || maxQty !== undefined) {
+    if (min_qty !== undefined || max_qty !== undefined) {
       matchConditions.available_quantity = {};
-      if (minQty !== undefined)
-        matchConditions.available_quantity.$gte = minQty;
-      if (maxQty !== undefined)
-        matchConditions.available_quantity.$lte = maxQty;
+      if (min_qty !== undefined)
+        matchConditions.available_quantity.$gte = min_qty;
+      if (max_qty !== undefined)
+        matchConditions.available_quantity.$lte = max_qty;
     }
 
     // Build aggregation pipeline
@@ -572,23 +390,21 @@ class Service {
       { $unwind: { path: "$subcategory", preserveNullAndEmptyArrays: true } },
 
       // --- Filter by category/subcategory ---
-      ...(categoryId && mongoose.isValidObjectId(categoryId)
+      ...(category && mongoose.isValidObjectId(category)
         ? [
             {
               $match: {
-                "product.category": new mongoose.Types.ObjectId(categoryId),
+                "product.category": new mongoose.Types.ObjectId(category),
               },
             },
           ]
         : []),
 
-      ...(subcategoryId && mongoose.isValidObjectId(subcategoryId)
+      ...(subcategory && mongoose.isValidObjectId(subcategory)
         ? [
             {
               $match: {
-                "product.subcategory": new mongoose.Types.ObjectId(
-                  subcategoryId
-                ),
+                "product.subcategory": new mongoose.Types.ObjectId(subcategory),
               },
             },
           ]
@@ -600,23 +416,21 @@ class Service {
         : []),
 
       // --- Search Query ---
-      ...(searchQuery
+      ...(search_query
         ? [
             {
               $match: {
                 $or: [
-                  { "product.name": { $regex: searchQuery, $options: "i" } },
-                  { "variant.sku": { $regex: searchQuery, $options: "i" } },
+                  { "product.name": { $regex: search_query, $options: "i" } },
+                  { "variant.sku": { $regex: search_query, $options: "i" } },
                 ],
               },
             },
           ]
         : []),
 
-      // --- Sorting ---
       { $sort: { [sortBy]: sortOrder === "asc" ? 1 : -1 } },
 
-      // --- Pagination ---
       { $skip: skip },
       { $limit: limit },
     ];
@@ -643,20 +457,12 @@ class Service {
   }
 
   async deleteStock(id: string): Promise<boolean> {
-    // Start a session for transaction
-    const session = await StockModel.startSession();
-    session.startTransaction();
-
-    try {
-      const result = await StockModel.findByIdAndDelete(id).session(session);
-      await session.commitTransaction();
-      return !!result;
-    } catch (error) {
-      await session.abortTransaction();
-      throw error;
-    } finally {
-      session.endSession();
+    const result = await StockModel.findByIdAndDelete(id);
+    if (!result) {
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "Stock not found");
     }
+
+    return true;
   }
 }
 
