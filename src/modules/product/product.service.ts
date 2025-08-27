@@ -246,15 +246,6 @@ class Service {
       },
       { $unwind: { path: "$subcategory", preserveNullAndEmptyArrays: true } },
 
-      // Add min_price, max_price, and unique offer_tags per product
-      {
-        $addFields: {
-          min_price: { $min: "$filtered_variants.regular_price" },
-          max_price: { $max: "$filtered_variants.regular_price" },
-          offer_tags: { $setUnion: "$offer_tags" }, // unique tags per product
-        },
-      },
-
       {
         $project: {
           _id: 1,
