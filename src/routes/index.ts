@@ -7,7 +7,6 @@ import { SubCategoryRoutes } from "@/modules/subcategory/subcategory.routes";
 import { UserRoutes } from "@/modules/user/user.routes";
 import { locationRoutes } from "@/modules/location/location.routes";
 import { ProductRoutes } from "@/modules/product/product.routes";
-import { InventoryRoutes } from "@/modules/inventory/inventory.routes";
 import { UploadRoutes } from "@/modules/upload/upload.routes";
 import { VariantRoutes } from "@/modules/variant/variant.routes";
 import { SupplierRoutes } from "@/modules/supplier/supplier.routes";
@@ -48,10 +47,6 @@ const moduleRoutes = [
   {
     path: "/product",
     route: ProductRoutes,
-  },
-  {
-    path: "/inventory",
-    route: InventoryRoutes,
   },
   {
     path: "/upload",
