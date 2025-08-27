@@ -29,12 +29,6 @@ router.get(
   StockController.getStockByAProduct
 );
 
-router.get(
-  "/:id",
-  JwtInstance.authenticate([ROLES.ADMIN, ROLES.SUPER_ADMIN]),
-  StockController.getStockById
-);
-
 router.patch(
   "/:id",
   JwtInstance.authenticate([ROLES.ADMIN, ROLES.SUPER_ADMIN]),

@@ -10,7 +10,7 @@ class Controller extends BaseController {
   transferStocks = this.catchAsync(async (req: Request, res: Response) => {
     const stock = await StockService.transferStocks({
       ...req.body,
-      user_id: req?.user?.id,
+      transferBy: req?.user?.id,
     });
     return this.sendResponse(res, {
       statusCode: HttpStatusCode.CREATED,
@@ -63,7 +63,7 @@ class Controller extends BaseController {
     return this.sendResponse(res, {
       statusCode: HttpStatusCode.OK,
       success: true,
-      message: "Stocks updated successfully",
+      message: "Stock updated successfully",
       data: updatedStocks,
     });
   });
@@ -75,7 +75,7 @@ class Controller extends BaseController {
     return this.sendResponse(res, {
       statusCode: HttpStatusCode.OK,
       success: true,
-      message: "Stocks deleted successfully",
+      message: "Stock deleted successfully",
       data: deleted,
     });
   });

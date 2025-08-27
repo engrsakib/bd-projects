@@ -1,6 +1,5 @@
 import mongoose, { Types } from "mongoose";
 import { StockModel } from "./stock.model";
-import { IExpenseApplied } from "../purchase/purchase.interface";
 import { IStock, IStockFilters } from "./stock.interface";
 import ApiError from "@/middlewares/error";
 import { HttpStatusCode } from "@/lib/httpStatus";
@@ -11,6 +10,7 @@ import { LotModel } from "../lot/lot.model";
 import { IPaginationOptions } from "@/interfaces/pagination.interfaces";
 import { paginationHelpers } from "@/helpers/paginationHelpers";
 import { ProductService } from "../product/product.service";
+import { ITransfer } from "../transfer/transfer.interface";
 
 class Service {
   private async generateTransferNumber(): Promise<string> {
@@ -51,13 +51,7 @@ class Service {
     return stock;
   }
 
-  async transferStocks(transferData: {
-    from: string;
-    to: string;
-    items: Array<{ variant: string; qty: number; product: string }>;
-    user_id?: string; // for audit if needed
-    expenses_applied?: IExpenseApplied[];
-  }) {
+  async transferStocks(transferData: ITransfer) {
     // Start a session for transaction
     const session = await StockModel.startSession();
     session.startTransaction();
@@ -206,7 +200,7 @@ class Service {
                 type: "transfer_in",
                 ref_id: src._id as Types.ObjectId,
               },
-              createdBy: transferData.user_id as string,
+              createdBy: transferData.transferBy as Types.ObjectId,
               status: "active",
             },
             session
@@ -236,8 +230,8 @@ class Service {
       const transferPayload = {
         from: new Types.ObjectId(transferData.from),
         to: new Types.ObjectId(transferData.to),
-        transferBy: transferData.user_id
-          ? new Types.ObjectId(transferData.user_id)
+        transferBy: transferData.transferBy
+          ? new Types.ObjectId(transferData.transferBy)
           : undefined,
         expenses_applied: transferData.expenses_applied || [],
         items: transferItemsPayload,
