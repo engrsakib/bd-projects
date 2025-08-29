@@ -14,6 +14,17 @@ class Controller extends BaseController {
       data: result,
     });
   });
+
+  getMyCart = this.catchAsync(async (req: Request, res: Response) => {
+    const userId = req.user.id;
+    const result = await CartService.getMyCart(userId);
+    this.sendResponse(res, {
+      statusCode: 200,
+      success: true,
+      message: "Cart retrieved successfully",
+      data: result,
+    });
+  });
 }
 
 export const CartController = new Controller();

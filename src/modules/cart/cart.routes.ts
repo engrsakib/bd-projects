@@ -14,4 +14,10 @@ router.post(
   CartController.addToCart
 );
 
+router.get(
+  "/me",
+  JwtInstance.authenticate([ROLES.CUSTOMER]),
+  CartController.getMyCart
+);
+
 export const CartRoutes = router;
