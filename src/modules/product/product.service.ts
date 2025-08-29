@@ -56,11 +56,12 @@ class Service {
 
       await session.commitTransaction();
       return product;
-    } catch (error) {
+    } catch (error: any) {
+      console.log(error);
       await session.abortTransaction();
       throw new ApiError(
         HttpStatusCode.INTERNAL_SERVER_ERROR,
-        "Failed to create product"
+        error || "Failed to create product"
       );
     } finally {
       session.endSession();
@@ -674,7 +675,7 @@ class Service {
     let exists = true;
 
     while (exists) {
-      const uniqueCode = generateUniqueCode();
+      const uniqueCode = generateUniqueCode(4);
       slug = `${baseSlug}-${uniqueCode}`;
       const existProduct = await ProductModel.findOne({ slug });
       exists = existProduct ? true : false;
