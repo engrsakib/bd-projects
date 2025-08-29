@@ -42,6 +42,13 @@ class Service {
       throw err;
     }
   }
+
+  async getMyCart(userId: Types.ObjectId) {
+    return await CartModel.findOne({ user: userId }).populate(
+      "items.product",
+      "name thumbnail slug sku"
+    );
+  }
 }
 
 export const CartService = new Service();
