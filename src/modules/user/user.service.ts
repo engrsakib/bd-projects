@@ -12,6 +12,7 @@ import {
   ILoginCredentials,
   IResetPassword,
 } from "@/interfaces/common.interface";
+import { emitter } from "@/events/eventEmitter";
 
 class Service {
   async create(data: IUser) {
@@ -32,6 +33,9 @@ class Service {
 
     // send verification otp to SMS
     await OTPService.sendVerificationOtp(data.phone_number, "user");
+
+    // fire event to create cart
+    emitter.emit("user.registered", data._id);
   }
 
   async verifyAccount(data: IOtpVerify): Promise<{
