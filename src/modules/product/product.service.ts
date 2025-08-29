@@ -56,11 +56,12 @@ class Service {
 
       await session.commitTransaction();
       return product;
-    } catch (error) {
+    } catch (error: any) {
+      console.log(error);
       await session.abortTransaction();
       throw new ApiError(
         HttpStatusCode.INTERNAL_SERVER_ERROR,
-        "Failed to create product"
+        error || "Failed to create product"
       );
     } finally {
       session.endSession();
@@ -137,17 +138,6 @@ class Service {
 
     const pipeline: any[] = [
       { $match: whereConditions },
-
-      // ===== inventory queries will perform in future =====
-      // {
-      //   $lookup: {
-      //     from: "inventories",
-      //     localField: "_id",
-      //     foreignField: "product",
-      //     as: "inventory",
-      //   },
-      // },
-
       {
         $lookup: {
           from: "variants",
@@ -296,11 +286,46 @@ class Service {
 
     const total = await ProductModel.countDocuments(whereConditions);
 
+    const { min_price: lowest_price, max_price: highest_price } =
+      await VariantService.getMinMaxOfferTags();
+    const offerTagsResult = await ProductModel.aggregate([
+      { $unwind: "$offer_tags" },
+      {
+        $group: {
+          _id: null,
+          offer_tags: {
+            $addToSet: {
+              $replaceAll: {
+                input: {
+                  $replaceAll: {
+                    input: { $toUpper: "$offer_tags" },
+                    find: "-",
+                    replacement: " ",
+                  },
+                },
+                find: "_",
+                replacement: " ",
+              },
+            },
+          },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          offer_tags: { $sortArray: { input: "$offer_tags", sortBy: 1 } },
+        },
+      },
+    ]);
+
     return {
       meta: {
         page,
         limit,
         total,
+        min_price: lowest_price,
+        max_price: highest_price,
+        offer_tags: offerTagsResult[0]?.offer_tags || [],
       },
       data: result,
     };
@@ -650,7 +675,7 @@ class Service {
     let exists = true;
 
     while (exists) {
-      const uniqueCode = generateUniqueCode();
+      const uniqueCode = generateUniqueCode(4);
       slug = `${baseSlug}-${uniqueCode}`;
       const existProduct = await ProductModel.findOne({ slug });
       exists = existProduct ? true : false;

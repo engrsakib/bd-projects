@@ -13,7 +13,7 @@ class Controller extends BaseController {
       statusCode: HttpStatusCode.CREATED,
       success: true,
       message:
-        "Your admin account has been created. We've sent a verification OTP to your email. Please check mailbox and verify your account",
+        "Your admin account has been created. We've sent a verification OTP to your phone number. Please check your phone and verify your account",
       data: null,
     });
   });

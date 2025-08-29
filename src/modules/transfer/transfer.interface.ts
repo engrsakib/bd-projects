@@ -1,14 +1,9 @@
-import { Schema, Types } from "mongoose";
+import { Types } from "mongoose";
 import { IExpenseApplied } from "../purchase/purchase.interface";
-
-export type ITProduct = {
-  product: Types.ObjectId;
-  variants: Types.ObjectId[]; // all possible combinations
-  _id?: Schema.Types.ObjectId;
-};
 
 export type ITransferItem = {
   variant: Types.ObjectId;
+  product: Types.ObjectId;
   qty: number; // মোট কত ট্রান্সফার হচ্ছে
 
   allocations: [

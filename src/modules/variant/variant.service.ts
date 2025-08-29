@@ -429,6 +429,29 @@ class Service {
       session.endSession();
     }
   }
+
+  // find min_price, max price and unique offer_tags
+  async getMinMaxOfferTags(): Promise<{
+    min_price: number;
+    max_price: number;
+  }> {
+    const result = await VariantModel.aggregate([
+      {
+        $group: {
+          _id: null,
+          min_price: { $min: "$regular_price" },
+          max_price: { $max: "$regular_price" },
+        },
+      },
+    ]);
+
+    return (
+      result[0] || {
+        min_price: 0,
+        max_price: 0,
+      }
+    );
+  }
 }
 
 export const VariantService = new Service();
