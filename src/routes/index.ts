@@ -13,6 +13,7 @@ import { SupplierRoutes } from "@/modules/supplier/supplier.routes";
 import { PurchaseRoutes } from "@/modules/purchase/purchase.routes";
 import { StocksRoutes } from "@/modules/stock/stock.routes";
 import { TransferRoutes } from "@/modules/transfer/transfer.routes";
+import { CartRoutes } from "@/modules/cart/cart.routes";
 const router = Router();
 
 const moduleRoutes = [
@@ -71,6 +72,10 @@ const moduleRoutes = [
   {
     path: "/transfer",
     route: TransferRoutes,
+  },
+  {
+    path: "/cart",
+    route: CartRoutes,
   },
 ];
 
