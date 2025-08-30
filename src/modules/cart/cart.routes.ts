@@ -20,6 +20,13 @@ router.get(
   CartController.getMyCart
 );
 
+router.patch(
+  "/:id",
+  JwtInstance.authenticate([ROLES.CUSTOMER]),
+  validateRequest(cartValidations.updateCartItem),
+  CartController.updateACartItem
+);
+
 router.delete(
   "/:id",
   JwtInstance.authenticate([ROLES.CUSTOMER]),

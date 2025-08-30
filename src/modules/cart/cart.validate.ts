@@ -10,4 +10,17 @@ const addToCart = z.object({
   }),
 });
 
-export const cartValidations = { addToCart };
+const updateCartItem = z.object({
+  params: z.object({
+    id: z.string({ required_error: "Item ID is required" }),
+  }),
+  body: z.object({
+    product: z.string().optional(),
+    variant: z.string().optional(),
+    attributes: z.record(z.string(), z.string()).optional(),
+    quantity: z.number().min(1).optional(),
+    price: z.number().min(0).optional(),
+  }),
+});
+
+export const cartValidations = { addToCart, updateCartItem };
