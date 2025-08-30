@@ -14,4 +14,6 @@ router.post(
 
 router.get("/", BannerController.getAllBanners);
 
+router.get("/available", BannerController.getAvailableBanners);
+
 export const BannerRoutes = router;
