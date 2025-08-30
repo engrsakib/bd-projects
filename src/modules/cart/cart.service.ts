@@ -49,6 +49,39 @@ class Service {
       "name thumbnail slug sku"
     );
   }
+
+  async removeFromCart(userId: Types.ObjectId, itemId: Types.ObjectId) {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      const cart = await CartModel.findOneAndUpdate(
+        { user: userId },
+        { $pull: { items: { _id: itemId } } },
+        { new: true, session }
+      );
+
+      if (!cart) throw new Error("Cart not found");
+
+      // Step 2: Recalculate & update total in one go
+      const total_price = cart.items.reduce(
+        (total, item) => total + item.price * item.quantity,
+        0
+      );
+
+      cart.total_price = total_price;
+      await cart.save({ session });
+
+      await session.commitTransaction();
+      session.endSession();
+
+      return cart;
+    } catch (err) {
+      await session.abortTransaction();
+      session.endSession();
+      throw err;
+    }
+  }
 }
 
 export const CartService = new Service();
