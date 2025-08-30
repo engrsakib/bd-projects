@@ -2,6 +2,7 @@ import BaseController from "@/shared/baseController";
 import { BannerService } from "./banner.service";
 import { Request, Response } from "express";
 import { HttpStatusCode } from "@/lib/httpStatus";
+import { Types } from "mongoose";
 
 class Controller extends BaseController {
   create = this.catchAsync(async (req: Request, res: Response) => {
@@ -33,6 +34,18 @@ class Controller extends BaseController {
       statusCode: HttpStatusCode.OK,
       success: true,
       message: "Available banners retrieved successfully",
+      data: result,
+    });
+  });
+
+  updateBanner = this.catchAsync(async (req: Request, res: Response) => {
+    const id = req.params.id as unknown as Types.ObjectId;
+    const data = req.body;
+    const result = await BannerService.updateBanner(id, data);
+    this.sendResponse(res, {
+      statusCode: HttpStatusCode.OK,
+      success: true,
+      message: "Banner updated successfully",
       data: result,
     });
   });

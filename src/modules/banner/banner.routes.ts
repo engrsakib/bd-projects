@@ -16,4 +16,11 @@ router.get("/", BannerController.getAllBanners);
 
 router.get("/available", BannerController.getAvailableBanners);
 
+router.patch(
+  "/:id",
+  upload.single("thumbnail"),
+  BannerMiddleware.updateBanner,
+  BannerController.updateBanner
+);
+
 export const BannerRoutes = router;
