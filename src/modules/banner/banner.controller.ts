@@ -25,6 +25,17 @@ class Controller extends BaseController {
       data: result,
     });
   });
+
+  getAvailableBanners = this.catchAsync(async (req: Request, res: Response) => {
+    const type = req.query.type as "normal" | "featured";
+    const result = await BannerService.getAvailableBanners(type);
+    this.sendResponse(res, {
+      statusCode: HttpStatusCode.OK,
+      success: true,
+      message: "Available banners retrieved successfully",
+      data: result,
+    });
+  });
 }
 
 export const BannerController = new Controller();
