@@ -1,5 +1,9 @@
+import { Types } from "mongoose";
 import { IBanner } from "./banner.interface";
 import { BannerModel } from "./banner.model";
+import ApiError from "@/middlewares/error";
+import { HttpStatusCode } from "@/lib/httpStatus";
+import { emitter } from "@/events/eventEmitter";
 
 class Service {
   async create(data: IBanner) {
@@ -31,6 +35,22 @@ class Service {
       "products",
       "name slug sku thumbnail"
     );
+  }
+
+  async updateBanner(id: Types.ObjectId, data: Partial<IBanner>) {
+    const isExist = await BannerModel.findById(id);
+    if (!isExist) {
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "Banner not found");
+    }
+    if (data?.thumbnail !== isExist.thumbnail) {
+      console.log("Banner thumbnail updated");
+      // fire an event to delete the old thumbnail from AWS
+      emitter.emit("s3.file.deleted", isExist.thumbnail);
+    } else {
+      console.log("Banner thumbnail not updated");
+    }
+
+    return await BannerModel.findByIdAndUpdate(id, data, { new: true });
   }
 }
 
