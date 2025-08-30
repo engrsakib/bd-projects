@@ -1,6 +1,8 @@
 import mongoose, { Types } from "mongoose";
 import { ICartItem } from "./cart.interface";
 import { CartModel } from "./cart.model";
+import ApiError from "@/middlewares/error";
+import { HttpStatusCode } from "@/lib/httpStatus";
 
 class Service {
   // when a customer registered, a cart should be created for them via event trigger
@@ -50,6 +52,48 @@ class Service {
     );
   }
 
+  async updateACartItem(
+    userId: Types.ObjectId,
+    itemId: Types.ObjectId,
+    updateData: Partial<ICartItem>
+  ) {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      const cart = await CartModel.findOne({ user: userId }).session(session);
+      if (!cart) throw new ApiError(HttpStatusCode.NOT_FOUND, "Cart not found");
+
+      const itemIndex = cart.items.findIndex((item) => item._id.equals(itemId));
+      if (itemIndex === -1)
+        throw new ApiError(HttpStatusCode.NOT_FOUND, "Item not found in cart");
+
+      cart.items[itemIndex] = { ...cart.items[itemIndex], ...updateData };
+
+      // recalculate total price
+      const total_price = cart.items.reduce(
+        (total, item) => total + item.price * item.quantity,
+        0
+      );
+
+      cart.total_price = total_price;
+
+      await cart.save({ session });
+
+      await session.commitTransaction();
+      session.endSession();
+
+      return cart;
+    } catch (err) {
+      await session.abortTransaction();
+      session.endSession();
+      throw new ApiError(
+        HttpStatusCode.INTERNAL_SERVER_ERROR,
+        "Failed to update cart item"
+      );
+    }
+  }
+
   async removeFromCart(userId: Types.ObjectId, itemId: Types.ObjectId) {
     const session = await mongoose.startSession();
     session.startTransaction();
@@ -63,7 +107,7 @@ class Service {
 
       if (!cart) throw new Error("Cart not found");
 
-      // Step 2: Recalculate & update total in one go
+      // Recalculate & update total in one go
       const total_price = cart.items.reduce(
         (total, item) => total + item.price * item.quantity,
         0

@@ -38,6 +38,18 @@ class Controller extends BaseController {
       data: result,
     });
   });
+
+  updateACartItem = this.catchAsync(async (req: Request, res: Response) => {
+    const userId = req.user.id;
+    const itemId = req.params.id as unknown as Types.ObjectId;
+    const result = await CartService.updateACartItem(userId, itemId, req.body);
+    this.sendResponse(res, {
+      statusCode: 200,
+      success: true,
+      message: "Item updated successfully",
+      data: result,
+    });
+  });
 }
 
 export const CartController = new Controller();

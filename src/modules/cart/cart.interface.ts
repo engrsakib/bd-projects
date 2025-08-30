@@ -1,6 +1,7 @@
 import { Types, Document } from "mongoose";
 
 export type ICartItem = {
+  _id: Types.ObjectId;
   product: Types.ObjectId;
   variant: Types.ObjectId;
   attributes: { [key: string]: string };
