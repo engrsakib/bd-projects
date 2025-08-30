@@ -49,6 +49,17 @@ class Controller extends BaseController {
       data: result,
     });
   });
+
+  deleteBanner = this.catchAsync(async (req: Request, res: Response) => {
+    const id = req.params.id as unknown as Types.ObjectId;
+    const result = await BannerService.deleteBanner(id);
+    this.sendResponse(res, {
+      statusCode: HttpStatusCode.OK,
+      success: true,
+      message: "Banner deleted successfully",
+      data: result,
+    });
+  });
 }
 
 export const BannerController = new Controller();

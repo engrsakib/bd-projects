@@ -52,6 +52,19 @@ class Service {
 
     return await BannerModel.findByIdAndUpdate(id, data, { new: true });
   }
+
+  async deleteBanner(id: Types.ObjectId) {
+    const isExist = await BannerModel.findById(id);
+    if (!isExist) {
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "Banner not found");
+    }
+
+    await BannerModel.findByIdAndDelete(id);
+    if (isExist.thumbnail) {
+      // delete the file from AWS
+      emitter.emit("s3.file.deleted", isExist.thumbnail);
+    }
+  }
 }
 
 export const BannerService = new Service();

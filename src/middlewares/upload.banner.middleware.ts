@@ -10,7 +10,10 @@ class Middleware {
       const { file } = req;
       if (!file) {
         return next(
-          new ApiError(HttpStatusCode.BAD_REQUEST, "No file uploaded")
+          new ApiError(
+            HttpStatusCode.BAD_REQUEST,
+            "Banner thumbnail is required"
+          )
         );
       }
       const bannerUrl = await AWSFileUploader.uploadSingleFile(
