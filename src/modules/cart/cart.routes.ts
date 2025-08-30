@@ -20,4 +20,10 @@ router.get(
   CartController.getMyCart
 );
 
+router.delete(
+  "/:id",
+  JwtInstance.authenticate([ROLES.CUSTOMER]),
+  CartController.removeFromCart
+);
+
 export const CartRoutes = router;
