@@ -23,4 +23,6 @@ router.patch(
   BannerController.updateBanner
 );
 
+router.delete("/:id", BannerController.deleteBanner);
+
 export const BannerRoutes = router;
