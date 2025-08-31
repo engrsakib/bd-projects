@@ -6,7 +6,7 @@ import { HttpStatusCode } from "@/lib/httpStatus";
 
 class Service {
   // when a customer registered, a cart should be created for them via event trigger
-  async initiateCart(userId: string) {
+  async initiateCart(userId: string | Types.ObjectId) {
     return await CartModel.create({ user: userId });
   }
 
@@ -15,6 +15,13 @@ class Service {
     session.startTransaction();
 
     try {
+      const isCartExist = await CartModel.findOne({ user: userId });
+      if (!isCartExist) {
+        console.log(
+          `[CartService] User cart was not create when register. Now, cart created on 'Add to cart' API`
+        );
+        await this.initiateCart(userId);
+      }
       // Step 1: Add item (or update quantity if exists)
       await CartModel.findOneAndUpdate(
         { user: userId },
