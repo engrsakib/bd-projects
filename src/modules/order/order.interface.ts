@@ -25,7 +25,11 @@ export type IOrder = {
   user: Types.ObjectId;
   items: IOrderItem[];
   total_items: number;
-  total_price: number;
+  total_price: number; // items price
+  delivery_charge?: number;
+  total_amount: number; // payable amount = total_price + delivery_charge
+  order_id: number; // auto increment
+  invoice_number: string; // auto generated
   delivery_address: IAddress;
   payment: {
     method: "bkash" | "cod";
@@ -39,6 +43,17 @@ export type IOrder = {
     tracking_id?: string;
     estimated_delivery?: Date;
   };
+
+  // tracking dates
+  order_at?: Date;
+  accepted_at?: Date;
+  shipped_at?: Date;
+  in_transit_at?: Date;
+  delivered_at?: Date;
+  pending_return_at?: Date;
+  returned_at?: Date;
+  cancelled_at?: Date;
+
   status: IOrderStatus;
   notes?: string;
 } & Document;
