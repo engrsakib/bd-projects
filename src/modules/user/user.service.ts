@@ -12,6 +12,8 @@ import {
   ILoginCredentials,
   IResetPassword,
 } from "@/interfaces/common.interface";
+import { emitter } from "@/events/eventEmitter";
+import { ROLES } from "@/constants/roles";
 
 class Service {
   async create(data: IUser) {
@@ -28,10 +30,15 @@ class Service {
 
     data.password = await BcryptInstance.hash(data.password);
 
-    await UserModel.create(data);
+    const result = await UserModel.create(data);
 
     // send verification otp to SMS
     await OTPService.sendVerificationOtp(data.phone_number, "user");
+
+    // fire event to create cart if role === "customer"
+    if (data.role === ROLES.CUSTOMER) {
+      emitter.emit("user.registered", result._id);
+    }
   }
 
   async verifyAccount(data: IOtpVerify): Promise<{
