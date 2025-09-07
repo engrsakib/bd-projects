@@ -1,5 +1,5 @@
 import { IAddress } from "@/interfaces/common.interface";
-import { Types, Document } from "mongoose";
+import { Types } from "mongoose";
 
 type IOrderStatus =
   | "pending"
@@ -28,14 +28,14 @@ export type IOrder = {
   total_price: number; // items price
   delivery_charge?: number;
   total_amount: number; // payable amount = total_price + delivery_charge
-  order_id: number; // auto increment
+  order_id?: number; // auto increment
   invoice_number: string; // auto generated
   delivery_address: IAddress;
   payment: {
     method: "bkash" | "cod";
     transaction_id?: string;
     payment_id?: string;
-    status: "pending" | "paid" | "failed" | "refunded";
+    status?: "pending" | "paid" | "failed" | "refunded";
   };
 
   logistics?: {
@@ -54,6 +54,15 @@ export type IOrder = {
   returned_at?: Date;
   cancelled_at?: Date;
 
-  status: IOrderStatus;
+  status?: IOrderStatus;
   notes?: string;
-} & Document;
+};
+
+export type IOrderPlace = {
+  user_id: string | Types.ObjectId; // from req.user.id to retrieve cart
+  delivery_charge?: number; // optional
+  tax?: number; // optional
+  discounts?: number;
+  delivery_address: IAddress;
+  payment_method: "bkash" | "cod";
+};
