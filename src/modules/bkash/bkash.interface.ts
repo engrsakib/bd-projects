@@ -1,5 +1,5 @@
 export type IBkashCreatePaymentParams = {
-  amount: number;
+  payable_amount: number;
   invoice_number: string;
   intent?: string; // default: "sale"
 };

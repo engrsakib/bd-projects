@@ -10,7 +10,7 @@ import { HttpStatusCode } from "@/lib/httpStatus";
 import { BkashService } from "../bkash/bkash.service";
 
 class Service {
-  async placeOrder(data: IOrderPlace) {
+  async placeOrder(data: IOrderPlace): Promise<{ payment_url: string }> {
     const session = await mongoose.startSession();
     session.startTransaction();
 
@@ -33,8 +33,10 @@ class Service {
 
       // 3. Generate invoice and order id
       const order_id = await this.generateOrderId(session);
-      const invoice_number =
-        await InvoiceService.generateInvoiceNumber(order_id);
+      const invoice_number = await InvoiceService.generateInvoiceNumber(
+        order_id,
+        session
+      );
 
       // 4. Build payload
       const payload: IOrder = {
@@ -53,25 +55,29 @@ class Service {
       };
 
       if (data?.tax && data?.tax > 0) {
+        data.tax = Number(data?.tax.toFixed());
         payload.total_amount += data.tax;
       }
 
       if (data?.discounts && data?.discounts > 0) {
+        data.discounts = Number(data?.discounts.toFixed());
         payload.total_amount -= data.discounts;
       }
 
       if (data?.delivery_charge && data?.delivery_charge > 0) {
+        data.delivery_charge = Number(data?.delivery_charge.toFixed());
         payload.total_amount += data.delivery_charge;
         payload.delivery_charge = data.delivery_charge;
       }
 
       // create payment first
       const { payment_id, payment_url } = await BkashService.createPayment({
-        amount: payload.total_amount,
+        payable_amount: payload.total_amount,
         invoice_number: payload.invoice_number,
       });
 
       payload.payment_id = payment_id;
+      payload.total_amount = Number(payload.total_amount.toFixed());
 
       // 5. Create order (with session)
       await OrderModel.create([payload], { session });

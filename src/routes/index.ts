@@ -16,6 +16,7 @@ import { TransferRoutes } from "@/modules/transfer/transfer.routes";
 import { CartRoutes } from "@/modules/cart/cart.routes";
 import { BannerRoutes } from "@/modules/banner/banner.routes";
 import { BkashRoutes } from "@/modules/bkash/bkash.routes";
+import { OrderRoutes } from "@/modules/order/order.routes";
 const router = Router();
 
 const moduleRoutes = [
@@ -82,6 +83,10 @@ const moduleRoutes = [
   {
     path: "/banner",
     route: BannerRoutes,
+  },
+  {
+    path: "/order",
+    route: OrderRoutes,
   },
   {
     path: "/payments/bkash",

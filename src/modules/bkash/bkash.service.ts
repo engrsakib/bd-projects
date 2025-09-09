@@ -15,7 +15,7 @@ class Service {
     envConfig.bkash.urls.execute_payment_url;
   private readonly refund_transaction_url =
     envConfig.bkash.urls.refund_transaction_url;
-  private readonly callback_url = `${envConfig.bkash.urls.callback_url}/payments/bkash/callback/execute`;
+  private readonly callback_url = `${envConfig.bkash.urls.callback_url}/payments/bkash/execute-callback`;
 
   // --- bKash Credentials ---
   private readonly username = envConfig.bkash.credentials.username;
@@ -38,14 +38,12 @@ class Service {
   //  Grant Token
   public async grantToken() {
     try {
-      const auth = Buffer.from(`${this.username}:${this.password}`).toString(
-        "base64"
-      );
-
       const config: AxiosRequestConfig = {
         headers: {
-          Authorization: `Basic ${auth}`,
           "Content-Type": "application/json",
+          Accept: "application/json",
+          username: this.username,
+          password: this.password,
         },
       };
 
@@ -68,6 +66,7 @@ class Service {
       console.log("bKash grant token received ✅");
       return data;
     } catch (error: any) {
+      console.log("Bkash Grant Token Error", error);
       throw new ApiError(
         HttpStatusCode.INTERNAL_SERVER_ERROR,
         `bKash grantToken failed: ${error?.message}`
@@ -86,17 +85,20 @@ class Service {
         mode: "0011",
         payerReference: " ",
         callbackURL: this.callback_url,
-        amount: params.amount,
+        amount: params.payable_amount.toFixed(),
         currency: "BDT",
         intent: params.intent || "sale",
         merchantInvoiceNumber: params.invoice_number,
       };
 
+      console.log(payload);
+
       const config: AxiosRequestConfig = {
         headers: {
-          Authorization: this.id_token!,
-          "X-APP-Key": this.app_key,
           "Content-Type": "application/json",
+          Authorization: this.id_token!,
+          Accept: "application/json",
+          "X-APP-key": this.app_key,
         },
       };
 
@@ -117,6 +119,7 @@ class Service {
 
       return { payment_id: data.paymentID, payment_url: data.bkashURL };
     } catch (error: any) {
+      console.log("Create payment failed", error);
       throw new ApiError(
         HttpStatusCode.INTERNAL_SERVER_ERROR,
         `bKash createPayment failed: ${error.message}`
