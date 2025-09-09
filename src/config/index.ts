@@ -45,6 +45,7 @@ export const envConfig = {
       execute_payment_url: process.env.BKASH_EXECUTE_PAYMENT_URL as string,
       refund_transaction_url: process.env
         .BKASH_REFUND_TRANSACTION_URL as string,
+      callback_url: process.env.BKASH_CALLBACK_URL as string,
     },
     credentials: {
       username: process.env.BKASH_USERNAME as string,

@@ -7,6 +7,7 @@ import { CounterModel } from "@/common/models/counter.model";
 import { OrderModel } from "./order.model";
 import ApiError from "@/middlewares/error";
 import { HttpStatusCode } from "@/lib/httpStatus";
+import { BkashService } from "../bkash/bkash.service";
 
 class Service {
   async placeOrder(data: IOrderPlace) {
@@ -31,8 +32,9 @@ class Service {
       const { total_price, items, total_items } = this.calculateCart(cartItems);
 
       // 3. Generate invoice and order id
-      const invoice_number = await InvoiceService.generateInvoiceNumber();
       const order_id = await this.generateOrderId(session);
+      const invoice_number =
+        await InvoiceService.generateInvoiceNumber(order_id);
 
       // 4. Build payload
       const payload: IOrder = {
@@ -44,7 +46,8 @@ class Service {
         delivery_address: data.delivery_address,
         invoice_number,
         order_id,
-        payment: { method: data.payment_method, status: "pending" },
+        payment_method: data.payment_method,
+        payment_status: "pending",
         order_at: new Date(),
         status: "pending",
       };
@@ -62,6 +65,14 @@ class Service {
         payload.delivery_charge = data.delivery_charge;
       }
 
+      // create payment first
+      const { payment_id, payment_url } = await BkashService.createPayment({
+        amount: payload.total_amount,
+        invoice_number: payload.invoice_number,
+      });
+
+      payload.payment_id = payment_id;
+
       // 5. Create order (with session)
       await OrderModel.create([payload], { session });
 
@@ -74,10 +85,7 @@ class Service {
       // 7. Commit transaction
       await session.commitTransaction();
       session.endSession();
-
-      // Optional: initiate payment here, after commit
-
-      return { success: true, invoice_number, order_id };
+      return { payment_url };
     } catch (err) {
       await session.abortTransaction();
       session.endSession();

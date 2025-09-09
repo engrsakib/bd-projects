@@ -34,19 +34,17 @@ const orderSchema = new Schema<IOrder>(
 
     delivery_address: addressSchema,
 
-    payment: {
-      method: {
-        type: String,
-        enum: Object.values(PAYMENT_METHOD),
-        required: true,
-      },
-      transaction_id: { type: String },
-      payment_id: { type: String },
-      status: {
-        type: String,
-        enum: Object.values(PAYMENT_STATUS),
-        default: PAYMENT_STATUS.PENDING,
-      },
+    payment_method: {
+      type: String,
+      enum: Object.values(PAYMENT_METHOD),
+      required: true,
+    },
+    transaction_id: { type: String },
+    payment_id: { type: String },
+    payment_status: {
+      type: String,
+      enum: Object.values(PAYMENT_STATUS),
+      default: PAYMENT_STATUS.PENDING,
     },
 
     logistics: {

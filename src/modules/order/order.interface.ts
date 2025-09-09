@@ -27,16 +27,14 @@ export type IOrder = {
   total_items: number;
   total_price: number; // items price
   delivery_charge?: number;
-  total_amount: number; // payable amount = total_price + delivery_charge
+  total_amount: number; // payable amount = total_price + delivery_charge + tax etc.
   order_id?: number; // auto increment
   invoice_number: string; // auto generated
   delivery_address: IAddress;
-  payment: {
-    method: "bkash" | "cod";
-    transaction_id?: string;
-    payment_id?: string;
-    status?: "pending" | "paid" | "failed" | "refunded";
-  };
+  payment_method: "bkash" | "cod";
+  transaction_id?: string;
+  payment_id?: string;
+  payment_status?: "pending" | "paid" | "failed" | "refunded";
 
   logistics?: {
     courier?: string;

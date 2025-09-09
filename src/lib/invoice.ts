@@ -4,7 +4,7 @@ class Service {
   private prefix = "CDBD";
   private counterName = "invoice_number";
 
-  async generateInvoiceNumber(): Promise<string> {
+  async generateInvoiceNumber(order_id: number): Promise<string> {
     const year = new Date().getFullYear();
 
     const counterDoc = await CounterModel.findOneAndUpdate(
@@ -16,7 +16,7 @@ class Service {
     const seq = counterDoc.sequence || 1;
     const paddedSeq = String(seq).padStart(6, "0");
 
-    return `${this.prefix}-${year}-${paddedSeq}`;
+    return `${this.prefix}-${year}-${paddedSeq}-${order_id}`;
   }
 }
 
