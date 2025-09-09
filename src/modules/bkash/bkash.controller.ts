@@ -12,10 +12,10 @@ class Controller extends BaseController {
         ? envConfig.clients.public_dev
         : envConfig.clients.public_prod;
 
-    if (data.transactionStatus === "Completed") {
-      res.redirect(`${frontendUrl}/payment/success?orderId=${data.order_id}`);
+    if (data.status === "success") {
+      res.redirect(`${frontendUrl}/payment/success?payment_id=${paymentID}`);
     } else {
-      res.redirect(`${frontendUrl}/payment/fail?orderId=${data.order_id}`);
+      res.redirect(`${frontendUrl}/payment/fail?payment_id=${paymentID}`);
     }
   });
 }

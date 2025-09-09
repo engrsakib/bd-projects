@@ -6,6 +6,8 @@ import {
   IBkashCreatePaymentParams,
   IBkashRefundPayment,
 } from "./bkash.interface";
+import { OrderService } from "../order/order.service";
+import { PAYMENT_STATUS } from "../order/order.enums";
 
 class Service {
   // --- bKash URLs ---
@@ -128,7 +130,9 @@ class Service {
   }
 
   //Execute Payment
-  public async executePayment(paymentID: string) {
+  public async executePayment(
+    paymentID: string
+  ): Promise<{ status: "success" | "failed" }> {
     try {
       await this.ensureToken();
 
@@ -148,18 +152,42 @@ class Service {
         config
       );
 
-      if (!data?.trxID) {
+      // 4. Validate response
+      if (!data || !data.trxID || !data.transactionStatus) {
         throw new ApiError(
           HttpStatusCode.BAD_REQUEST,
-          "Failed to execute bKash payment"
+          "Invalid bKash execute payment response"
         );
       }
 
-      return data; // contains trxID, transactionStatus, etc.
+      const transaction_id: string = data.trxID;
+      const bkashStatus: string = data.transactionStatus;
+      const mappedStatus: PAYMENT_STATUS = this.mapBkashStatus(bkashStatus);
+
+      await OrderService.updatePaymentStatus(
+        paymentID,
+        transaction_id,
+        mappedStatus
+      );
+
+      console.log("Bkash payment callback execution successful", data);
+      // Map to "success" or "failed" for the caller
+      const resultStatus: "success" | "failed" =
+        mappedStatus === PAYMENT_STATUS.PAID ? "success" : "failed";
+
+      console.log("Bkash payment callback execution successful", {
+        paymentID,
+        transaction_id,
+        bkashStatus,
+        resultStatus,
+      });
+
+      return { status: resultStatus };
     } catch (error: any) {
+      console.log(`Failed to execute bKash payment: ${error.message}`, error);
       throw new ApiError(
         HttpStatusCode.INTERNAL_SERVER_ERROR,
-        `Failed to execute bKash payment : ${error.message}`
+        `Failed to execute bKash payment: ${error.message}`
       );
     }
   }
@@ -204,6 +232,19 @@ class Service {
         HttpStatusCode.INTERNAL_SERVER_ERROR,
         `Failed to refund bKash payment. Error: ${error?.message}`
       );
+    }
+  }
+
+  private mapBkashStatus(bkashStatus: string): PAYMENT_STATUS {
+    switch (bkashStatus) {
+      case "Completed":
+        return PAYMENT_STATUS.PAID;
+      case "Failed":
+      case "Cancelled":
+      case "Timeout":
+        return PAYMENT_STATUS.FAILED;
+      default:
+        return PAYMENT_STATUS.PENDING;
     }
   }
 }

@@ -8,6 +8,7 @@ import { OrderModel } from "./order.model";
 import ApiError from "@/middlewares/error";
 import { HttpStatusCode } from "@/lib/httpStatus";
 import { BkashService } from "../bkash/bkash.service";
+import { PAYMENT_STATUS } from "./order.enums";
 
 class Service {
   async placeOrder(data: IOrderPlace): Promise<{ payment_url: string }> {
@@ -97,6 +98,27 @@ class Service {
       session.endSession();
       throw err;
     }
+  }
+
+  async updatePaymentStatus(
+    payment_id: string,
+    transaction_id: string,
+    status: PAYMENT_STATUS
+  ) {
+    const updatedOrder = await OrderModel.findOneAndUpdate(
+      { payment_id },
+      { $set: { payment_status: status, transaction_id } },
+      { new: true }
+    );
+
+    if (!updatedOrder) {
+      throw new ApiError(
+        HttpStatusCode.NOT_FOUND,
+        `Order was not found with payment id: ${payment_id}`
+      );
+    }
+
+    console.log(`Order status updated for payment id: ${payment_id}`);
   }
 
   private async generateOrderId(
