@@ -121,6 +121,30 @@ class Service {
     console.log(`Order status updated for payment id: ${payment_id}`);
   }
 
+  // get order by id
+  async getOrderById(id: string, user: any): Promise<IOrder | null> {
+    const order = await OrderModel.findById(id).populate(
+      "items.product items.variant user"
+    );
+
+    if (!order) {
+      throw new ApiError(
+        HttpStatusCode.NOT_FOUND,
+        `Order was not found with id: ${id}`
+      );
+    }
+
+    // Check if the user is authorized to view the order
+    if (order.user.toString() !== user.id) {
+      throw new ApiError(
+        HttpStatusCode.FORBIDDEN,
+        "You are not authorized to view this order"
+      );
+    }
+
+    return order;
+  }
+
   private async generateOrderId(
     session: mongoose.ClientSession
   ): Promise<number> {
