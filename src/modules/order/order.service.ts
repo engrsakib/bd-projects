@@ -81,7 +81,15 @@ class Service {
       payload.total_amount = Number(payload.total_amount.toFixed());
 
       // 5. Create order (with session)
-      await OrderModel.create([payload], { session });
+      const createdOrders = await OrderModel.create([payload], { session });
+      if (!createdOrders || createdOrders.length <= 0) {
+        throw new ApiError(
+          HttpStatusCode.INTERNAL_SERVER_ERROR,
+          "Failed to create order"
+        );
+      }
+      const createdOrder = createdOrders[0];
+      console.log(createdOrder);
 
       // 6. Clear cart (with session)
       await CartService.clearCartAfterCheckout(
@@ -122,10 +130,12 @@ class Service {
   }
 
   // get order by id
-  async getOrderById(id: string, user: any): Promise<IOrder | null> {
-    const order = await OrderModel.findById(id).populate(
-      "items.product items.variant user"
-    );
+  async getOrderById(id: string): Promise<IOrder | null> {
+    // console.log(id, "service", user);
+    const order = await OrderModel.findById(id).populate({
+      path: "user", // কোন ফিল্ড populate হবে
+      select: "name phone_number delivery_address", // শুধু এই ফিল্ডগুলো আনবে
+    });
 
     if (!order) {
       throw new ApiError(
@@ -135,12 +145,14 @@ class Service {
     }
 
     // Check if the user is authorized to view the order
-    if (order.user.toString() !== user.id) {
-      throw new ApiError(
-        HttpStatusCode.FORBIDDEN,
-        "You are not authorized to view this order"
-      );
-    }
+    // if (order.user.toString() !== user.id) {
+    //   throw new ApiError(
+    //     HttpStatusCode.FORBIDDEN,
+    //     "You are not authorized to view this order"
+    //   );
+    // }
+
+    console.log(order);
 
     return order;
   }
