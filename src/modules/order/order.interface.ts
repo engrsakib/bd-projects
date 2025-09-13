@@ -9,7 +9,10 @@ type IOrderStatus =
   | "delivered"
   | "pending_return"
   | "returned"
-  | "cancelled";
+  | "cancelled"
+  | "exchange_requested"
+  | "exchanged"
+  | "partial_delivered";
 
 export type IOrderItem = {
   product: Types.ObjectId;
