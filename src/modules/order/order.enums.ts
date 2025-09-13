@@ -7,6 +7,9 @@ export enum ORDER_STATUS {
   PENDING_RETURN = "pending_return",
   RETURNED = "returned",
   CANCELLED = "cancelled",
+  EXCHANGE_REQUESTED = "exchange_requested",
+  EXCHANGED = "exchanged",
+  PARTIAL_DELIVERED = "partial_delivered",
 }
 
 export enum PAYMENT_STATUS {
