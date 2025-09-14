@@ -132,10 +132,19 @@ class Service {
   // get order by id
   async getOrderById(id: string): Promise<IOrder | null> {
     // console.log(id, "service", user);
-    const order = await OrderModel.findById(id).populate({
-      path: "user", // কোন ফিল্ড populate হবে
-      select: "name phone_number delivery_address", // শুধু এই ফিল্ডগুলো আনবে
-    });
+    const order = await OrderModel.findById(id)
+      .populate({
+        path: "user", // কোন ফিল্ড populate হবে
+        select: "name phone_number delivery_address", // শুধু এই ফিল্ডগুলো আনবে
+      })
+      .populate({
+        path: "items",
+        select: "",
+      })
+      .populate({
+        path: "items.variant",
+        select: "name",
+      });
 
     if (!order) {
       throw new ApiError(
