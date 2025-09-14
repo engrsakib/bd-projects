@@ -10,6 +10,6 @@ router.post(
   JwtInstance.authenticate([ROLES.CUSTOMER]),
   OrderController.placeOrder
 );
-router.get("/tracking/:id", OrderController.getOrderById);
+router.get("/tracking", OrderController.getOrderById);
 
 export const OrderRoutes = router;
