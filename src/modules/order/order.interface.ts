@@ -26,7 +26,8 @@ export type IOrderItem = {
 
 export type IOrder = {
   user: Types.ObjectId;
-  items: IOrderItem[];
+  items?: IOrderItem[];
+  products?: IOrderItem[]; // for order placement
   total_items: number;
   total_price: number; // items price
   delivery_charge?: number;

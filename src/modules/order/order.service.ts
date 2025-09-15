@@ -9,16 +9,19 @@ import ApiError from "@/middlewares/error";
 import { HttpStatusCode } from "@/lib/httpStatus";
 import { BkashService } from "../bkash/bkash.service";
 import { PAYMENT_STATUS } from "./order.enums";
+import { ProductModel } from "../product/product.model";
 
 class Service {
   async placeOrder(data: IOrderPlace): Promise<{ payment_url: string }> {
     const session = await mongoose.startSession();
     session.startTransaction();
 
-    // console.log(data)
-
     try {
       // retrieve user cart
+      const enrichedOrder = await this.enrichProducts(data);
+      // enrichedOrder
+      console.log(JSON.stringify(enrichedOrder, null, 2));
+
       const cartItems = await CartService.getCartByUser(
         data.user_id as Types.ObjectId
       );
@@ -29,7 +32,7 @@ class Service {
         );
       }
 
-      console.log(cartItems, "cart items");
+      // console.log(cartItems, "cart items");
 
       // check stock availability [most important]
 
@@ -173,6 +176,19 @@ class Service {
     console.log(order);
 
     return order;
+  }
+
+  private async enrichProducts(orderData: any) {
+    const enrichedProducts = await Promise.all(
+      orderData.products.map(async (item: any) => {
+        const productDetails = await ProductModel.findById(item.product).lean();
+        return {
+          ...item,
+          product: productDetails,
+        };
+      })
+    );
+    return { ...orderData, products: enrichedProducts };
   }
 
   private async generateOrderId(
