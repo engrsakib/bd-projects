@@ -73,7 +73,7 @@ class Service {
         data.discounts = Number(data?.discounts.toFixed());
         payload.total_amount -= data.discounts;
       }
-
+      // dakha 70TK OUT SIDE DELIVERY CHARGE 120 TK
       if (data?.delivery_charge && data?.delivery_charge > 0) {
         data.delivery_charge = Number(data?.delivery_charge.toFixed());
         payload.total_amount += data.delivery_charge;
