@@ -135,15 +135,20 @@ class Service {
     const order = await OrderModel.findById(id)
       .populate({
         path: "user", // কোন ফিল্ড populate হবে
-        select: "name phone_number delivery_address", // শুধু এই ফিল্ডগুলো আনবে
+        select: "name phone_number email _id", // শুধু এই ফিল্ডগুলো আনবে
       })
       .populate({
         path: "items",
-        select: "",
-      })
-      .populate({
-        path: "items.variant",
-        select: "name",
+        populate: [
+          {
+            path: "product", // <-- This will populate items.product
+            select: "", // Add the fields you want
+          },
+          {
+            path: "variant", // <-- This will populate items.variant
+            select: "",
+          },
+        ],
       });
 
     if (!order) {
