@@ -15,6 +15,8 @@ class Service {
     const session = await mongoose.startSession();
     session.startTransaction();
 
+    // console.log(data)
+
     try {
       // retrieve user cart
       const cartItems = await CartService.getCartByUser(
@@ -26,6 +28,8 @@ class Service {
           "Cart is empty, cannot place order"
         );
       }
+
+      console.log(cartItems, "cart items");
 
       // check stock availability [most important]
 
@@ -88,8 +92,8 @@ class Service {
           "Failed to create order"
         );
       }
-      const createdOrder = createdOrders[0];
-      console.log(createdOrder);
+      // const createdOrder = createdOrders[0];
+      // console.log(createdOrder);
 
       // 6. Clear cart (with session)
       await CartService.clearCartAfterCheckout(

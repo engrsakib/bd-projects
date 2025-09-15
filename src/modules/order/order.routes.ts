@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { Router } from "express";
 import { OrderController } from "./order.controller";
 import { JwtInstance } from "@/lib/jwt";
@@ -7,7 +8,7 @@ const router = Router();
 
 router.post(
   "/",
-  JwtInstance.authenticate([ROLES.CUSTOMER]),
+
   OrderController.placeOrder
 );
 router.get("/tracking", OrderController.getOrderById);

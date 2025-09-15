@@ -65,5 +65,6 @@ export type IOrderPlace = {
   tax?: number; // optional
   discounts?: number;
   delivery_address: IAddress;
+  products: IOrderItem[];
   payment_method: "bkash" | "cod";
 };

@@ -32,3 +32,12 @@ export type IAddress = {
   phone_number?: string;
   email?: string;
 };
+
+export interface IOrderItem {
+  product: string | Types.ObjectId;
+  variant: string | Types.ObjectId;
+  quantity: number;
+  attributes?: {
+    [key: string]: string;
+  };
+}
