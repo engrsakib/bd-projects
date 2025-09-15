@@ -1,6 +1,7 @@
 import mongoose, { Types } from "mongoose";
 import { CartService } from "../cart/cart.service";
 import { IOrder, IOrderItem, IOrderPlace } from "./order.interface";
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { ICartItem } from "../cart/cart.interface";
 import { InvoiceService } from "@/lib/invoice";
 import { CounterModel } from "@/common/models/counter.model";
@@ -20,15 +21,15 @@ class Service {
       // retrieve user cart
       const enrichedOrder = await this.enrichProducts(data);
       // enrichedOrder
-      console.log(JSON.stringify(enrichedOrder, null, 2));
+      console.log(JSON.stringify(enrichedOrder, null, 2), "enriched order");
 
-      const cartItems = await CartService.getCartByUser(
-        data.user_id as Types.ObjectId
-      );
-      if (cartItems?.length <= 0) {
+      // const cartItems = await CartService.getCartByUser(
+      //   data.user_id as Types.ObjectId
+      // );
+      if (enrichedOrder?.length <= 0) {
         throw new ApiError(
           HttpStatusCode.BAD_REQUEST,
-          "Cart is empty, cannot place order"
+          "Your cart is empty, cannot place order"
         );
       }
 
@@ -37,7 +38,8 @@ class Service {
       // check stock availability [most important]
 
       // 2. Calculate totals
-      const { total_price, items, total_items } = this.calculateCart(cartItems);
+      const { total_price, items, total_items } =
+        this.calculateCart(enrichedOrder);
 
       // 3. Generate invoice and order id
       const order_id = await this.generateOrderId(session);
@@ -173,7 +175,7 @@ class Service {
     //   );
     // }
 
-    console.log(order);
+    // console.log(order);
 
     return order;
   }
@@ -202,7 +204,7 @@ class Service {
     return counter.sequence;
   }
 
-  private calculateCart(items: ICartItem[]): {
+  private calculateCart(items: any): {
     items: IOrderItem[];
     total_items: number;
     total_price: number;
@@ -210,7 +212,9 @@ class Service {
     let total_items = 0;
     let total_price = 0;
 
-    const orderItems: IOrderItem[] = items.map((cartItem) => {
+    console.log(items, "items");
+
+    const orderItems: IOrderItem[] = items?.products.map((cartItem: any) => {
       const subtotal = cartItem.price * cartItem.quantity;
       total_items += cartItem.quantity;
       total_price += subtotal;
