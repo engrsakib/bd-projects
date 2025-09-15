@@ -28,8 +28,7 @@ export type IAddress = {
   thana?: string;
   zip_code?: string;
   local_address?: string;
-  coordinates?: {
-    latitude: number;
-    longitude: number;
-  };
+  name?: string;
+  phone_number?: string;
+  email?: string;
 };
