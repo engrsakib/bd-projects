@@ -12,6 +12,7 @@
     "allowSyntheticDefaultImports": true,
     "strict": true,
     "moduleResolution": "node",
+    "ignoreDeprecations": "5.0",
     "paths": {
       "@/common/*": ["common/*"],
       "@/config/*": ["config/*"],

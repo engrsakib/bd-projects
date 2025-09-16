@@ -59,6 +59,24 @@ class Service {
     );
   }
 
+  async getCartByUser(userId: Types.ObjectId): Promise<ICartItem[]> {
+    const cart = await CartModel.findOne({ user: userId });
+    if (!cart) {
+      throw new ApiError(
+        HttpStatusCode.NOT_FOUND,
+        "You don't have items on cart to checkout. Please choose your items and add to cart"
+      );
+    }
+
+    if (cart?.items.length <= 0) {
+      throw new ApiError(
+        HttpStatusCode.BAD_REQUEST,
+        "You cart is empty. Please add items to cart"
+      );
+    }
+    return cart?.items || [];
+  }
+
   async updateACartItem(
     userId: Types.ObjectId,
     itemId: Types.ObjectId,
@@ -71,7 +89,9 @@ class Service {
       const cart = await CartModel.findOne({ user: userId }).session(session);
       if (!cart) throw new ApiError(HttpStatusCode.NOT_FOUND, "Cart not found");
 
-      const itemIndex = cart.items.findIndex((item) => item._id.equals(itemId));
+      const itemIndex = cart.items.findIndex((item: any) =>
+        item?._id.equals(itemId)
+      );
       if (itemIndex === -1)
         throw new ApiError(HttpStatusCode.NOT_FOUND, "Item not found in cart");
 
@@ -131,6 +151,21 @@ class Service {
       await session.abortTransaction();
       session.endSession();
       throw err;
+    }
+  }
+
+  async clearCartAfterCheckout(
+    userId: Types.ObjectId,
+    session?: mongoose.ClientSession
+  ) {
+    const result = await CartModel.updateOne(
+      { user: userId },
+      { $set: { items: [], total_price: 0, total_items: 0 } },
+      session ? { session } : undefined
+    );
+
+    if (result.modifiedCount === 0) {
+      console.warn(`No cart found or cart already empty for user: ${userId}`);
     }
   }
 }
