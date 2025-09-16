@@ -180,6 +180,14 @@ class Service {
     return order;
   }
 
+  // get orders for admin with pagination, filter, search, sort, date range etc.
+  // get orders for user with pagination, filter, search, sort, date range etc.
+  async getOrders(): Promise<IOrder[]> {
+    const orders = await OrderModel.find();
+
+    return orders;
+  }
+
   private async enrichProducts(orderData: any) {
     const enrichedProducts = await Promise.all(
       orderData.products.map(async (item: any) => {
