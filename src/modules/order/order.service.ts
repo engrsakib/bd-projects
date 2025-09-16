@@ -22,7 +22,7 @@ class Service {
       // retrieve user cart
       const enrichedOrder = await this.enrichProducts(data);
       // enrichedOrder
-      console.log(JSON.stringify(enrichedOrder, null, 2), "enriched order");
+      // console.log(JSON.stringify(enrichedOrder, null, 2), "enriched order");
 
       // const cartItems = await CartService.getCartByUser(
       //   data.user_id as Types.ObjectId
@@ -74,6 +74,11 @@ class Service {
         data.discounts = Number(data?.discounts.toFixed());
         payload.total_amount -= data.discounts;
       }
+
+      data.delivery_charge = this.calculateDeliveryCharge(
+        data.delivery_address.division
+      );
+
       // dakha 70TK OUT SIDE DELIVERY CHARGE 120 TK
       if (data?.delivery_charge && data?.delivery_charge > 0) {
         data.delivery_charge = Number(data?.delivery_charge.toFixed());
@@ -269,10 +274,16 @@ class Service {
   // calulate delivery charge
   private calculateDeliveryCharge(address: any): number {
     // Example logic: flat rate based on division
+    console.log(address, "address");
     const divisionCharges: { [key: string]: number } = {
-      Dhaka: 70,
+      dhaka: 70,
+      dhaka_division: 70,
       ঢাকা: 70,
-      "ঢাকা বিভাগ": 70,
+      ঢাকা_বিভাগ: 70,
+      Dhaka: 70,
+
+      // ঢাকা: 70,
+      // ঢাকা বিভাগ: 70,
       // Chittagong: 80,
       // Khulna: 100,
       // Rajshahi: 100,
@@ -281,7 +292,7 @@ class Service {
       // Rangpur: 120,
       // Mymensingh: 100,
     };
-    return divisionCharges[address.division] || 120; // default charge
+    return divisionCharges[address.toLowerCase()] || 120; // default charge
   }
 
   private async generateOrderId(
