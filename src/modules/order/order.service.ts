@@ -274,7 +274,7 @@ class Service {
   // calulate delivery charge
   private calculateDeliveryCharge(address: any): number {
     // Example logic: flat rate based on division
-    console.log(address, "address");
+    // console.log(address, "address");
     const divisionCharges: { [key: string]: number } = {
       dhaka: 70,
       dhaka_division: 70,
