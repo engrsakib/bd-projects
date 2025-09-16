@@ -12,5 +12,5 @@ router.post(
   OrderController.placeOrder
 );
 router.get("/tracking", OrderController.getOrderById);
-
+router.get("/all-orders", OrderController.getOrders);
 export const OrderRoutes = router;

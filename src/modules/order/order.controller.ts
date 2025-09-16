@@ -26,6 +26,15 @@ class Controller extends BaseController {
       data,
     });
   });
+  getOrders = this.catchAsync(async (req: Request, res: Response) => {
+    const data = await OrderService.getOrders();
+    this.sendResponse(res, {
+      statusCode: HttpStatusCode.OK,
+      success: true,
+      message: "Orders retrieved successfully",
+      data,
+    });
+  });
 }
 
 export const OrderController = new Controller();
