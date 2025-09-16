@@ -8,10 +8,9 @@ export const addressSchema = new Schema<IAddress>(
     thana: { type: String, default: "" },
     zip_code: { type: String, default: "" },
     local_address: { type: String, default: "" },
-    coordinates: {
-      latitude: { type: Number, default: null },
-      longitude: { type: Number, default: null },
-    },
+    name: { type: String, default: "" },
+    phone_number: { type: String, default: "" },
+    email: { type: String, default: "" },
   },
   { _id: false }
 );

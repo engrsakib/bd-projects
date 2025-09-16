@@ -9,7 +9,10 @@ type IOrderStatus =
   | "delivered"
   | "pending_return"
   | "returned"
-  | "cancelled";
+  | "cancelled"
+  | "exchange_requested"
+  | "exchanged"
+  | "partial_delivered";
 
 export type IOrderItem = {
   product: Types.ObjectId;
@@ -22,8 +25,9 @@ export type IOrderItem = {
 };
 
 export type IOrder = {
-  user: Types.ObjectId;
-  items: IOrderItem[];
+  user?: Types.ObjectId;
+  items?: IOrderItem[];
+  products?: IOrderItem[]; // for order placement
   total_items: number;
   total_price: number; // items price
   delivery_charge?: number;
@@ -31,7 +35,7 @@ export type IOrder = {
   order_id?: number; // auto increment
   invoice_number: string; // auto generated
   delivery_address: IAddress;
-  payment_method: "bkash" | "cod";
+  payment_type: "bkash" | "cod";
   transaction_id?: string;
   payment_id?: string;
   payment_status?: "pending" | "paid" | "failed" | "refunded";
@@ -62,5 +66,6 @@ export type IOrderPlace = {
   tax?: number; // optional
   discounts?: number;
   delivery_address: IAddress;
-  payment_method: "bkash" | "cod";
+  products: IOrderItem[];
+  payment_type: "bkash" | "cod";
 };

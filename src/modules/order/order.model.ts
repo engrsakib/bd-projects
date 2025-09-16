@@ -20,7 +20,7 @@ const orderItemSchema = new Schema<IOrderItem>({
 
 const orderSchema = new Schema<IOrder>(
   {
-    user: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    user: { type: Schema.Types.ObjectId, ref: "User", required: false },
 
     items: { type: [orderItemSchema], required: true },
 
@@ -34,7 +34,7 @@ const orderSchema = new Schema<IOrder>(
 
     delivery_address: addressSchema,
 
-    payment_method: {
+    payment_type: {
       type: String,
       enum: Object.values(PAYMENT_METHOD),
       required: true,

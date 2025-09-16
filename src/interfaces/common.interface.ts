@@ -28,8 +28,26 @@ export type IAddress = {
   thana?: string;
   zip_code?: string;
   local_address?: string;
-  coordinates?: {
-    latitude: number;
-    longitude: number;
-  };
+  name?: string;
+  phone_number?: string;
+  email?: string;
 };
+
+export interface IOrderItem {
+  product: string | Types.ObjectId;
+  variant: string | Types.ObjectId;
+  quantity: number;
+  attributes?: {
+    [key: string]: string;
+  };
+}
+
+export interface OrderQuery {
+  page?: string;
+  limit?: string;
+  start_date?: string;
+  end_date?: string;
+  status?: string;
+  phone?: string;
+  order_id?: string;
+}
