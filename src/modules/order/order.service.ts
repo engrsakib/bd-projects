@@ -266,6 +266,24 @@ class Service {
     return { ...orderData, products: enrichedProducts };
   }
 
+  // calulate delivery charge
+  private calculateDeliveryCharge(address: any): number {
+    // Example logic: flat rate based on division
+    const divisionCharges: { [key: string]: number } = {
+      Dhaka: 70,
+      ঢাকা: 70,
+      "ঢাকা বিভাগ": 70,
+      // Chittagong: 80,
+      // Khulna: 100,
+      // Rajshahi: 100,
+      // Barisal: 120,
+      // Sylhet: 150,
+      // Rangpur: 120,
+      // Mymensingh: 100,
+    };
+    return divisionCharges[address.division] || 120; // default charge
+  }
+
   private async generateOrderId(
     session: mongoose.ClientSession
   ): Promise<number> {
