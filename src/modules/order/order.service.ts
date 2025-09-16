@@ -188,6 +188,7 @@ class Service {
     return orders;
   }
 
+  // enrich products with details
   private async enrichProducts(orderData: any) {
     const enrichedProducts = await Promise.all(
       orderData.products.map(async (item: any) => {

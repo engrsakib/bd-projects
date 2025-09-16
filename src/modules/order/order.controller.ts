@@ -27,6 +27,7 @@ class Controller extends BaseController {
     });
   });
   getOrders = this.catchAsync(async (req: Request, res: Response) => {
+    // console.log(req.query, "params")
     const data = await OrderService.getOrders();
     this.sendResponse(res, {
       statusCode: HttpStatusCode.OK,
