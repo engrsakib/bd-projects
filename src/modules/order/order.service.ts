@@ -59,7 +59,7 @@ class Service {
         delivery_address: data.delivery_address,
         invoice_number,
         order_id,
-        payment_method: data.payment_method,
+        payment_type: data.payment_type,
         payment_status: "pending",
         order_at: new Date(),
         status: "pending",

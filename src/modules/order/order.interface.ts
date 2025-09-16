@@ -35,7 +35,7 @@ export type IOrder = {
   order_id?: number; // auto increment
   invoice_number: string; // auto generated
   delivery_address: IAddress;
-  payment_method: "bkash" | "cod";
+  payment_type: "bkash" | "cod";
   transaction_id?: string;
   payment_id?: string;
   payment_status?: "pending" | "paid" | "failed" | "refunded";
@@ -67,5 +67,5 @@ export type IOrderPlace = {
   discounts?: number;
   delivery_address: IAddress;
   products: IOrderItem[];
-  payment_method: "bkash" | "cod";
+  payment_type: "bkash" | "cod";
 };

@@ -34,7 +34,7 @@ const orderSchema = new Schema<IOrder>(
 
     delivery_address: addressSchema,
 
-    payment_method: {
+    payment_type: {
       type: String,
       enum: Object.values(PAYMENT_METHOD),
       required: true,
