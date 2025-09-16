@@ -41,3 +41,13 @@ export interface IOrderItem {
     [key: string]: string;
   };
 }
+
+export interface OrderQuery {
+  page?: string;
+  limit?: string;
+  start_date?: string;
+  end_date?: string;
+  status?: string;
+  phone?: string;
+  order_id?: string;
+}

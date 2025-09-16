@@ -11,6 +11,7 @@ import { HttpStatusCode } from "@/lib/httpStatus";
 import { BkashService } from "../bkash/bkash.service";
 import { PAYMENT_STATUS } from "./order.enums";
 import { ProductModel } from "../product/product.model";
+import { OrderQuery } from "@/interfaces/common.interface";
 
 class Service {
   async placeOrder(data: IOrderPlace): Promise<{ payment_url: string }> {
@@ -182,8 +183,71 @@ class Service {
 
   // get orders for admin with pagination, filter, search, sort, date range etc.
   // get orders for user with pagination, filter, search, sort, date range etc.
-  async getOrders(): Promise<IOrder[]> {
-    const orders = await OrderModel.find();
+  async getOrders(query: OrderQuery): Promise<IOrder[]> {
+    const {
+      page = "1",
+      limit = "10",
+      start_date,
+      end_date,
+      status,
+      phone,
+      order_id,
+    } = query;
+
+    console.log(query, "query");
+
+    // Build aggregation pipeline
+    const pipeline: any[] = [];
+
+    // Filter conditions
+    const matchStage: any = {};
+
+    // Date range (order_at)
+    if (start_date || end_date) {
+      matchStage.order_at = {};
+      if (start_date) matchStage.order_at.$gte = new Date(start_date);
+      if (end_date) matchStage.order_at.$lte = new Date(end_date);
+    }
+
+    // Status
+    if (status) {
+      matchStage.status = status;
+    }
+
+    // Phone (delivery_address.phone_number)
+    if (phone) {
+      matchStage["delivery_address.phone_number"] = phone;
+    }
+
+    // Order ID (number or string)
+    if (order_id) {
+      // Try as number, fallback to string match
+      if (!isNaN(Number(order_id))) {
+        matchStage.order_id = Number(order_id);
+      } else {
+        matchStage.order_id = order_id;
+      }
+    }
+
+    // Only add $match if anything in it
+    if (Object.keys(matchStage).length) {
+      pipeline.push({ $match: matchStage });
+    }
+
+    // Sort by most recent orders (order_at desc)
+    pipeline.push({ $sort: { order_at: -1 } });
+
+    // Pagination
+    const _page = Math.max(Number(page), 1);
+    const _limit = Math.max(Number(limit), 1);
+    pipeline.push({ $skip: (_page - 1) * _limit });
+    pipeline.push({ $limit: _limit });
+
+    // You may want to get total count for pagination UI
+    // For that, use a separate aggregate or do .countDocuments() with same match
+
+    // Run aggregation
+    const orders = await OrderModel.aggregate(pipeline);
 
     return orders;
   }
