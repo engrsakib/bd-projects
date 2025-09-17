@@ -188,7 +188,12 @@ class Service {
 
   // get orders for admin with pagination, filter, search, sort, date range etc.
   // get orders for user with pagination, filter, search, sort, date range etc.
-  async getOrders(query: OrderQuery): Promise<IOrder[]> {
+  async getOrders(
+    query: OrderQuery
+  ): Promise<{
+    meta: { page: number; limit: number; total: number };
+    data: IOrder[];
+  }> {
     const {
       page = "1",
       limit = "10",
@@ -253,8 +258,11 @@ class Service {
 
     // Run aggregation
     const orders = await OrderModel.aggregate(pipeline);
-
-    return orders;
+    const total = await OrderModel.countDocuments(matchStage);
+    return {
+      meta: { page: _page, limit: _limit, total },
+      data: orders,
+    };
   }
 
   // enrich products with details
