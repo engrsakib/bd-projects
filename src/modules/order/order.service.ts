@@ -188,9 +188,7 @@ class Service {
 
   // get orders for admin with pagination, filter, search, sort, date range etc.
   // get orders for user with pagination, filter, search, sort, date range etc.
-  async getOrders(
-    query: OrderQuery
-  ): Promise<{
+  async getOrders(query: OrderQuery): Promise<{
     meta: { page: number; limit: number; total: number };
     data: IOrder[];
   }> {
@@ -203,8 +201,6 @@ class Service {
       phone,
       order_id,
     } = query;
-
-    console.log(query, "query");
 
     // Build aggregation pipeline
     const pipeline: any[] = [];
@@ -231,7 +227,6 @@ class Service {
 
     // Order ID (number or string)
     if (order_id) {
-      // Try as number, fallback to string match
       if (!isNaN(Number(order_id))) {
         matchStage.order_id = Number(order_id);
       } else {
@@ -247,18 +242,87 @@ class Service {
     // Sort by most recent orders (order_at desc)
     pipeline.push({ $sort: { order_at: -1 } });
 
+    // ---------- Populate items.product ----------
+    pipeline.push({
+      $lookup: {
+        from: "products", // products collection name
+        localField: "items.product",
+        foreignField: "_id",
+        as: "productsDocs",
+      },
+    });
+
+    // ---------- Populate items.variant ----------
+    pipeline.push({
+      $lookup: {
+        from: "variants", // variants collection name
+        localField: "items.variant",
+        foreignField: "_id",
+        as: "variantsDocs",
+      },
+    });
+
+    // ---------- Merge populated product/variant into items array ----------
+    pipeline.push({
+      $addFields: {
+        items: {
+          $map: {
+            input: "$items",
+            as: "item",
+            in: {
+              $mergeObjects: [
+                "$$item",
+                {
+                  product: {
+                    $arrayElemAt: [
+                      {
+                        $filter: {
+                          input: "$productsDocs",
+                          as: "prod",
+                          cond: { $eq: ["$$item.product", "$$prod._id"] },
+                        },
+                      },
+                      0,
+                    ],
+                  },
+                  variant: {
+                    $arrayElemAt: [
+                      {
+                        $filter: {
+                          input: "$variantsDocs",
+                          as: "var",
+                          cond: { $eq: ["$$item.variant", "$$var._id"] },
+                        },
+                      },
+                      0,
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        },
+      },
+    });
+
+    // ---------- Remove extra arrays ----------
+    pipeline.push({
+      $project: {
+        productsDocs: 0,
+        variantsDocs: 0,
+      },
+    });
+
     // Pagination
     const _page = Math.max(Number(page), 1);
     const _limit = Math.max(Number(limit), 1);
     pipeline.push({ $skip: (_page - 1) * _limit });
     pipeline.push({ $limit: _limit });
 
-    // You may want to get total count for pagination UI
-    // For that, use a separate aggregate or do .countDocuments() with same match
-
     // Run aggregation
     const orders = await OrderModel.aggregate(pipeline);
     const total = await OrderModel.countDocuments(matchStage);
+
     return {
       meta: { page: _page, limit: _limit, total },
       data: orders,
