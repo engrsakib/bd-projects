@@ -28,7 +28,15 @@ const orderSchema = new Schema<IOrder>(
     total_price: { type: Number, required: true },
     delivery_charge: { type: Number },
     total_amount: { type: Number },
+    paid_amount: { type: Number, default: 0 },
     payable_amount: { type: Number, required: true, default: 0 },
+
+    order_status: {
+      type: String,
+      enum: Object.values(ORDER_STATUS),
+      default: ORDER_STATUS.PENDING,
+    },
+    is_delivery_charge_paid: { type: Boolean, default: false },
 
     order_id: { type: Number, required: true },
     invoice_number: { type: String, required: true },
@@ -64,13 +72,6 @@ const orderSchema = new Schema<IOrder>(
     returned_at: { type: Date, default: null },
     cancelled_at: { type: Date, default: null },
 
-    status: {
-      type: String,
-      enum: Object.values(ORDER_STATUS),
-      default: ORDER_STATUS.PENDING,
-    },
-    is_delivery_charge_paid: { type: Boolean, default: false },
-    paid_amount: { type: Number, default: 0 },
     system_message: { type: String, default: "" },
     order_note: { type: String, default: "" },
     notes: { type: String, default: "" },

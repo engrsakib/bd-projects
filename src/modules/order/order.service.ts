@@ -9,7 +9,7 @@ import { OrderModel } from "./order.model";
 import ApiError from "@/middlewares/error";
 import { HttpStatusCode } from "@/lib/httpStatus";
 import { BkashService } from "../bkash/bkash.service";
-import { PAYMENT_STATUS } from "./order.enums";
+import { ORDER_STATUS, PAYMENT_STATUS } from "./order.enums";
 import { ProductModel } from "../product/product.model";
 import { OrderQuery } from "@/interfaces/common.interface";
 
@@ -58,14 +58,14 @@ class Service {
         total_items,
         total_price,
         total_amount: total_price,
-        payable_amount: total_price,
+        payable_amount: 0, // will be updated later
         delivery_address: data.delivery_address,
         invoice_number,
         order_id,
         payment_type: data.payment_type,
-        payment_status: "pending",
+        payment_status: PAYMENT_STATUS.PENDING,
         order_at: new Date(),
-        status: "pending",
+        order_status: ORDER_STATUS.PENDING,
       };
 
       if (data?.tax && data?.tax > 0) {
@@ -89,11 +89,18 @@ class Service {
         payload.delivery_charge = data.delivery_charge;
       }
 
+      if (data.payment_type === "cod") {
+        payload.payment_status = PAYMENT_STATUS.PENDING;
+        payload.payable_amount = payload.total_amount;
+        payload.order_status = ORDER_STATUS.PLACED;
+      }
+
       // create payment first
-      const { payment_id, payment_url } = await BkashService.createPayment({
-        payable_amount: payload.total_amount,
-        invoice_number: payload.invoice_number,
-      });
+      const { payment_id, payment_url: bkash_payment_url } =
+        await BkashService.createPayment({
+          payable_amount: payload.total_amount,
+          invoice_number: payload.invoice_number,
+        });
 
       payload.payment_id = payment_id;
       payload.total_amount = Number(payload.total_amount.toFixed());
@@ -118,6 +125,10 @@ class Service {
       // 7. Commit transaction
       await session.commitTransaction();
       session.endSession();
+
+      const payment_url =
+        data.payment_type === "bkash" ? bkash_payment_url : "";
+
       return { order: createdOrders, payment_url };
     } catch (err) {
       await session.abortTransaction();

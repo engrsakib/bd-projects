@@ -32,9 +32,11 @@ export type IOrder = {
   products?: IOrderItem[]; // for order placement
   total_items: number;
   total_price: number; // items price
-  payable_amount?: number; // total payable amount = total_price + tax etc - delivery_charge.
   delivery_charge?: number;
   total_amount: number; // payable amount = total_price + delivery_charge + tax etc.
+  paid_amount?: number; // total paid amount by the customer
+  payable_amount?: number; // total payable amount = total_price + tax etc - delivery_charge.
+  order_status?: IOrderStatus;
   order_id?: number; // auto increment
   invoice_number: string; // auto generated
   delivery_address: IAddress;
@@ -60,12 +62,10 @@ export type IOrder = {
   cancelled_at?: Date;
 
   is_delivery_charge_paid?: boolean;
-  paid_amount?: number; // total paid amount by the customer
 
   system_message?: string; // system generated messages
   order_note?: string; // customer provided note
   // for guest user email and phone will be stored in address field
-  status?: IOrderStatus;
   notes?: string;
 };
 
