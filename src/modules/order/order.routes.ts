@@ -12,5 +12,12 @@ router.post(
   OrderController.placeOrder
 );
 router.get("/tracking", OrderController.getOrderById);
-router.get("/all-orders", OrderController.getOrders);
+// If JwtInstance is an instance, use its middleware method (e.g., JwtInstance.verify(ROLES.ADMIN))
+// If JwtInstance should be a function, ensure it is imported as such.
+// Example fix assuming JwtInstance.verify is the correct middleware:
+router.get(
+  "/all-orders",
+  JwtInstance.authenticate([ROLES.ADMIN, ROLES.SUPER_ADMIN]),
+  OrderController.getOrders
+);
 export const OrderRoutes = router;
