@@ -14,7 +14,9 @@ import { ProductModel } from "../product/product.model";
 import { OrderQuery } from "@/interfaces/common.interface";
 
 class Service {
-  async placeOrder(data: IOrderPlace): Promise<{ payment_url: string }> {
+  async placeOrder(
+    data: IOrderPlace
+  ): Promise<{ order: IOrder[]; payment_url: string }> {
     const session = await mongoose.startSession();
     session.startTransaction();
 
@@ -56,6 +58,7 @@ class Service {
         total_items,
         total_price,
         total_amount: total_price,
+        payable_amount: total_price,
         delivery_address: data.delivery_address,
         invoice_number,
         order_id,
@@ -115,7 +118,7 @@ class Service {
       // 7. Commit transaction
       await session.commitTransaction();
       session.endSession();
-      return { payment_url };
+      return { order: createdOrders, payment_url };
     } catch (err) {
       await session.abortTransaction();
       session.endSession();
