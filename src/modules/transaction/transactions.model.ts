@@ -19,7 +19,7 @@ const transactionSchema = new Schema<ITransaction>(
     currency: { type: String, default: "BDT" },
     payment_by: { type: String, required: true },
     message: { type: String, required: false },
-    method: { type: String, enum: ["BKASH", "NAGAD"], default: "BKASH" },
+    method: { type: String, enum: ["BKASH", "COD"], default: "BKASH" },
   },
   {
     timestamps: true,

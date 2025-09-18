@@ -1,5 +1,7 @@
 export enum ORDER_STATUS {
   PENDING = "pending",
+  FAILED = "failed",
+  PLACED = "placed",
   ACCEPTED = "accepted",
   SHIPPED = "shipped",
   IN_TRANSIT = "in_transit",

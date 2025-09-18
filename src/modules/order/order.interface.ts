@@ -3,6 +3,8 @@ import { Types } from "mongoose";
 
 type IOrderStatus =
   | "pending"
+  | "failed"
+  | "placed"
   | "accepted"
   | "shipped"
   | "in_transit"
@@ -30,6 +32,7 @@ export type IOrder = {
   products?: IOrderItem[]; // for order placement
   total_items: number;
   total_price: number; // items price
+  payable_amount?: number; // total payable amount = total_price + tax etc - delivery_charge.
   delivery_charge?: number;
   total_amount: number; // payable amount = total_price + delivery_charge + tax etc.
   order_id?: number; // auto increment
@@ -56,6 +59,12 @@ export type IOrder = {
   returned_at?: Date;
   cancelled_at?: Date;
 
+  is_delivery_charge_paid?: boolean;
+  paid_amount?: number; // total paid amount by the customer
+
+  system_message?: string; // system generated messages
+  order_note?: string; // customer provided note
+  // for guest user email and phone will be stored in address field
   status?: IOrderStatus;
   notes?: string;
 };
