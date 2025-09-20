@@ -266,6 +266,35 @@ class Service {
       },
     });
 
+    pipeline.push({
+      $lookup: {
+        from: "user", // products collection name
+        localField: "user",
+        foreignField: "_id",
+        as: "productsDocs",
+      },
+    });
+
+    // ---------- Populate items.product ----------
+    pipeline.push({
+      $lookup: {
+        from: "products", // products collection name
+        localField: "items.product",
+        foreignField: "_id",
+        as: "productsDocs",
+      },
+    });
+
+    // ---------- Populate user ----------
+    pipeline.push({
+      $lookup: {
+        from: "users", // users collection name (must be plural, usually 'users')
+        localField: "user",
+        foreignField: "_id",
+        as: "userDocs",
+      },
+    });
+
     // ---------- Populate items.variant ----------
     pipeline.push({
       $lookup: {
@@ -316,6 +345,36 @@ class Service {
             },
           },
         },
+        // ---------- Merge populated user (excluding password) ----------
+        user: {
+          $let: {
+            vars: {
+              userObj: {
+                $arrayElemAt: [
+                  {
+                    $filter: {
+                      input: "$userDocs",
+                      as: "u",
+                      cond: { $eq: ["$user", "$$u._id"] },
+                    },
+                  },
+                  0,
+                ],
+              },
+            },
+            in: {
+              _id: "$$userObj._id",
+              name: "$$userObj.name",
+              email: "$$userObj.email",
+              phone: "$$userObj.phone",
+              role: "$$userObj.role",
+              status: "$$userObj.status",
+              createdAt: "$$userObj.createdAt",
+              updatedAt: "$$userObj.updatedAt",
+              // password intentionally excluded
+            },
+          },
+        },
       },
     });
 
@@ -324,6 +383,7 @@ class Service {
       $project: {
         productsDocs: 0,
         variantsDocs: 0,
+        userDocs: 0,
       },
     });
 
