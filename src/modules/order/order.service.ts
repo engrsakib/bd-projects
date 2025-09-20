@@ -161,7 +161,7 @@ class Service {
   // get order by id
   async getOrderById(id: string): Promise<IOrder | null> {
     // console.log(id, "service", user);
-    const order = await OrderModel.findById(id)
+    const order = await OrderModel.findById({ _id: id })
       .populate({
         path: "user", // কোন ফিল্ড populate হবে
         select: "name phone_number email _id", // শুধু এই ফিল্ডগুলো আনবে

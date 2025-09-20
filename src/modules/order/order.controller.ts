@@ -19,7 +19,7 @@ class Controller extends BaseController {
   });
   getOrderById = this.catchAsync(async (req: Request, res: Response) => {
     // console.log(req.params.id, req.user);
-    const data = await OrderService.getOrderById(req.body.id);
+    const data = await OrderService.getOrderById(req.params.id as string);
     this.sendResponse(res, {
       statusCode: HttpStatusCode.OK,
       success: true,
