@@ -17,7 +17,7 @@ router.get("/tracking", OrderController.getOrderById);
 // Example fix assuming JwtInstance.verify is the correct middleware:
 router.get(
   "/all-orders",
-  JwtInstance.authenticate([ROLES.ADMIN, ROLES.SUPER_ADMIN]),
+
   OrderController.getOrders
 );
 export const OrderRoutes = router;
