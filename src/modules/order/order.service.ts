@@ -160,24 +160,20 @@ class Service {
 
   // get order by id
   async getOrderById(id: string): Promise<IOrder | null> {
-    // console.log(id, "service", user);
-    const order = await OrderModel.findById({ _id: id })
+    // শুধু id দিন, {_id: id} নয়
+    const order = await OrderModel.findById(id)
       .populate({
         path: "user", // কোন ফিল্ড populate হবে
         select: "name phone_number email _id", // শুধু এই ফিল্ডগুলো আনবে
       })
       .populate({
-        path: "items",
-        populate: [
-          {
-            path: "product", // <-- This will populate items.product
-            select: "", // Add the fields you want
-          },
-          {
-            path: "variant", // <-- This will populate items.variant
-            select: "",
-          },
-        ],
+        path: "items.product", // items array-র প্রতিটি product ObjectId-কে populate করবে
+        select: "name slug sku thumbnail description", // যেসব ফিল্ড আনবেন
+      })
+      .populate({
+        path: "items.variant", // items array-র প্রতিটি variant ObjectId-কে populate করবে
+        select:
+          "attributes attribute_values regular_price sale_price sku barcode image", // যেসব ফিল্ড আনবেন
       });
 
     if (!order) {
@@ -186,16 +182,6 @@ class Service {
         `Order was not found with id: ${id}`
       );
     }
-
-    // Check if the user is authorized to view the order
-    // if (order.user.toString() !== user.id) {
-    //   throw new ApiError(
-    //     HttpStatusCode.FORBIDDEN,
-    //     "You are not authorized to view this order"
-    //   );
-    // }
-
-    // console.log(order);
 
     return order;
   }
