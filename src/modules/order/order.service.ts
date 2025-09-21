@@ -13,6 +13,7 @@ import { ORDER_STATUS, PAYMENT_STATUS } from "./order.enums";
 import { ProductModel } from "../product/product.model";
 import { OrderQuery } from "@/interfaces/common.interface";
 import { StockModel } from "../stock/stock.model";
+import { VariantModel } from "../variant/variant.model";
 
 class Service {
   async placeOrder(
@@ -58,7 +59,7 @@ class Service {
 
       // 2. Calculate totals
       const { total_price, items, total_items } =
-        this.calculateCart(enrichedOrder);
+        await this.calculateCart(enrichedOrder);
 
       // 3. Generate invoice and order id
       const order_id = await this.generateOrderId(session);
@@ -469,30 +470,34 @@ class Service {
     return counter.sequence;
   }
 
-  private calculateCart(items: any): {
+  private async calculateCart(items: any): Promise<{
     items: IOrderItem[];
     total_items: number;
     total_price: number;
-  } {
+  }> {
     let total_items = 0;
     let total_price = 0;
 
     // console.log(items, "items");
 
-    const orderItems: IOrderItem[] = items?.products.map((cartItem: any) => {
-      const subtotal = cartItem.price * cartItem.quantity;
-      total_items += cartItem.quantity;
-      total_price += subtotal;
+    const orderItems: IOrderItem[] = await Promise.all(
+      items?.products.map(async (cartItem: any) => {
+        const variant = await VariantModel.findById(cartItem.variant);
 
-      return {
-        product: cartItem.product,
-        variant: cartItem.variant,
-        attributes: cartItem.attributes,
-        quantity: cartItem.quantity,
-        price: cartItem.price,
-        subtotal,
-      };
-    });
+        const subtotal = (variant?.sale_price || 0) * cartItem.quantity;
+        total_items += cartItem.quantity;
+        total_price += subtotal;
+
+        return {
+          product: cartItem.product,
+          variant: cartItem.variant,
+          attributes: cartItem.attributes,
+          quantity: cartItem.quantity,
+          price: variant?.sale_price || 0,
+          subtotal,
+        };
+      })
+    );
 
     return { items: orderItems, total_items, total_price };
   }
