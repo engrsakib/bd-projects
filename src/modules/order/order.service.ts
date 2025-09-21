@@ -12,6 +12,7 @@ import { BkashService } from "../bkash/bkash.service";
 import { ORDER_STATUS, PAYMENT_STATUS } from "./order.enums";
 import { ProductModel } from "../product/product.model";
 import { OrderQuery } from "@/interfaces/common.interface";
+import { StockModel } from "../stock/stock.model";
 
 class Service {
   async placeOrder(
@@ -40,7 +41,19 @@ class Service {
 
       // check stock availability [most important]
       for (const item of enrichedOrder.products) {
-        console.log(item.variant, "for stock");
+        // console.log(item.variant, "for stock");
+        const stock = await StockModel.findOne({
+          product: item.product,
+          variant: item.variant,
+        });
+
+        if (!stock || stock.available_quantity < item.quantity) {
+          throw new ApiError(
+            HttpStatusCode.BAD_REQUEST,
+            `Product ${item.product.name} is out of stock or does not have enough quantity`
+          );
+        }
+        console.log(stock, "stock");
       }
 
       // 2. Calculate totals
