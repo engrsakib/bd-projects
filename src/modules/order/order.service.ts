@@ -54,8 +54,10 @@ class Service {
             `Product ${item.product.name} is out of stock or does not have enough quantity`
           );
         }
-        console.log(stock, "stock");
+        // console.log(stock, "stock");
       }
+
+      //  stock reduction will be done after payment confirmation
 
       // 2. Calculate totals
       const { total_price, items, total_items } =
@@ -499,7 +501,11 @@ class Service {
       })
     );
 
-    return { items: orderItems, total_items, total_price };
+    return {
+      items: orderItems,
+      total_items,
+      total_price: Math.ceil(total_price),
+    };
   }
 }
 
