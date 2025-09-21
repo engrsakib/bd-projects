@@ -2,8 +2,8 @@ import { IAddress } from "@/interfaces/common.interface";
 import { Types } from "mongoose";
 
 type IOrderStatus =
-  | "pending"
   | "failed"
+  | "pending"
   | "placed"
   | "accepted"
   | "shipped"
@@ -67,6 +67,7 @@ export type IOrder = {
   order_note?: string; // customer provided note
   // for guest user email and phone will be stored in address field
   notes?: string;
+  id?: string | Types.ObjectId;
 };
 
 export type IOrderPlace = {

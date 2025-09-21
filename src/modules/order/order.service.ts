@@ -107,6 +107,7 @@ class Service {
 
       // 5. Create order (with session)
       const createdOrders = await OrderModel.create([payload], { session });
+
       if (!createdOrders || createdOrders.length <= 0) {
         throw new ApiError(
           HttpStatusCode.INTERNAL_SERVER_ERROR,
@@ -129,7 +130,20 @@ class Service {
       const payment_url =
         data.payment_type === "bkash" ? bkash_payment_url : "";
 
-      return { order: createdOrders, payment_url };
+      const populatedOrders = await OrderModel.find({
+        _id: { $in: createdOrders.map((order) => order._id) },
+      })
+        .populate({
+          path: "items.product",
+          select: "name slug sku thumbnail description", // প্রয়োজনীয় product ফিল্ড
+        })
+        .populate({
+          path: "items.variant",
+          select:
+            "attributes attribute_values regular_price sale_price sku barcode image", // প্রয়োজনীয় variant ফিল্ড
+        });
+
+      return { order: populatedOrders, payment_url };
     } catch (err) {
       await session.abortTransaction();
       session.endSession();
