@@ -11,13 +11,17 @@ router.post(
 
   OrderController.placeOrder
 );
-router.get("/orders/:id", OrderController.getOrderById);
+router.get(
+  "/orders/:id",
+  JwtInstance.authenticate([ROLES.ADMIN]),
+  OrderController.getOrderById
+);
 // If JwtInstance is an instance, use its middleware method (e.g., JwtInstance.verify(ROLES.ADMIN))
 // If JwtInstance should be a function, ensure it is imported as such.
 // Example fix assuming JwtInstance.verify is the correct middleware:
 router.get(
   "/all-orders",
-
+  JwtInstance.authenticate([ROLES.ADMIN]),
   OrderController.getOrders
 );
 
