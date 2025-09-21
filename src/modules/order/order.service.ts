@@ -39,6 +39,9 @@ class Service {
       // console.log(cartItems, "cart items");
 
       // check stock availability [most important]
+      for (const item of enrichedOrder.products) {
+        console.log(item.variant, "for stock");
+      }
 
       // 2. Calculate totals
       const { total_price, items, total_items } =
@@ -461,7 +464,7 @@ class Service {
     let total_items = 0;
     let total_price = 0;
 
-    console.log(items, "items");
+    // console.log(items, "items");
 
     const orderItems: IOrderItem[] = items?.products.map((cartItem: any) => {
       const subtotal = cartItem.price * cartItem.quantity;
