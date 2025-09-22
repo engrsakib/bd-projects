@@ -507,6 +507,8 @@ class Service {
       total_price: Math.ceil(total_price),
     };
   }
+
+  // courier sevice integration
 }
 
 export const OrderService = new Service();
