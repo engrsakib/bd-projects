@@ -423,92 +423,6 @@ class Service {
     };
   }
 
-  // enrich products with details
-  private async enrichProducts(orderData: any) {
-    const enrichedProducts = await Promise.all(
-      orderData.products.map(async (item: any) => {
-        const productDetails = await ProductModel.findById(item.product).lean();
-        return {
-          ...item,
-          product: productDetails,
-        };
-      })
-    );
-    return { ...orderData, products: enrichedProducts };
-  }
-
-  // calulate delivery charge
-  private calculateDeliveryCharge(address: any): number {
-    // Example logic: flat rate based on division
-    // console.log(address, "address");
-    const divisionCharges: { [key: string]: number } = {
-      dhaka: 70,
-      dhaka_division: 70,
-      ঢাকা: 70,
-      ঢাকা_বিভাগ: 70,
-      Dhaka: 70,
-      "ঢাকা বিভাগ": 70,
-
-      // ঢাকা: 70,
-      // ঢাকা বিভাগ: 70,
-      // Chittagong: 80,
-      // Khulna: 100,
-      // Rajshahi: 100,
-      // Barisal: 120,
-      // Sylhet: 150,
-      // Rangpur: 120,
-      // Mymensingh: 100,
-    };
-    return divisionCharges[address.toLowerCase()] || 120; // default charge
-  }
-
-  private async generateOrderId(
-    session: mongoose.ClientSession
-  ): Promise<number> {
-    const counter = await CounterModel.findOneAndUpdate(
-      { name: "order_id" },
-      { $inc: { sequence: 1 } },
-      { new: true, upsert: true, session }
-    );
-    return counter.sequence;
-  }
-
-  private async calculateCart(items: any): Promise<{
-    items: IOrderItem[];
-    total_items: number;
-    total_price: number;
-  }> {
-    let total_items = 0;
-    let total_price = 0;
-
-    // console.log(items, "items");
-
-    const orderItems: IOrderItem[] = await Promise.all(
-      items?.products.map(async (cartItem: any) => {
-        const variant = await VariantModel.findById(cartItem.variant);
-
-        const subtotal = (variant?.sale_price || 0) * cartItem.quantity;
-        total_items += cartItem.quantity;
-        total_price += subtotal;
-
-        return {
-          product: cartItem.product,
-          variant: cartItem.variant,
-          attributes: cartItem.attributes,
-          quantity: cartItem.quantity,
-          price: variant?.sale_price || 0,
-          subtotal,
-        };
-      })
-    );
-
-    return {
-      items: orderItems,
-      total_items,
-      total_price: Math.ceil(total_price),
-    };
-  }
-
   // courier sevice integration
   async transferToCourier(
     order_id: string,
@@ -702,6 +616,113 @@ class Service {
     } finally {
       session.endSession();
     }
+  }
+
+  // order status update by admin
+  async updateOrderStatus(
+    order_id: string,
+    status: ORDER_STATUS
+  ): Promise<IOrder | null> {
+    const updatedOrder = await OrderModel.findOneAndUpdate(
+      { _id: order_id },
+      { $set: { order_status: status } },
+      { new: true }
+    );
+
+    if (!updatedOrder) {
+      throw new ApiError(
+        HttpStatusCode.NOT_FOUND,
+        `Order was not found with id: ${order_id}`
+      );
+    }
+
+    return updatedOrder;
+  }
+
+  // enrich products with details
+  private async enrichProducts(orderData: any) {
+    const enrichedProducts = await Promise.all(
+      orderData.products.map(async (item: any) => {
+        const productDetails = await ProductModel.findById(item.product).lean();
+        return {
+          ...item,
+          product: productDetails,
+        };
+      })
+    );
+    return { ...orderData, products: enrichedProducts };
+  }
+
+  // calulate delivery charge
+  private calculateDeliveryCharge(address: any): number {
+    // Example logic: flat rate based on division
+    // console.log(address, "address");
+    const divisionCharges: { [key: string]: number } = {
+      dhaka: 70,
+      dhaka_division: 70,
+      ঢাকা: 70,
+      ঢাকা_বিভাগ: 70,
+      Dhaka: 70,
+      "ঢাকা বিভাগ": 70,
+
+      // ঢাকা: 70,
+      // ঢাকা বিভাগ: 70,
+      // Chittagong: 80,
+      // Khulna: 100,
+      // Rajshahi: 100,
+      // Barisal: 120,
+      // Sylhet: 150,
+      // Rangpur: 120,
+      // Mymensingh: 100,
+    };
+    return divisionCharges[address.toLowerCase()] || 120; // default charge
+  }
+
+  private async generateOrderId(
+    session: mongoose.ClientSession
+  ): Promise<number> {
+    const counter = await CounterModel.findOneAndUpdate(
+      { name: "order_id" },
+      { $inc: { sequence: 1 } },
+      { new: true, upsert: true, session }
+    );
+    return counter.sequence;
+  }
+
+  private async calculateCart(items: any): Promise<{
+    items: IOrderItem[];
+    total_items: number;
+    total_price: number;
+  }> {
+    let total_items = 0;
+    let total_price = 0;
+
+    // console.log(items, "items");
+
+    const orderItems: IOrderItem[] = await Promise.all(
+      items?.products.map(async (cartItem: any) => {
+        const variant = await VariantModel.findById(cartItem.variant);
+
+        const subtotal = (variant?.sale_price || 0) * cartItem.quantity;
+        total_items += cartItem.quantity;
+        total_price += subtotal;
+
+        return {
+          product: cartItem.product,
+          variant: cartItem.variant,
+          attributes: cartItem.attributes,
+          quantity: cartItem.quantity,
+          price: variant?.sale_price || 0,
+          subtotal,
+        };
+      })
+    );
+
+    return {
+      items: orderItems,
+      total_items,
+      total_price: Math.ceil(total_price),
+    };
   }
 }
 
