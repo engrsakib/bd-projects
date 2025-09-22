@@ -251,7 +251,7 @@ class Service {
 
     // Status
     if (status) {
-      matchStage.status = status;
+      matchStage.order_status = status;
     }
 
     // Phone (delivery_address.phone_number)
