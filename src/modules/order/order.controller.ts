@@ -38,6 +38,19 @@ class Controller extends BaseController {
       data,
     });
   });
+
+  updateOrderStatus = this.catchAsync(async (req: Request, res: Response) => {
+    const data = await OrderService.updateOrderStatus(
+      req.body.id as string,
+      req.body.status
+    );
+    this.sendResponse(res, {
+      statusCode: HttpStatusCode.OK,
+      success: true,
+      message: "Order status updated successfully",
+      data,
+    });
+  });
 }
 
 export const OrderController = new Controller();
