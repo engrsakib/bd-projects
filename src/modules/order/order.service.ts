@@ -111,7 +111,7 @@ class Service {
       if (data.payment_type === "cod") {
         payload.payment_status = PAYMENT_STATUS.PENDING;
         payload.payable_amount = payload.total_amount;
-        payload.order_status = ORDER_STATUS.PLACED;
+        payload.order_status = ORDER_STATUS.PENDING;
       }
 
       // create payment first

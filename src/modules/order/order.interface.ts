@@ -64,9 +64,9 @@ export type IOrder = {
   is_delivery_charge_paid?: boolean;
 
   system_message?: string; // system generated messages
-  order_note?: string; // customer provided note
+  order_note?: string; // admin provided note
   // for guest user email and phone will be stored in address field
-  notes?: string;
+  notes?: string; //user provided note during order placement
   id?: string | Types.ObjectId;
 };
 
