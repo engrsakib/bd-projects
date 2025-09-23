@@ -262,8 +262,14 @@ class Service {
     return { stock, product };
   }
 
-  async getStockById(id: string): Promise<IStock | null> {
-    const stock = await StockModel.findById(id)
+  async getStockById(
+    product_id: string,
+    variant_id: string
+  ): Promise<IStock | null> {
+    const stock = await StockModel.findOne({
+      product: product_id,
+      variant: variant_id,
+    })
       .populate("product")
       .populate("location")
       .populate("variant")

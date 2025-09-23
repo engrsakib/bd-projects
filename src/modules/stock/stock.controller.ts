@@ -21,8 +21,8 @@ class Controller extends BaseController {
   });
 
   getStockById = this.catchAsync(async (req: Request, res: Response) => {
-    const { id } = req.params;
-    const stock = await StockService.getStockById(id);
+    const { product_id, variant_id } = req.params;
+    const stock = await StockService.getStockById(product_id, variant_id);
 
     this.sendResponse(res, {
       statusCode: HttpStatusCode.OK,

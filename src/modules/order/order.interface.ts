@@ -2,7 +2,9 @@ import { IAddress } from "@/interfaces/common.interface";
 import { Types } from "mongoose";
 
 type IOrderStatus =
+  | "failed"
   | "pending"
+  | "placed"
   | "accepted"
   | "shipped"
   | "in_transit"
@@ -32,6 +34,9 @@ export type IOrder = {
   total_price: number; // items price
   delivery_charge?: number;
   total_amount: number; // payable amount = total_price + delivery_charge + tax etc.
+  paid_amount?: number; // total paid amount by the customer
+  payable_amount?: number; // total payable amount = total_price + tax etc - delivery_charge.
+  order_status?: IOrderStatus;
   order_id?: number; // auto increment
   invoice_number: string; // auto generated
   delivery_address: IAddress;
@@ -56,8 +61,13 @@ export type IOrder = {
   returned_at?: Date;
   cancelled_at?: Date;
 
-  status?: IOrderStatus;
-  notes?: string;
+  is_delivery_charge_paid?: boolean;
+
+  system_message?: string; // system generated messages
+  order_note?: string; // admin provided note
+  // for guest user email and phone will be stored in address field
+  notes?: string; //user provided note during order placement
+  id?: string | Types.ObjectId;
 };
 
 export type IOrderPlace = {
