@@ -1,6 +1,7 @@
 import { ORDER_STATUS } from "../order/order.enums";
+import { Types } from "mongoose";
 
-enum MARCHANT {
+export enum MARCHANT {
   PATHAO = "pathao",
   REDEX = "redex",
   FEDEX = "fedex",
@@ -13,7 +14,7 @@ export interface ICourier {
   tracking_url?: string;
   tracking_id?: string;
   status: ORDER_STATUS;
-  contact_number?: string;
-  email?: string;
-  address?: string;
+  Order: Types.ObjectId;
+  Booking_Date: Date;
+  Estrimated_Delivery_Date?: Date;
 }
