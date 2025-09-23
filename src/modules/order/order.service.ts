@@ -44,17 +44,28 @@ class Service {
       // check stock availability [most important]
       for (const item of enrichedOrder.products) {
         // console.log(item.variant, "for stock");
-        const stock = await StockModel.findOne({
-          product: item.product,
-          variant: item.variant,
-        });
+        const stock = await StockModel.findOne(
+          {
+            product: item.product,
+            variant: item.variant,
+          },
+          null,
+          { session }
+        );
 
         if (!stock || stock.available_quantity < item.quantity) {
+          // সেশন বাতিল করুন
+          await session.abortTransaction();
+          session.endSession();
           throw new ApiError(
             HttpStatusCode.BAD_REQUEST,
             `Product ${item.product.name} is out of stock or does not have enough quantity`
           );
         }
+
+        // স্টক থেকে quantity বাদ দিন এবং session সহ save করুন
+        stock.available_quantity -= item.quantity;
+        await stock.save({ session });
         // console.log(stock, "stock");
       }
 

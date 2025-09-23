@@ -4,6 +4,7 @@ export enum ORDER_STATUS {
   PLACED = "placed",
   ACCEPTED = "accepted",
   SHIPPED = "shipped",
+  HANDED_OVER_TO_COURIER = "handed_over_to_courier",
   IN_TRANSIT = "in_transit",
   DELIVERED = "delivered",
   PENDING_RETURN = "pending_return",
@@ -12,7 +13,6 @@ export enum ORDER_STATUS {
   EXCHANGE_REQUESTED = "exchange_requested",
   EXCHANGED = "exchanged",
   PARTIAL_DELIVERED = "partial_delivered",
-  HANDED_OVER_TO_COURIER = "handed_over_to_courier",
 }
 
 export enum PAYMENT_STATUS {

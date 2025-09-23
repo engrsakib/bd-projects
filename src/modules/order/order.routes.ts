@@ -25,4 +25,10 @@ router.get(
   OrderController.getOrders
 );
 
+router.patch(
+  "/update-order-status",
+  JwtInstance.authenticate([ROLES.ADMIN]),
+  OrderController.updateOrderStatus
+);
+
 export const OrderRoutes = router;
