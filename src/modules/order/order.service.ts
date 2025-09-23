@@ -56,7 +56,7 @@ class Service {
 
         if (!stock || stock.available_quantity < item.quantity) {
           // সেশন বাতিল করুন
-          await session.abortTransaction();
+          // await session.abortTransaction();
           session.endSession();
           throw new ApiError(
             HttpStatusCode.BAD_REQUEST,
