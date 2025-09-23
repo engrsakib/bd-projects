@@ -28,6 +28,14 @@ const CourierSchema = new Schema(
       ref: "Order",
       required: true,
     },
+    Delivery_man: {
+      type: String,
+      trim: true,
+    },
+    Delivery_man_phone: {
+      type: String,
+      trim: true,
+    },
     Booking_Date: {
       type: Date,
       required: true,

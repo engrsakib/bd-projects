@@ -14,7 +14,8 @@ import { ProductModel } from "../product/product.model";
 import { OrderQuery } from "@/interfaces/common.interface";
 import { StockModel } from "../stock/stock.model";
 import { VariantModel } from "../variant/variant.model";
-import { CourierMiddleware, TCourierPayload } from "./courier.middleware";
+import { CourierMiddleware } from "../courier/courier.middleware";
+import { TCourierPayload } from "../courier/courier.interface";
 
 class Service {
   async placeOrder(

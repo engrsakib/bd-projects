@@ -1,14 +1,6 @@
 import ApiError from "../../middlewares/error";
 import axios from "axios";
-
-export type TCourierPayload = {
-  invoice: string;
-  recipient_name: string;
-  recipient_phone: string;
-  recipient_address: string;
-  cod_amount: number;
-  note?: string;
-};
+import { TCourierPayload } from "./courier.interface";
 
 class Middleware {
   transfer_single_order = async (data: TCourierPayload) => {

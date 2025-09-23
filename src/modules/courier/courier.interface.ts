@@ -9,12 +9,23 @@ export enum MARCHANT {
   CARRY_BEE = "carrybee",
 }
 
+export type TCourierPayload = {
+  invoice: string;
+  recipient_name: string;
+  recipient_phone: string;
+  recipient_address: string;
+  cod_amount: number;
+  note?: string;
+};
+
 export interface ICourier {
   marchant: MARCHANT;
   tracking_url?: string;
   tracking_id?: string;
   status: ORDER_STATUS;
-  Order: Types.ObjectId;
-  Booking_Date: Date;
-  Estrimated_Delivery_Date?: Date;
+  order: Types.ObjectId;
+  booking_date: Date;
+  delivery_man?: string;
+  delivery_man_phone?: string;
+  estimated_delivery_date?: Date;
 }
