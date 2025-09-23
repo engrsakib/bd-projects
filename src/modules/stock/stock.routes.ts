@@ -17,11 +17,7 @@ router.get(
   StockController.getAllStocks
 );
 
-router.get(
-  "/:id",
-  JwtInstance.authenticate([ROLES.ADMIN, ROLES.SUPER_ADMIN]),
-  StockController.getStockById
-);
+router.get("/:variant_id/:product_id", StockController.getStockById);
 
 router.get(
   "/product/:slug",
