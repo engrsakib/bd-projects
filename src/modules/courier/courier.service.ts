@@ -175,6 +175,8 @@ class Service {
       const courierRes: any =
         await CourierMiddleware.transfer_single_order(courierPayload);
 
+      console.log(courierRes, "courierRes");
+
       if (courierRes?.status === 200) {
         const result = await OrderModel.findByIdAndUpdate(
           order_id,
