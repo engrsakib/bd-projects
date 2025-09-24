@@ -125,14 +125,58 @@ class Service {
         payload.order_status = ORDER_STATUS.PENDING;
       }
 
-      // create payment first
-      const { payment_id, payment_url: bkash_payment_url } =
-        await BkashService.createPayment({
-          payable_amount: payload.total_amount,
-          invoice_number: payload.invoice_number,
-        });
+      if (data.payment_type === "bkash") {
+        // create payment first
+        const { payment_id, payment_url: bkash_payment_url } =
+          await BkashService.createPayment({
+            payable_amount: payload.total_amount,
+            invoice_number: payload.invoice_number,
+          });
 
-      payload.payment_id = payment_id;
+        payload.payment_id = payment_id;
+        payload.total_amount = Number(payload.total_amount.toFixed());
+
+        // 5. Create order (with session)
+        const createdOrders = await OrderModel.create([payload], { session });
+
+        if (!createdOrders || createdOrders.length <= 0) {
+          throw new ApiError(
+            HttpStatusCode.INTERNAL_SERVER_ERROR,
+            "Failed to create order"
+          );
+        }
+        // const createdOrder = createdOrders[0];
+        // console.log(createdOrder);
+
+        // 6. Clear cart (with session)
+        await CartService.clearCartAfterCheckout(
+          data.user_id as Types.ObjectId,
+          session
+        );
+
+        // 7. Commit transaction
+        await session.commitTransaction();
+        session.endSession();
+
+        const payment_url =
+          data.payment_type === "bkash" ? bkash_payment_url : "";
+
+        const populatedOrders = await OrderModel.find({
+          _id: { $in: createdOrders.map((order) => order._id) },
+        })
+          .populate({
+            path: "items.product",
+            select: "name slug sku thumbnail description", // প্রয়োজনীয় product ফিল্ড
+          })
+          .populate({
+            path: "items.variant",
+            select:
+              "attributes attribute_values regular_price sale_price sku barcode image", // প্রয়োজনীয় variant ফিল্ড
+          });
+
+        return { order: populatedOrders, payment_url };
+      }
+
       payload.total_amount = Number(payload.total_amount.toFixed());
 
       // 5. Create order (with session)
@@ -157,9 +201,6 @@ class Service {
       await session.commitTransaction();
       session.endSession();
 
-      const payment_url =
-        data.payment_type === "bkash" ? bkash_payment_url : "";
-
       const populatedOrders = await OrderModel.find({
         _id: { $in: createdOrders.map((order) => order._id) },
       })
@@ -173,7 +214,7 @@ class Service {
             "attributes attribute_values regular_price sale_price sku barcode image", // প্রয়োজনীয় variant ফিল্ড
         });
 
-      return { order: populatedOrders, payment_url };
+      return { order: populatedOrders, payment_url: "" };
     } catch (err) {
       await session.abortTransaction();
       session.endSession();
