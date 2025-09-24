@@ -5,6 +5,7 @@ import { OrderModel } from "../order/order.model";
 import { CourierMiddleware } from "./courier.middleware";
 import { ORDER_STATUS } from "../order/order.enums";
 import CourierModel from "./courier.model";
+import { HttpStatusCode } from "@/lib/httpStatus";
 
 class Service {
   // courier sevice integration
@@ -32,7 +33,7 @@ class Service {
         !marchant
       ) {
         throw new ApiError(
-          404,
+          HttpStatusCode.UNAUTHORIZED,
           `you can't transfer this order status ${order ? order.order_status : "unknown"} to courier`
         );
       }
@@ -182,10 +183,10 @@ class Service {
       const courierRes: any =
         await CourierMiddleware.transfer_single_order(courierPayload);
 
-      console.log(courierRes, "courierRes");
+      //   console.log(courierRes, "courierRes");
 
       if (courierRes?.statusCode === 200 || courierRes?.status === 200) {
-        console.log("Courier transfer successful");
+        // console.log("Courier transfer successful");
         // Handle successful courier response
         const existing = await CourierModel.findOne({
           order: order_id,
@@ -215,7 +216,7 @@ class Service {
           ],
           { session }
         );
-        console.log(createdCourier, "createdCourier");
+        // console.log(createdCourier, "createdCourier");
 
         if (!createdCourier) {
           throw new ApiError(500, "Failed to create courier record");

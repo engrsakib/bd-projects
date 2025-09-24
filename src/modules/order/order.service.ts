@@ -447,6 +447,17 @@ class Service {
     };
   }
 
+  // delete order by id
+  async deleteOrder(id: string): Promise<void> {
+    const deletedOrder = await OrderModel.findByIdAndDelete(id);
+    if (!deletedOrder) {
+      throw new ApiError(
+        HttpStatusCode.NOT_FOUND,
+        `Order was not found with id: ${id}`
+      );
+    }
+  }
+
   // order status update by admin
   async updateOrderStatus(
     order_id: string,

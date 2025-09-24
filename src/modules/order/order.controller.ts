@@ -51,6 +51,16 @@ class Controller extends BaseController {
       data,
     });
   });
+
+  deleteOrder = this.catchAsync(async (req: Request, res: Response) => {
+    const data = await OrderService.deleteOrder(req.params.id as string);
+    this.sendResponse(res, {
+      statusCode: HttpStatusCode.OK,
+      success: true,
+      message: "Order deleted successfully",
+      data,
+    });
+  });
 }
 
 export const OrderController = new Controller();
