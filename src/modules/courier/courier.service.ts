@@ -31,7 +31,10 @@ class Service {
         order.order_status === ORDER_STATUS.DELIVERED ||
         !marchant
       ) {
-        throw new ApiError(404, "Invalid order id");
+        throw new ApiError(
+          404,
+          `you can't transfer this order status ${order ? order.order_status : "unknown"} to courier`
+        );
       }
 
       // if (business_location) {
