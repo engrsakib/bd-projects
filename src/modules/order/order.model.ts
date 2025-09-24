@@ -49,7 +49,7 @@ const orderSchema = new Schema<IOrder>(
       required: true,
     },
     transaction_id: { type: String },
-    payment_id: { type: String, required: true, unique: true, index: true },
+    payment_id: { type: String, required: false, unique: true, index: true },
     payment_status: {
       type: String,
       enum: Object.values(PAYMENT_STATUS),
@@ -61,13 +61,6 @@ const orderSchema = new Schema<IOrder>(
 
     // tracking dates
     order_at: { type: Date, default: new Date() },
-    accepted_at: { type: Date, default: null },
-    shipped_at: { type: Date, default: null },
-    in_transit_at: { type: Date, default: null },
-    delivered_at: { type: Date, default: null },
-    pending_return_at: { type: Date, default: null },
-    returned_at: { type: Date, default: null },
-    cancelled_at: { type: Date, default: null },
 
     system_message: { type: String, default: "" },
     order_note: { type: String, default: "" },

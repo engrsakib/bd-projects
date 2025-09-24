@@ -4,7 +4,7 @@ import { ICourier, MARCHANT } from "./courier.interface";
 
 const CourierSchema = new Schema(
   {
-    marchant: {
+    merchant: {
       type: String,
       enum: Object.values(MARCHANT),
       required: true,
@@ -57,6 +57,13 @@ const CourierSchema = new Schema(
     estimated_delivery_date: {
       type: Date,
     },
+    accepted_at: { type: Date, default: null },
+    shipped_at: { type: Date, default: null },
+    in_transit_at: { type: Date, default: null },
+    delivered_at: { type: Date, default: null },
+    pending_return_at: { type: Date, default: null },
+    returned_at: { type: Date, default: null },
+    cancelled_at: { type: Date, default: null },
   },
   { timestamps: true }
 );

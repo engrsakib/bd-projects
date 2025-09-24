@@ -1,3 +1,4 @@
+/* eslint-disable prefer-const */
 import ApiError from "@/middlewares/error";
 import {
   ICreateProductPayload,
@@ -579,6 +580,81 @@ class Service {
     }
 
     return product;
+  }
+
+  // get product by slug or title
+  async getBySlugAndTitle(
+    slug?: string,
+    title?: string,
+    page: number = 1,
+    limit: number = 10
+  ) {
+    const skip = (page - 1) * limit;
+
+    // base match
+    const match: any = { is_published: true };
+
+    // slug/title filter build করা
+    const orArr: any[] = [];
+
+    if (slug && slug.trim() !== "") {
+      orArr.push({ slug: { $regex: slug, $options: "i" } });
+    }
+
+    if (title && title.trim() !== "") {
+      orArr.push({ title: { $regex: title, $options: "i" } });
+    }
+
+    // যদি slug বা title এর যেকোনো একটা থাকে
+    if (orArr.length > 0) {
+      match.$or = orArr;
+    }
+
+    const pipeline = [
+      { $match: match },
+      {
+        $lookup: {
+          from: "categories",
+          localField: "category",
+          foreignField: "_id",
+          as: "category",
+        },
+      },
+      { $unwind: { path: "$category", preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: "subcategories",
+          localField: "subcategory",
+          foreignField: "_id",
+          as: "subcategory",
+        },
+      },
+      { $unwind: { path: "$subcategory", preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: "variants",
+          localField: "variants",
+          foreignField: "_id",
+          as: "variants",
+        },
+      },
+      { $skip: skip },
+      { $limit: limit },
+    ];
+
+    const products = await ProductModel.aggregate(pipeline);
+
+    const total = await ProductModel.countDocuments(match);
+
+    return {
+      data: products,
+      pagination: {
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit),
+      },
+    };
   }
 
   async toggleVisibility(id: Types.ObjectId) {

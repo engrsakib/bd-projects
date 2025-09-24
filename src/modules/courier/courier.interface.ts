@@ -20,7 +20,7 @@ export type TCourierPayload = {
 
 export interface ICourier {
   _id?: Types.ObjectId | string;
-  marchant: MARCHANT;
+  merchant: MARCHANT;
   tracking_url?: string;
   tracking_id?: string;
   order_status: ORDER_STATUS;
@@ -33,4 +33,11 @@ export interface ICourier {
   delivery_man?: string;
   delivery_man_phone?: string;
   estimated_delivery_date?: Date;
+  accepted_at?: Date;
+  shipped_at?: Date;
+  in_transit_at?: Date;
+  delivered_at?: Date;
+  pending_return_at?: Date;
+  returned_at?: Date;
+  cancelled_at?: Date;
 }

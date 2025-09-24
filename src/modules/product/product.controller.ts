@@ -109,6 +109,37 @@ class Controller extends BaseController {
     });
   });
 
+  // get product by id and slug
+  getBySlugAndTitle = this.catchAsync(async (req: Request, res: Response) => {
+    // URL params থেকে slug এবং title নাও
+    const slug = req.query.slug as string;
+    const title = req.query.title as string;
+
+    console.log(slug, title, "slug and title");
+
+    // Query param থেকে pagination নাও (ডিফল্ট page=1, limit=10)
+    const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
+    const limit = req.query.limit
+      ? parseInt(req.query.limit as string, 10)
+      : 10;
+
+    // Service কল করো
+    const result = await ProductService.getBySlugAndTitle(
+      slug,
+      title,
+      page,
+      limit
+    );
+
+    // Response পাঠাও
+    this.sendResponse(res, {
+      statusCode: 200,
+      success: true,
+      message: "Products retrieved successfully",
+      data: result,
+    });
+  });
+
   toggleVisibility = this.catchAsync(async (req: Request, res: Response) => {
     const id = req.params.id as unknown as Types.ObjectId;
     await ProductService.toggleVisibility(id);

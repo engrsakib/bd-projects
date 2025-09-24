@@ -15,10 +15,11 @@ class Controller extends BaseController {
       });
     }
 
-    const result = await CourierService.transferToCourier(order_id, {
-      note: note || "Order transferred to courier",
-      marchant: marchant || "Unknown",
-    });
+    const result = await CourierService.transferToCourier(
+      order_id,
+      note,
+      marchant
+    );
     return this.sendResponse(res, {
       statusCode: HttpStatus.OK,
       success: true,
