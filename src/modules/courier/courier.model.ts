@@ -36,6 +36,21 @@ const CourierSchema = new Schema(
       type: String,
       trim: true,
     },
+    COD_Amount: {
+      type: Number,
+      default: 0,
+    },
+    Courier_Note: {
+      type: String,
+      trim: true,
+    },
+    Consignment_ID: {
+      type: String,
+      trim: true,
+    },
+    Transfer_to_Courier: {
+      type: Boolean,
+    },
     Booking_Date: {
       type: Date,
       required: true,
