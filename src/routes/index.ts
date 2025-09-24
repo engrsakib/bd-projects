@@ -17,6 +17,7 @@ import { CartRoutes } from "@/modules/cart/cart.routes";
 import { BannerRoutes } from "@/modules/banner/banner.routes";
 import { BkashRoutes } from "@/modules/bkash/bkash.routes";
 import { OrderRoutes } from "@/modules/order/order.routes";
+import { courierRouter } from "@/modules/courier/courier.routes";
 const router = Router();
 
 const moduleRoutes = [
@@ -91,6 +92,10 @@ const moduleRoutes = [
   {
     path: "/payments/bkash",
     route: BkashRoutes,
+  },
+  {
+    path: "/courier",
+    route: courierRouter,
   },
 ];
 
