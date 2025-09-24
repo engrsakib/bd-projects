@@ -31,4 +31,9 @@ router.patch(
   OrderController.updateOrderStatus
 );
 
+router.delete(
+  "/orders/delete/:id",
+  JwtInstance.authenticate([ROLES.ADMIN]),
+  OrderController.deleteOrder
+);
 export const OrderRoutes = router;
