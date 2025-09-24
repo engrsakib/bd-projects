@@ -581,6 +581,56 @@ class Service {
     return product;
   }
 
+  // get product by slug or title
+  async getBySlugandtitle(slug: string, title: string) {
+    const pipeline = [
+      {
+        $match: {
+          is_published: true,
+          $or: [
+            { slug: { $regex: slug, $options: "i" } }, // case-insensitive
+            { title: { $regex: title, $options: "i" } }, // case-insensitive
+          ],
+        },
+      },
+      {
+        $lookup: {
+          from: "categories",
+          localField: "category",
+          foreignField: "_id",
+          as: "category",
+        },
+      },
+      { $unwind: { path: "$category", preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: "subcategories",
+          localField: "subcategory",
+          foreignField: "_id",
+          as: "subcategory",
+        },
+      },
+      { $unwind: { path: "$subcategory", preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: "variants",
+          localField: "variants",
+          foreignField: "_id",
+          as: "variants",
+        },
+      },
+      { $limit: 1 },
+    ];
+
+    const [product] = await ProductModel.aggregate(pipeline);
+
+    if (!product) {
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "Product was not found");
+    }
+
+    return product;
+  }
+
   async toggleVisibility(id: Types.ObjectId) {
     const product = await ProductModel.findById(id).lean();
     if (!product) {
