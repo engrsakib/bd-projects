@@ -6,7 +6,7 @@ import { CourierService } from "./courier.service";
 class Controller extends BaseController {
   transferToCourier = this.catchAsync(async (req: Request, res: Response) => {
     const { order_id } = req.params;
-    const { note } = req.body;
+    const { note, marchant } = req.body;
     if (!order_id) {
       return this.sendResponse(res, {
         statusCode: HttpStatus.BAD_REQUEST,
@@ -17,6 +17,7 @@ class Controller extends BaseController {
 
     const result = await CourierService.transferToCourier(order_id, {
       note: note || "Order transferred to courier",
+      marchant: marchant || "Unknown",
     });
     return this.sendResponse(res, {
       statusCode: HttpStatus.OK,

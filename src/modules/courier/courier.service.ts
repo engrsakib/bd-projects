@@ -9,7 +9,11 @@ class Service {
   // courier sevice integration
   async transferToCourier(
     order_id: string,
-    payload: { note?: string; type?: "SINGLE" | "MULTIPLE" } = {},
+    payload: {
+      note?: string;
+      type?: "SINGLE" | "MULTIPLE";
+      marchant?: string;
+    } = {},
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     business_location?: Types.ObjectId
   ) {
