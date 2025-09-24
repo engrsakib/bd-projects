@@ -37,6 +37,8 @@ export type IOrder = {
   paid_amount?: number; // total paid amount by the customer
   payable_amount?: number; // total payable amount = total_price + tax etc - delivery_charge.
   order_status?: IOrderStatus;
+  transfer_to_courier?: boolean;
+  courier?: Types.ObjectId;
   order_id?: number; // auto increment
   invoice_number: string; // auto generated
   delivery_address: IAddress;
@@ -44,13 +46,6 @@ export type IOrder = {
   transaction_id?: string;
   payment_id?: string;
   payment_status?: "pending" | "paid" | "failed" | "refunded";
-
-  logistics?: {
-    courier?: string;
-    tracking_id?: string;
-    estimated_delivery?: Date;
-  };
-
   // tracking dates
   order_at?: Date;
   accepted_at?: Date;

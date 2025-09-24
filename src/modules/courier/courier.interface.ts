@@ -19,6 +19,7 @@ export type TCourierPayload = {
 };
 
 export interface ICourier {
+  _id?: Types.ObjectId | string;
   marchant: MARCHANT;
   tracking_url?: string;
   tracking_id?: string;

@@ -7,11 +7,11 @@ class Controller extends BaseController {
   transferToCourier = this.catchAsync(async (req: Request, res: Response) => {
     const { order_id } = req.params;
     const { note, marchant } = req.body;
-    if (!order_id) {
+    if (!order_id || !marchant) {
       return this.sendResponse(res, {
         statusCode: HttpStatus.BAD_REQUEST,
         success: false,
-        message: "Order ID is required",
+        message: "Order ID and Marchant are required",
       });
     }
 

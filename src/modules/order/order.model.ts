@@ -56,11 +56,8 @@ const orderSchema = new Schema<IOrder>(
       default: PAYMENT_STATUS.PENDING,
     },
 
-    logistics: {
-      courier: { type: String },
-      tracking_id: { type: String },
-      estimated_delivery: { type: Date },
-    },
+    transfer_to_courier: { type: Boolean, default: false },
+    courier: { type: Schema.Types.ObjectId, ref: "Courier", default: null },
 
     // tracking dates
     order_at: { type: Date, default: new Date() },
