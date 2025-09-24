@@ -4,7 +4,7 @@ import { ICourier, MARCHANT } from "./courier.interface";
 
 const CourierSchema = new Schema(
   {
-    marchant: {
+    merchant: {
       type: String,
       enum: Object.values(MARCHANT),
       required: true,
