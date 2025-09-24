@@ -1,13 +1,12 @@
 import { Schema, model, Types } from "mongoose";
 import { ORDER_STATUS } from "../order/order.enums";
-import { MARCHANT } from "./courier.interface";
+import { ICourier, MARCHANT } from "./courier.interface";
 
 const CourierSchema = new Schema(
   {
     marchant: {
       type: String,
       enum: Object.values(MARCHANT),
-      default: MARCHANT.STEAD_FAST,
       required: true,
     },
     tracking_url: {
@@ -18,35 +17,50 @@ const CourierSchema = new Schema(
       type: String,
       trim: true,
     },
-    status: {
+    order_status: {
       type: String,
       enum: Object.values(ORDER_STATUS),
       default: ORDER_STATUS.PENDING,
     },
-    Order: {
+    order: {
       type: Types.ObjectId,
       ref: "Order",
-      required: true,
+      required: false,
     },
-    Delivery_man: {
+    delivery_man: {
       type: String,
       trim: true,
     },
-    Delivery_man_phone: {
+    delivery_man_phone: {
       type: String,
       trim: true,
     },
-    Booking_Date: {
+    cod_amount: {
+      type: Number,
+      default: 0,
+    },
+    courier_note: {
+      type: String,
+      trim: true,
+    },
+    consignment_id: {
+      type: String,
+      trim: true,
+    },
+    transfer_to_courier: {
+      type: Boolean,
+    },
+    booking_date: {
       type: Date,
-      required: true,
+      required: false,
     },
-    Estrimated_Delivery_Date: {
+    estimated_delivery_date: {
       type: Date,
     },
   },
   { timestamps: true }
 );
 
-const CourierModel = model("Courier", CourierSchema);
+const CourierModel = model<ICourier>("Courier", CourierSchema);
 
 export default CourierModel;
