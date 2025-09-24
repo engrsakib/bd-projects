@@ -218,6 +218,10 @@ class Service {
         path: "items.variant", // items array-র প্রতিটি variant ObjectId-কে populate করবে
         select:
           "attributes attribute_values regular_price sale_price sku barcode image", // যেসব ফিল্ড আনবেন
+      })
+      .populate({
+        path: "courier",
+        select: "",
       });
 
     if (!order) {
