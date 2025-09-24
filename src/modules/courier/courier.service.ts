@@ -175,13 +175,13 @@ class Service {
       const courierRes: any =
         await CourierMiddleware.transfer_single_order(courierPayload);
 
-      console.log(courierRes, "courierRes");
+      //   console.log(courierRes, "courierRes");
 
-      if (courierRes?.status === 200) {
+      if (courierRes?.statusCode === 200) {
         const result = await OrderModel.findByIdAndUpdate(
           order_id,
           {
-            status: ORDER_STATUS.HANDED_OVER_TO_COURIER,
+            order_status: ORDER_STATUS.HANDED_OVER_TO_COURIER,
             transfer_to_courier: true,
             $set: {
               consignment_id: courierRes?.consignment?.consignment_id,

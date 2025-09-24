@@ -22,9 +22,13 @@ export interface ICourier {
   marchant: MARCHANT;
   tracking_url?: string;
   tracking_id?: string;
-  status: ORDER_STATUS;
+  order_status: ORDER_STATUS;
   order: Types.ObjectId;
   booking_date: Date;
+  cod_amount?: number;
+  courier_note?: string;
+  consignment_id?: string;
+  transfer_to_courier: boolean;
   delivery_man?: string;
   delivery_man_phone?: string;
   estimated_delivery_date?: Date;
