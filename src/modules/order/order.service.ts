@@ -339,6 +339,16 @@ class Service {
       },
     });
 
+    // ---------- Populate courier ----------
+    pipeline.push({
+      $lookup: {
+        from: "couriers", // couriers collection name
+        localField: "courier",
+        foreignField: "_id",
+        as: "courierDocs",
+      },
+    });
+
     // ---------- Merge populated product/variant into items array ----------
     pipeline.push({
       $addFields: {
