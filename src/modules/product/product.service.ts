@@ -1,3 +1,4 @@
+/* eslint-disable prefer-const */
 import ApiError from "@/middlewares/error";
 import {
   ICreateProductPayload,
@@ -582,17 +583,35 @@ class Service {
   }
 
   // get product by slug or title
-  async getBySlugandtitle(slug: string, title: string) {
+  async getBySlugAndTitle(
+    slug?: string,
+    title?: string,
+    page: number = 1,
+    limit: number = 10
+  ) {
+    const skip = (page - 1) * limit;
+
+    // base match
+    const match: any = { is_published: true };
+
+    // slug/title filter build করা
+    const orArr: any[] = [];
+
+    if (slug && slug.trim() !== "") {
+      orArr.push({ slug: { $regex: slug, $options: "i" } });
+    }
+
+    if (title && title.trim() !== "") {
+      orArr.push({ title: { $regex: title, $options: "i" } });
+    }
+
+    // যদি slug বা title এর যেকোনো একটা থাকে
+    if (orArr.length > 0) {
+      match.$or = orArr;
+    }
+
     const pipeline = [
-      {
-        $match: {
-          is_published: true,
-          $or: [
-            { slug: { $regex: slug, $options: "i" } }, // case-insensitive
-            { title: { $regex: title, $options: "i" } }, // case-insensitive
-          ],
-        },
-      },
+      { $match: match },
       {
         $lookup: {
           from: "categories",
@@ -619,16 +638,23 @@ class Service {
           as: "variants",
         },
       },
-      { $limit: 1 },
+      { $skip: skip },
+      { $limit: limit },
     ];
 
-    const [product] = await ProductModel.aggregate(pipeline);
+    const products = await ProductModel.aggregate(pipeline);
 
-    if (!product) {
-      throw new ApiError(HttpStatusCode.NOT_FOUND, "Product was not found");
-    }
+    const total = await ProductModel.countDocuments(match);
 
-    return product;
+    return {
+      data: products,
+      pagination: {
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit),
+      },
+    };
   }
 
   async toggleVisibility(id: Types.ObjectId) {

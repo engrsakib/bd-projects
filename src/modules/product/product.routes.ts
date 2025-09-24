@@ -3,6 +3,8 @@ import { ProductController } from "./product.controller";
 
 const router = Router();
 
+router.get("/get-by-slug-title", ProductController.getBySlugAndTitle);
+
 router.post("/", ProductController.create);
 
 router.get("/", ProductController.getAllProductsForAdmin);
