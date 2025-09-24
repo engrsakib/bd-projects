@@ -1,21 +1,18 @@
 import ApiError from "@/middlewares/error";
-import { TCourierPayload } from "./courier.interface";
+import { MARCHANT, TCourierPayload } from "./courier.interface";
 import { OrderModel } from "../order/order.model";
-import { Types } from "mongoose";
+
 import { CourierMiddleware } from "./courier.middleware";
 import { ORDER_STATUS } from "../order/order.enums";
 import CourierModel from "./courier.model";
+import { HttpStatusCode } from "@/lib/httpStatus";
 
 class Service {
   // courier sevice integration
   async transferToCourier(
     order_id: string,
-    payload: {
-      note?: string;
-      marchant?: string;
-    } = {},
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    business_location?: Types.ObjectId
+    note: string = "Order transferred to courier",
+    marchant: string
   ) {
     // Start a session for transaction
 
@@ -28,8 +25,17 @@ class Service {
         .populate("user")
         .session(session);
 
-      if (!order) {
-        throw new ApiError(404, "Invalid order id");
+      if (
+        !order ||
+        order.order_status === ORDER_STATUS.CANCELLED ||
+        order.order_status === ORDER_STATUS.FAILED ||
+        order.order_status === ORDER_STATUS.DELIVERED ||
+        !marchant
+      ) {
+        throw new ApiError(
+          HttpStatusCode.UNAUTHORIZED,
+          `you can't transfer this order status ${order ? order.order_status : "unknown"} to courier`
+        );
       }
 
       // if (business_location) {
@@ -171,16 +177,16 @@ class Service {
         recipient_phone: order?.delivery_address?.phone_number as string,
         recipient_address: `${order?.delivery_address?.local_address}, Upazila: ${order?.delivery_address?.thana}, District: ${order?.delivery_address?.district}`,
         cod_amount: order?.payable_amount || 0,
-        ...(payload.note && { note: payload.note }),
+        ...(note && { note: note }),
       };
 
       const courierRes: any =
         await CourierMiddleware.transfer_single_order(courierPayload);
 
-      console.log(courierRes, "courierRes");
+      //   console.log(courierRes, "courierRes");
 
       if (courierRes?.statusCode === 200 || courierRes?.status === 200) {
-        console.log("Courier transfer successful");
+        // console.log("Courier transfer successful");
         // Handle successful courier response
         const existing = await CourierModel.findOne({
           order: order_id,
@@ -192,44 +198,47 @@ class Service {
           );
         }
 
-        const createdCourier = await CourierModel.create(
-          {
-            marchant: payload.marchant,
-            consignment_id: courierRes?.consignment?.consignment_id,
-            tracking_id: courierRes?.consignment?.tracking_code,
-            booking_date: courierRes?.consignment?.created_at
-              ? new Date(courierRes.consignment.created_at)
-              : new Date(),
-            courier_note: courierRes?.consignment?.note,
-            cod_amount: courierRes?.consignment?.cod_amount,
-            order: order_id,
-            status: ORDER_STATUS.HANDED_OVER_TO_COURIER,
-            transfer_to_courier: true,
-          },
+        const [createdCourier] = await CourierModel.create(
+          [
+            {
+              merchant: marchant ?? MARCHANT.STEAD_FAST,
+              consignment_id: courierRes?.consignment?.consignment_id,
+              tracking_id: courierRes?.consignment?.tracking_code,
+              booking_date: courierRes?.consignment?.created_at
+                ? new Date(courierRes.consignment.created_at)
+                : new Date(),
+              courier_note: courierRes?.consignment?.note,
+              cod_amount: courierRes?.consignment?.cod_amount,
+              order: order_id,
+              status: ORDER_STATUS.HANDED_OVER_TO_COURIER,
+              transfer_to_courier: true,
+            },
+          ],
           { session }
         );
-        console.log(createdCourier, "createdCourier");
+        // console.log(createdCourier, "createdCourier");
 
         if (!createdCourier) {
           throw new ApiError(500, "Failed to create courier record");
         }
 
-        // const result = await OrderModel.findByIdAndUpdate(
-        //   order_id,
-        //   {
-        //     order_status: ORDER_STATUS.HANDED_OVER_TO_COURIER,
-        //     transfer_to_courier: true,
-        //     courier: createdCourier._id,
-        //   },
-        //   { new: true, session }
-        // );
+        const result = await OrderModel.findByIdAndUpdate(
+          order_id,
+          {
+            order_status: ORDER_STATUS.HANDED_OVER_TO_COURIER,
+            transfer_to_courier: true,
+            courier: createdCourier._id,
+          },
+          { new: true, session }
+        );
 
         await session.commitTransaction();
-        return createdCourier;
+        return result;
       } else {
         throw new ApiError(400, "Failed to transfer order to courier");
       }
     } catch (error: any) {
+      console.log(error, "error");
       await session.abortTransaction();
       throw error;
     } finally {
