@@ -25,7 +25,9 @@ class Service {
         .populate("user")
         .session(session);
 
-      if (
+      if (!order) {
+        throw new ApiError(HttpStatusCode.NOT_FOUND, "Order not found");
+      } else if (
         !order ||
         order.order_status === ORDER_STATUS.CANCELLED ||
         order.order_status === ORDER_STATUS.FAILED ||
@@ -173,8 +175,8 @@ class Service {
 
       const courierPayload: TCourierPayload = {
         invoice: order?.invoice_number,
-        recipient_name: order?.delivery_address?.name as string,
-        recipient_phone: order?.delivery_address?.phone_number as string,
+        recipient_name: order?.customer_name as string,
+        recipient_phone: order?.customer_number as string,
         recipient_address: `${order?.delivery_address?.local_address}, Upazila: ${order?.delivery_address?.thana}, District: ${order?.delivery_address?.district}`,
         cod_amount: order?.payable_amount || 0,
         ...(note && { note: note }),

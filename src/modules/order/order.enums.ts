@@ -26,3 +26,10 @@ export enum PAYMENT_METHOD {
   BKASH = "bkash",
   COD = "cod",
 }
+
+export enum ORDER_BY {
+  ADMIN = "admin",
+  USER = "user",
+  GUEST = "guest",
+  RESELLER = "reseller",
+}
