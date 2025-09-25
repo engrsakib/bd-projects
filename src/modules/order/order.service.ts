@@ -527,7 +527,7 @@ class Service {
   }
 
   async order_tracking(order_id: string) {
-    const order = await OrderModel.findOne({ _id: order_id });
+    const order = await OrderModel.findOne({ order_id: order_id });
 
     if (!order) {
       throw new ApiError(

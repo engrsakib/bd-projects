@@ -63,8 +63,9 @@ class Controller extends BaseController {
   });
 
   orderTracking = this.catchAsync(async (req: Request, res: Response) => {
-    const { order_id } = req.params;
-    if (!order_id) {
+    const { id } = req.params;
+
+    if (!id) {
       return this.sendResponse(res, {
         statusCode: HttpStatusCode.BAD_REQUEST,
         success: false,
@@ -72,7 +73,7 @@ class Controller extends BaseController {
       });
     }
 
-    const data = await OrderService.order_tracking(order_id);
+    const data = await OrderService.order_tracking(id);
     this.sendResponse(res, {
       statusCode: HttpStatusCode.OK,
       success: true,
