@@ -28,9 +28,6 @@ export type IAddress = {
   thana?: string;
   zip_code?: string;
   local_address?: string;
-  name?: string;
-  phone_number?: string;
-  email?: string;
 };
 
 export interface IOrderItem {

@@ -1,6 +1,6 @@
 import mongoose, { Types } from "mongoose";
 import { CartService } from "../cart/cart.service";
-import { IOrder, IOrderItem, IOrderPlace } from "./order.interface";
+import { IOrder, IOrderBy, IOrderItem, IOrderPlace } from "./order.interface";
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { ICartItem } from "../cart/cart.interface";
 import { InvoiceService } from "@/lib/invoice";
@@ -14,6 +14,7 @@ import { ProductModel } from "../product/product.model";
 import { OrderQuery } from "@/interfaces/common.interface";
 import { StockModel } from "../stock/stock.model";
 import { VariantModel } from "../variant/variant.model";
+import { UserModel } from "../user/user.model";
 
 class Service {
   async placeOrder(
@@ -53,7 +54,6 @@ class Service {
         );
 
         if (!stock || stock.available_quantity < item.quantity) {
-          // সেশন বাতিল করুন
           // await session.abortTransaction();
           session.endSession();
           throw new ApiError(
@@ -62,15 +62,10 @@ class Service {
           );
         }
 
-        // স্টক থেকে quantity বাদ দিন এবং session সহ save করুন
         stock.available_quantity -= item.quantity;
         await stock.save({ session });
-        // console.log(stock, "stock");
       }
 
-      //  stock reduction will be done after payment confirmation
-
-      // 2. Calculate totals
       const { total_price, items, total_items } =
         await this.calculateCart(enrichedOrder);
 
@@ -81,14 +76,29 @@ class Service {
         session
       );
 
-      // 4. Build payload
+      let role: IOrderBy = "guest";
+      if (data.user_id) {
+        const user = await UserModel.findById(data.user_id);
+        if (user) {
+          role = user.role as IOrderBy;
+        }
+      }
+
+      const order_by: IOrderBy = role ? role : "guest";
+
       const payload: IOrder = {
         user: data.user_id as Types.ObjectId,
+        customer_name: data.customer_name,
+        customer_number: data.customer_number,
+        customer_secondary_number: data.customer_secondary_number,
+        customer_email: data.customer_email,
+        orders_by: order_by,
+
         items,
         total_items,
         total_price,
         total_amount: total_price,
-        payable_amount: 0, // will be updated later
+        payable_amount: 0,
         delivery_address: data.delivery_address,
         invoice_number,
         order_id,
@@ -109,7 +119,8 @@ class Service {
       }
 
       data.delivery_charge = this.calculateDeliveryCharge(
-        data.delivery_address.division
+        data.delivery_address.division,
+        data.delivery_address.district
       );
 
       // dakha 70TK OUT SIDE DELIVERY CHARGE 120 TK
@@ -126,7 +137,6 @@ class Service {
       }
 
       if (data.payment_type === "bkash") {
-        // create payment first
         const { payment_id, payment_url: bkash_payment_url } =
           await BkashService.createPayment({
             payable_amount: payload.total_amount,
@@ -136,7 +146,6 @@ class Service {
         payload.payment_id = payment_id;
         payload.total_amount = Number(payload.total_amount.toFixed());
 
-        // 5. Create order (with session)
         const createdOrders = await OrderModel.create([payload], { session });
 
         if (!createdOrders || createdOrders.length <= 0) {
@@ -166,12 +175,12 @@ class Service {
         })
           .populate({
             path: "items.product",
-            select: "name slug sku thumbnail description", // প্রয়োজনীয় product ফিল্ড
+            select: "name slug sku thumbnail description",
           })
           .populate({
             path: "items.variant",
             select:
-              "attributes attribute_values regular_price sale_price sku barcode image", // প্রয়োজনীয় variant ফিল্ড
+              "attributes attribute_values regular_price sale_price sku barcode image",
           });
 
         return { order: populatedOrders, payment_url };
@@ -206,12 +215,12 @@ class Service {
       })
         .populate({
           path: "items.product",
-          select: "name slug sku thumbnail description", // প্রয়োজনীয় product ফিল্ড
+          select: "name slug sku thumbnail description",
         })
         .populate({
           path: "items.variant",
           select:
-            "attributes attribute_values regular_price sale_price sku barcode image", // প্রয়োজনীয় variant ফিল্ড
+            "attributes attribute_values regular_price sale_price sku barcode image",
         });
 
       return { order: populatedOrders, payment_url: "" };
@@ -245,20 +254,19 @@ class Service {
 
   // get order by id
   async getOrderById(id: string): Promise<IOrder | null> {
-    // শুধু id দিন, {_id: id} নয়
     const order = await OrderModel.findById(id)
       .populate({
-        path: "user", // কোন ফিল্ড populate হবে
-        select: "name phone_number email _id", // শুধু এই ফিল্ডগুলো আনবে
+        path: "user",
+        select: "name phone_number email _id",
       })
       .populate({
-        path: "items.product", // items array-র প্রতিটি product ObjectId-কে populate করবে
-        select: "name slug sku thumbnail description", // যেসব ফিল্ড আনবেন
+        path: "items.product",
+        select: "name slug sku thumbnail description",
       })
       .populate({
-        path: "items.variant", // items array-র প্রতিটি variant ObjectId-কে populate করবে
+        path: "items.variant",
         select:
-          "attributes attribute_values regular_price sale_price sku barcode image", // যেসব ফিল্ড আনবেন
+          "attributes attribute_values regular_price sale_price sku barcode image",
       })
       .populate({
         path: "courier",
@@ -275,8 +283,6 @@ class Service {
     return order;
   }
 
-  // get orders for admin with pagination, filter, search, sort, date range etc.
-  // get orders for user with pagination, filter, search, sort, date range etc.
   async getOrders(query: OrderQuery): Promise<{
     meta: { page: number; limit: number; total: number };
     data: IOrder[];
@@ -520,6 +526,28 @@ class Service {
     return updatedOrder;
   }
 
+  async order_tracking(order_id: string) {
+    const order = await OrderModel.findOne({ order_id: order_id });
+
+    if (!order) {
+      throw new ApiError(
+        HttpStatusCode.NOT_FOUND,
+        `Order was not found with id: ${order_id}`
+      );
+    }
+
+    return {
+      order_status: order.order_status,
+      order_id: order.order_id,
+      product: order.items,
+      invoice_number: order.invoice_number,
+      payment_status: order.payment_status,
+      payment_type: order.payment_type,
+      total_amount: order.total_amount,
+      order_at: order.order_at,
+    };
+  }
+
   // enrich products with details
   private async enrichProducts(orderData: any) {
     const enrichedProducts = await Promise.all(
@@ -535,28 +563,28 @@ class Service {
   }
 
   // calulate delivery charge
-  private calculateDeliveryCharge(address: any): number {
-    // Example logic: flat rate based on division
-    // console.log(address, "address");
-    const divisionCharges: { [key: string]: number } = {
-      dhaka: 70,
-      dhaka_division: 70,
-      ঢাকা: 70,
-      ঢাকা_বিভাগ: 70,
-      Dhaka: 70,
-      "ঢাকা বিভাগ": 70,
+  private calculateDeliveryCharge(division: any, district: any): number {
+    const dhakaDivisions = [
+      "dhaka",
+      "dhaka_division",
+      "ঢাকা",
+      "ঢাকা_বিভাগ",
+      "Dhaka",
+      "ঢাকা বিভাগ",
+    ];
+    const dhakaDistricts = ["dhaka", "ঢাকা", "Dhaka"];
 
-      // ঢাকা: 70,
-      // ঢাকা বিভাগ: 70,
-      // Chittagong: 80,
-      // Khulna: 100,
-      // Rajshahi: 100,
-      // Barisal: 120,
-      // Sylhet: 150,
-      // Rangpur: 120,
-      // Mymensingh: 100,
-    };
-    return divisionCharges[address.toLowerCase()] || 120; // default charge
+    const div = division.toLowerCase().trim();
+    const dist = district.toLowerCase().trim();
+
+    const isDhakaDivision = dhakaDivisions.some((d) => d.toLowerCase() === div);
+    const isDhakaDistrict = dhakaDistricts.some(
+      (d) => d.toLowerCase() === dist
+    );
+
+    if (isDhakaDivision && isDhakaDistrict) return 70;
+    if (isDhakaDivision && !isDhakaDistrict) return 100;
+    return 120;
   }
 
   private async generateOrderId(

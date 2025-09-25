@@ -16,6 +16,8 @@ type IOrderStatus =
   | "exchanged"
   | "partial_delivered";
 
+export type IOrderBy = "admin" | "user" | "guest" | "reseller";
+
 export type IOrderItem = {
   product: Types.ObjectId;
   variant: Types.ObjectId;
@@ -28,40 +30,51 @@ export type IOrderItem = {
 
 export type IOrder = {
   user?: Types.ObjectId;
+
+  customer_name?: string;
+  customer_number: string;
+  customer_email?: string;
+  customer_secondary_number?: string;
+
   items?: IOrderItem[];
-  products?: IOrderItem[]; // for order placement
+  orders_by: IOrderBy;
+  products?: IOrderItem[];
   total_items: number;
-  total_price: number; // items price
+  total_price: number;
   delivery_charge?: number;
-  total_amount: number; // payable amount = total_price + delivery_charge + tax etc.
-  paid_amount?: number; // total paid amount by the customer
-  payable_amount?: number; // total payable amount = total_price + tax etc - delivery_charge.
+  total_amount: number;
+  paid_amount?: number;
+  payable_amount?: number;
   order_status?: IOrderStatus;
   transfer_to_courier?: boolean;
   courier?: Types.ObjectId;
-  order_id?: number; // auto increment
-  invoice_number: string; // auto generated
+  order_id?: number;
+  invoice_number: string;
   delivery_address: IAddress;
   payment_type: "bkash" | "cod";
   transaction_id?: string;
   payment_id?: string;
   payment_status?: "pending" | "paid" | "failed" | "refunded";
-  // tracking dates
+
   order_at?: Date;
 
   is_delivery_charge_paid?: boolean;
 
-  system_message?: string; // system generated messages
-  order_note?: string; // admin provided note
-  // for guest user email and phone will be stored in address field
-  notes?: string; //user provided note during order placement
+  system_message?: string;
+  order_note?: string;
+
+  notes?: string;
   id?: string | Types.ObjectId;
 };
 
 export type IOrderPlace = {
-  user_id: string | Types.ObjectId; // from req.user.id to retrieve cart
-  delivery_charge?: number; // optional
-  tax?: number; // optional
+  user_id: string | Types.ObjectId;
+  customer_name?: string;
+  customer_number: string;
+  customer_secondary_number?: string;
+  customer_email?: string;
+  delivery_charge?: number;
+  tax?: number;
   discounts?: number;
   delivery_address: IAddress;
   products: IOrderItem[];

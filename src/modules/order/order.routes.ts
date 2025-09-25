@@ -36,4 +36,7 @@ router.delete(
   JwtInstance.authenticate([ROLES.ADMIN]),
   OrderController.deleteOrder
 );
+
+router.get("/orders/track/:id", OrderController.orderTracking);
+
 export const OrderRoutes = router;
