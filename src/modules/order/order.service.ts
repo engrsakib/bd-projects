@@ -526,6 +526,28 @@ class Service {
     return updatedOrder;
   }
 
+  async order_tracking(order_id: string) {
+    const order = await OrderModel.findOne({ _id: order_id });
+
+    if (!order) {
+      throw new ApiError(
+        HttpStatusCode.NOT_FOUND,
+        `Order was not found with id: ${order_id}`
+      );
+    }
+
+    return {
+      order_status: order.order_status,
+      order_id: order.order_id,
+      product: order.items,
+      invoice_number: order.invoice_number,
+      payment_status: order.payment_status,
+      payment_type: order.payment_type,
+      total_amount: order.total_amount,
+      order_at: order.order_at,
+    };
+  }
+
   // enrich products with details
   private async enrichProducts(orderData: any) {
     const enrichedProducts = await Promise.all(
