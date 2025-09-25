@@ -37,12 +37,11 @@ const featuredProductsSchema = new Schema<IFeaturedProducts>(
       {
         product: {
           type: Schema.Types.ObjectId,
-          ref: "Products",
           required: true,
         },
         variant: {
           type: Schema.Types.ObjectId,
-          ref: "Variants",
+
           required: true,
         },
       },

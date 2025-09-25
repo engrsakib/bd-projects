@@ -18,6 +18,7 @@ import { BannerRoutes } from "@/modules/banner/banner.routes";
 import { BkashRoutes } from "@/modules/bkash/bkash.routes";
 import { OrderRoutes } from "@/modules/order/order.routes";
 import { courierRouter } from "@/modules/courier/courier.routes";
+import { ContentManagementRoutes } from "@/modules/cms/cms.router";
 const router = Router();
 
 const moduleRoutes = [
@@ -96,6 +97,10 @@ const moduleRoutes = [
   {
     path: "/courier",
     route: courierRouter,
+  },
+  {
+    path: "/cms",
+    route: ContentManagementRoutes,
   },
 ];
 

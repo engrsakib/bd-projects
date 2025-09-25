@@ -107,9 +107,12 @@ class Service {
 
   async getFeaturedProducts() {
     const featuredProducts = await FeaturedProducts.findOne()
-      .populate("products.product")
-      .populate("products.variant")
+      .populate([
+        { path: "products.product", model: "Product", select: "-variants" },
+        { path: "products.variant", model: "Variant" },
+      ])
       .lean();
+
     return featuredProducts;
   }
 
@@ -131,7 +134,9 @@ class Service {
   addFeaturedProducts = async (product_id: string, variant_id: string) => {
     // Check if the product exists
     console.log({ product_id, variant_id });
-    const product = await ProductModel.findById(product_id);
+    const product = await ProductModel.findById({
+      _id: product_id,
+    });
     if (!product) {
       throw new ApiError(404, "Product not found");
     }
@@ -141,6 +146,8 @@ class Service {
       product: product_id,
       variant: variant_id,
     });
+
+    console.log(stock, "stock");
 
     if (!stock) {
       throw new ApiError(400, "Product is not available in stock");
