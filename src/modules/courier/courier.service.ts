@@ -25,7 +25,9 @@ class Service {
         .populate("user")
         .session(session);
 
-      if (
+      if (!order) {
+        throw new ApiError(HttpStatusCode.NOT_FOUND, "Order not found");
+      } else if (
         !order ||
         order.order_status === ORDER_STATUS.CANCELLED ||
         order.order_status === ORDER_STATUS.FAILED ||
