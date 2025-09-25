@@ -53,7 +53,6 @@ class Service {
         );
 
         if (!stock || stock.available_quantity < item.quantity) {
-          // সেশন বাতিল করুন
           // await session.abortTransaction();
           session.endSession();
           throw new ApiError(
@@ -62,15 +61,10 @@ class Service {
           );
         }
 
-        // স্টক থেকে quantity বাদ দিন এবং session সহ save করুন
         stock.available_quantity -= item.quantity;
         await stock.save({ session });
-        // console.log(stock, "stock");
       }
 
-      //  stock reduction will be done after payment confirmation
-
-      // 2. Calculate totals
       const { total_price, items, total_items } =
         await this.calculateCart(enrichedOrder);
 
@@ -81,14 +75,13 @@ class Service {
         session
       );
 
-      // 4. Build payload
       const payload: IOrder = {
         user: data.user_id as Types.ObjectId,
         items,
         total_items,
         total_price,
         total_amount: total_price,
-        payable_amount: 0, // will be updated later
+        payable_amount: 0,
         delivery_address: data.delivery_address,
         invoice_number,
         order_id,
@@ -126,7 +119,6 @@ class Service {
       }
 
       if (data.payment_type === "bkash") {
-        // create payment first
         const { payment_id, payment_url: bkash_payment_url } =
           await BkashService.createPayment({
             payable_amount: payload.total_amount,
@@ -136,7 +128,6 @@ class Service {
         payload.payment_id = payment_id;
         payload.total_amount = Number(payload.total_amount.toFixed());
 
-        // 5. Create order (with session)
         const createdOrders = await OrderModel.create([payload], { session });
 
         if (!createdOrders || createdOrders.length <= 0) {
@@ -166,12 +157,12 @@ class Service {
         })
           .populate({
             path: "items.product",
-            select: "name slug sku thumbnail description", // প্রয়োজনীয় product ফিল্ড
+            select: "name slug sku thumbnail description",
           })
           .populate({
             path: "items.variant",
             select:
-              "attributes attribute_values regular_price sale_price sku barcode image", // প্রয়োজনীয় variant ফিল্ড
+              "attributes attribute_values regular_price sale_price sku barcode image",
           });
 
         return { order: populatedOrders, payment_url };
@@ -206,12 +197,12 @@ class Service {
       })
         .populate({
           path: "items.product",
-          select: "name slug sku thumbnail description", // প্রয়োজনীয় product ফিল্ড
+          select: "name slug sku thumbnail description",
         })
         .populate({
           path: "items.variant",
           select:
-            "attributes attribute_values regular_price sale_price sku barcode image", // প্রয়োজনীয় variant ফিল্ড
+            "attributes attribute_values regular_price sale_price sku barcode image",
         });
 
       return { order: populatedOrders, payment_url: "" };
@@ -245,20 +236,19 @@ class Service {
 
   // get order by id
   async getOrderById(id: string): Promise<IOrder | null> {
-    // শুধু id দিন, {_id: id} নয়
     const order = await OrderModel.findById(id)
       .populate({
-        path: "user", // কোন ফিল্ড populate হবে
-        select: "name phone_number email _id", // শুধু এই ফিল্ডগুলো আনবে
+        path: "user",
+        select: "name phone_number email _id",
       })
       .populate({
-        path: "items.product", // items array-র প্রতিটি product ObjectId-কে populate করবে
-        select: "name slug sku thumbnail description", // যেসব ফিল্ড আনবেন
+        path: "items.product",
+        select: "name slug sku thumbnail description",
       })
       .populate({
-        path: "items.variant", // items array-র প্রতিটি variant ObjectId-কে populate করবে
+        path: "items.variant",
         select:
-          "attributes attribute_values regular_price sale_price sku barcode image", // যেসব ফিল্ড আনবেন
+          "attributes attribute_values regular_price sale_price sku barcode image",
       })
       .populate({
         path: "courier",
