@@ -36,12 +36,12 @@ router.get(
 );
 
 router.post(
-  "/admin/featured-products",
+  "/featured-products",
   JwtInstance.authenticate([ROLES.ADMIN, ROLES.SUPER_ADMIN]),
   ContentManagementController.addFeaturedProducts
 );
 router.delete(
-  "/admin/featured-products/:variant_id",
+  "/featured-products/:variant_id",
   JwtInstance.authenticate([ROLES.ADMIN, ROLES.SUPER_ADMIN]),
   ContentManagementController.deleteFeaturedProducts
 );
