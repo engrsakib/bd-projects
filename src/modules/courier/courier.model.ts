@@ -8,6 +8,7 @@ const CourierSchema = new Schema(
       type: String,
       enum: Object.values(MARCHANT),
       required: true,
+      default: MARCHANT.STEAD_FAST,
     },
     tracking_url: {
       type: String,
