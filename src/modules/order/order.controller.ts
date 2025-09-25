@@ -61,6 +61,25 @@ class Controller extends BaseController {
       data,
     });
   });
+
+  orderTracking = this.catchAsync(async (req: Request, res: Response) => {
+    const { order_id } = req.params;
+    if (!order_id) {
+      return this.sendResponse(res, {
+        statusCode: HttpStatusCode.BAD_REQUEST,
+        success: false,
+        message: "Order ID is required",
+      });
+    }
+
+    const data = await OrderService.order_tracking(order_id);
+    this.sendResponse(res, {
+      statusCode: HttpStatusCode.OK,
+      success: true,
+      message: "Order tracking information retrieved successfully",
+      data,
+    });
+  });
 }
 
 export const OrderController = new Controller();
