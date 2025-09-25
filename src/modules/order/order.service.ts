@@ -1,6 +1,6 @@
 import mongoose, { Types } from "mongoose";
 import { CartService } from "../cart/cart.service";
-import { IOrder, IOrderItem, IOrderPlace } from "./order.interface";
+import { IOrder, IOrderBy, IOrderItem, IOrderPlace } from "./order.interface";
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { ICartItem } from "../cart/cart.interface";
 import { InvoiceService } from "@/lib/invoice";
@@ -14,6 +14,7 @@ import { ProductModel } from "../product/product.model";
 import { OrderQuery } from "@/interfaces/common.interface";
 import { StockModel } from "../stock/stock.model";
 import { VariantModel } from "../variant/variant.model";
+import { UserModel } from "../user/user.model";
 
 class Service {
   async placeOrder(
@@ -75,8 +76,24 @@ class Service {
         session
       );
 
+      let role: IOrderBy = "guest";
+      if (data.user_id) {
+        const user = await UserModel.findById(data.user_id);
+        if (user) {
+          role = user.role as IOrderBy;
+        }
+      }
+
+      const order_by: IOrderBy = role ? role : "guest";
+
       const payload: IOrder = {
         user: data.user_id as Types.ObjectId,
+        customer_name: data.customer_name,
+        customer_number: data.customer_number,
+        customer_secondary_number: data.customer_secondary_number,
+        customer_email: data.customer_email,
+        orders_by: order_by,
+
         items,
         total_items,
         total_price,
@@ -102,7 +119,8 @@ class Service {
       }
 
       data.delivery_charge = this.calculateDeliveryCharge(
-        data.delivery_address.division
+        data.delivery_address.division,
+        data.delivery_address.district
       );
 
       // dakha 70TK OUT SIDE DELIVERY CHARGE 120 TK
@@ -265,8 +283,6 @@ class Service {
     return order;
   }
 
-  // get orders for admin with pagination, filter, search, sort, date range etc.
-  // get orders for user with pagination, filter, search, sort, date range etc.
   async getOrders(query: OrderQuery): Promise<{
     meta: { page: number; limit: number; total: number };
     data: IOrder[];
@@ -525,28 +541,28 @@ class Service {
   }
 
   // calulate delivery charge
-  private calculateDeliveryCharge(address: any): number {
-    // Example logic: flat rate based on division
-    // console.log(address, "address");
-    const divisionCharges: { [key: string]: number } = {
-      dhaka: 70,
-      dhaka_division: 70,
-      ঢাকা: 70,
-      ঢাকা_বিভাগ: 70,
-      Dhaka: 70,
-      "ঢাকা বিভাগ": 70,
+  private calculateDeliveryCharge(division: any, district: any): number {
+    const dhakaDivisions = [
+      "dhaka",
+      "dhaka_division",
+      "ঢাকা",
+      "ঢাকা_বিভাগ",
+      "Dhaka",
+      "ঢাকা বিভাগ",
+    ];
+    const dhakaDistricts = ["dhaka", "ঢাকা", "Dhaka"];
 
-      // ঢাকা: 70,
-      // ঢাকা বিভাগ: 70,
-      // Chittagong: 80,
-      // Khulna: 100,
-      // Rajshahi: 100,
-      // Barisal: 120,
-      // Sylhet: 150,
-      // Rangpur: 120,
-      // Mymensingh: 100,
-    };
-    return divisionCharges[address.toLowerCase()] || 120; // default charge
+    const div = division.toLowerCase().trim();
+    const dist = district.toLowerCase().trim();
+
+    const isDhakaDivision = dhakaDivisions.some((d) => d.toLowerCase() === div);
+    const isDhakaDistrict = dhakaDistricts.some(
+      (d) => d.toLowerCase() === dist
+    );
+
+    if (isDhakaDivision && isDhakaDistrict) return 70;
+    if (isDhakaDivision && !isDhakaDistrict) return 100;
+    return 120;
   }
 
   private async generateOrderId(

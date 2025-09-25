@@ -1,7 +1,12 @@
 import { model, Schema } from "mongoose";
 import { IOrder, IOrderItem } from "./order.interface";
 import { schemaOptions } from "@/utils/schemaOptions";
-import { ORDER_STATUS, PAYMENT_METHOD, PAYMENT_STATUS } from "./order.enums";
+import {
+  ORDER_BY,
+  ORDER_STATUS,
+  PAYMENT_METHOD,
+  PAYMENT_STATUS,
+} from "./order.enums";
 import { addressSchema } from "@/common/models/address.model";
 
 const orderItemSchema = new Schema<IOrderItem>({
@@ -22,7 +27,19 @@ const orderSchema = new Schema<IOrder>(
   {
     user: { type: Schema.Types.ObjectId, ref: "User", required: false },
 
+    customer_name: { type: String, default: "" },
+    customer_number: { type: String, required: true },
+    customer_email: { type: String, default: "" },
+    customer_secondary_number: { type: String, default: "" },
+    orders_by: {
+      type: String,
+      enum: Object.values(ORDER_BY),
+      required: false,
+    },
+
     items: { type: [orderItemSchema], required: true },
+
+    products: { type: [orderItemSchema], required: true },
 
     total_items: { type: Number, required: true },
     total_price: { type: Number, required: true },
