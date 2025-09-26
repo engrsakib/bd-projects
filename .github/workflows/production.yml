@@ -1,8 +1,8 @@
-name: Docker Image CI/CD for Staging
+name: Docker Image CI/CD for Production
 
 on:
   push:
-    branches: ["production"]
+    branches: ["production", "main"]
 
 env:
   DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
