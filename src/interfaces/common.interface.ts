@@ -46,5 +46,6 @@ export interface OrderQuery {
   end_date?: string;
   status?: string;
   phone?: string;
+  orders_by?: string;
   order_id?: string;
 }

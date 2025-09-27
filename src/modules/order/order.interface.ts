@@ -1,7 +1,7 @@
 import { IAddress } from "@/interfaces/common.interface";
 import { Types } from "mongoose";
 
-type IOrderStatus =
+export type IOrderStatus =
   | "failed"
   | "pending"
   | "placed"
@@ -14,6 +14,7 @@ type IOrderStatus =
   | "cancelled"
   | "exchange_requested"
   | "exchanged"
+  | "incomplete"
   | "partial_delivered";
 
 export type IOrderBy = "admin" | "user" | "guest" | "reseller";
