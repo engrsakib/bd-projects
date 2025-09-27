@@ -283,6 +283,8 @@ class Service {
     return order;
   }
 
+  // Assuming you use Mongoose/MongoDB aggregation pipeline for getOrders
+
   async getOrders(query: OrderQuery): Promise<{
     meta: { page: number; limit: number; total: number };
     data: IOrder[];
@@ -295,6 +297,7 @@ class Service {
       status,
       phone,
       order_id,
+      orders_by,
     } = query;
 
     // Build aggregation pipeline
@@ -334,69 +337,45 @@ class Service {
       pipeline.push({ $match: matchStage });
     }
 
-    // Sort by most recent orders (order_at desc)
-    pipeline.push({ $sort: { order_at: -1 } });
+    // --------- Order By (Dynamic Sorting) ---------
+    if (orders_by) {
+      const [field, direction = "desc"] = orders_by.split(":");
+      pipeline.push({ $sort: { [field]: direction === "asc" ? 1 : -1 } });
+    } else {
+      pipeline.push({ $sort: { order_at: -1 } });
+    }
 
     // ---------- Populate items.product ----------
     pipeline.push({
       $lookup: {
-        from: "products", // products collection name
+        from: "products",
         localField: "items.product",
         foreignField: "_id",
         as: "productsDocs",
-      },
-    });
-
-    pipeline.push({
-      $lookup: {
-        from: "user", // products collection name
-        localField: "user",
-        foreignField: "_id",
-        as: "productsDocs",
-      },
-    });
-
-    // ---------- Populate items.product ----------
-    pipeline.push({
-      $lookup: {
-        from: "products", // products collection name
-        localField: "items.product",
-        foreignField: "_id",
-        as: "productsDocs",
-      },
-    });
-
-    // ---------- Populate user ----------
-    pipeline.push({
-      $lookup: {
-        from: "users", // users collection name (must be plural, usually 'users')
-        localField: "user",
-        foreignField: "_id",
-        as: "userDocs",
       },
     });
 
     // ---------- Populate items.variant ----------
     pipeline.push({
       $lookup: {
-        from: "variants", // variants collection name
+        from: "variants",
         localField: "items.variant",
         foreignField: "_id",
         as: "variantsDocs",
       },
     });
 
-    // ---------- Populate courier ----------
+    // ---------- Populate user ----------
     pipeline.push({
       $lookup: {
-        from: "couriers", // couriers collection name
-        localField: "courier",
+        from: "users",
+        localField: "user",
         foreignField: "_id",
-        as: "courierDocs",
+        as: "userDocs",
       },
     });
 
-    // ---------- Merge populated product/variant into items array ----------
+    // ---------- Merge populated product/variant/user into items array and user field ----------
     pipeline.push({
       $addFields: {
         items: {
@@ -436,7 +415,6 @@ class Service {
             },
           },
         },
-        // ---------- Merge populated user (excluding password) ----------
         user: {
           $let: {
             vars: {
@@ -462,7 +440,7 @@ class Service {
               status: "$$userObj.status",
               createdAt: "$$userObj.createdAt",
               updatedAt: "$$userObj.updatedAt",
-              // password intentionally excluded
+              // Add more user fields as needed
             },
           },
         },
