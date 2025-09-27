@@ -300,30 +300,23 @@ class Service {
       orders_by,
     } = query;
 
-    // Build aggregation pipeline
     const pipeline: any[] = [];
-
-    // Filter conditions
     const matchStage: any = {};
 
-    // Date range (order_at)
     if (start_date || end_date) {
       matchStage.order_at = {};
       if (start_date) matchStage.order_at.$gte = new Date(start_date);
       if (end_date) matchStage.order_at.$lte = new Date(end_date);
     }
 
-    // Status
     if (status) {
       matchStage.order_status = status;
     }
 
-    // Phone (delivery_address.phone_number)
     if (phone) {
       matchStage["delivery_address.phone_number"] = phone;
     }
 
-    // Order ID (number or string)
     if (order_id) {
       if (!isNaN(Number(order_id))) {
         matchStage.order_id = Number(order_id);
@@ -332,12 +325,10 @@ class Service {
       }
     }
 
-    // Only add $match if anything in it
     if (Object.keys(matchStage).length) {
       pipeline.push({ $match: matchStage });
     }
 
-    // --------- Order By (Dynamic Sorting) ---------
     if (orders_by) {
       const [field, direction = "desc"] = orders_by.split(":");
       pipeline.push({ $sort: { [field]: direction === "asc" ? 1 : -1 } });
@@ -365,17 +356,27 @@ class Service {
       },
     });
 
-    // ---------- Populate user ----------
+    // ---------- Populate user OR admin ----------
+    const lookupCollection = orders_by === "admin" ? "admins" : "users";
+    console.log(orders_by, "lookupCollection", lookupCollection);
+
     pipeline.push({
       $lookup: {
-        from: "users",
+        from: lookupCollection,
         localField: "user",
         foreignField: "_id",
         as: "userDocs",
       },
     });
 
-    // ---------- Merge populated product/variant/user into items array and user field ----------
+    pipeline.push({
+      $unwind: {
+        path: "$userDocs",
+        preserveNullAndEmptyArrays: true,
+      },
+    });
+
+    // ---------- Merge populated product/variant/user ----------
     pipeline.push({
       $addFields: {
         items: {
@@ -416,38 +417,18 @@ class Service {
           },
         },
         user: {
-          $let: {
-            vars: {
-              userObj: {
-                $arrayElemAt: [
-                  {
-                    $filter: {
-                      input: "$userDocs",
-                      as: "u",
-                      cond: { $eq: ["$user", "$$u._id"] },
-                    },
-                  },
-                  0,
-                ],
-              },
-            },
-            in: {
-              _id: "$$userObj._id",
-              name: "$$userObj.name",
-              email: "$$userObj.email",
-              phone: "$$userObj.phone",
-              role: "$$userObj.role",
-              status: "$$userObj.status",
-              createdAt: "$$userObj.createdAt",
-              updatedAt: "$$userObj.updatedAt",
-              // Add more user fields as needed
-            },
-          },
+          _id: "$userDocs._id",
+          name: "$userDocs.name",
+          email: "$userDocs.email",
+          phone: "$userDocs.phone",
+          role: "$userDocs.role",
+          status: "$userDocs.status",
+          createdAt: "$userDocs.createdAt",
+          updatedAt: "$userDocs.updatedAt",
         },
       },
     });
 
-    // ---------- Remove extra arrays ----------
     pipeline.push({
       $project: {
         productsDocs: 0,
@@ -456,13 +437,11 @@ class Service {
       },
     });
 
-    // Pagination
     const _page = Math.max(Number(page), 1);
     const _limit = Math.max(Number(limit), 1);
     pipeline.push({ $skip: (_page - 1) * _limit });
     pipeline.push({ $limit: _limit });
 
-    // Run aggregation
     const orders = await OrderModel.aggregate(pipeline);
     const total = await OrderModel.countDocuments(matchStage);
 
