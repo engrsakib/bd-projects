@@ -6,6 +6,7 @@ import { CourierMiddleware } from "./courier.middleware";
 import { ORDER_STATUS } from "../order/order.enums";
 import CourierModel from "./courier.model";
 import { HttpStatusCode } from "@/lib/httpStatus";
+import { IOrderStatus } from "../order/order.interface";
 
 class Service {
   // courier sevice integration
@@ -241,6 +242,110 @@ class Service {
       }
     } catch (error: any) {
       console.log(error, "error");
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
+  }
+
+  async statusByTrackingCode(order_id: string) {
+    // Start a session for transaction
+    const session = await OrderModel.startSession();
+    session.startTransaction();
+
+    try {
+      const order = await OrderModel.findById(order_id)
+        .populate("user")
+        .session(session);
+      if (!order) {
+        throw new ApiError(404, "Invalid order id");
+      }
+
+      // Ensure certain statuses can't proceed to courier tracking
+      if (
+        order.order_status === ORDER_STATUS.INCOMPLETE ||
+        order.order_status === ORDER_STATUS.CANCELLED ||
+        order.order_status === ORDER_STATUS.RETURNED ||
+        order.order_status === ORDER_STATUS.DELIVERED ||
+        !order.transfer_to_courier
+      ) {
+        throw new ApiError(
+          400,
+          `Order cannot be transferred to the courier due to its current status: ${order.order_status}`
+        );
+      }
+      const courier = await CourierModel.findOne({ order: order_id }).session(
+        session
+      );
+      const trackingRes: any = await CourierMiddleware.status_by_tracking_code(
+        courier?.tracking_id as string
+      );
+
+      if (trackingRes?.status === 200) {
+        let customStatus = ORDER_STATUS.IN_TRANSIT;
+        switch (trackingRes?.delivery_status) {
+          case "hold":
+          case "in_review":
+            customStatus = ORDER_STATUS.HANDED_OVER_TO_COURIER;
+            break;
+          case "pending":
+          case "delivered_approval_pending":
+          case "partial_delivered_approval_pending":
+          case "partial_delivered":
+            customStatus = ORDER_STATUS.IN_TRANSIT;
+            break;
+          case "delivered":
+            customStatus = ORDER_STATUS.DELIVERED;
+            break;
+
+          case "cancelled":
+          case "cancelled_approval_pending":
+            customStatus = ORDER_STATUS.RETURNED;
+            break;
+          case "unknown":
+          case "unknown_approval_pending":
+            customStatus = ORDER_STATUS.CANCELLED;
+            break;
+          default:
+            throw new ApiError(400, "Unknown delivery status received");
+        }
+
+        order.order_status = customStatus as IOrderStatus;
+        await order.save({ session });
+
+        // if (customStatus === ORDER_STATUS.DELIVERED && order?.user) {
+        //   const totalCoins = order?.products?.reduce(
+        //     (total, product) => total + (product.coin_per_order || 0),
+        //     0
+        //   );
+
+        //   const user = await User.findByIdAndUpdate(
+        //     { _id: order.user },
+        //     {
+        //       $inc: {
+        //         available_coins: totalCoins,
+        //         completed_orders: 1,
+        //         incomplete_orders: -1,
+        //       },
+        //     },
+        //     { new: true, session }
+        //   );
+
+        //   if (!user) {
+        //     throw new ApiError(404, "User not found");
+        //   }
+        // }
+
+        await session.commitTransaction();
+        return {
+          courier_status: trackingRes?.delivery_status,
+          order_status: customStatus,
+        };
+      } else {
+        throw new ApiError(400, "Failed to fetch status by tracking code");
+      }
+    } catch (error: any) {
       await session.abortTransaction();
       throw error;
     } finally {

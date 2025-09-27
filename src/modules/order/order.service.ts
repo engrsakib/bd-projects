@@ -76,7 +76,7 @@ class Service {
         session
       );
 
-      let role: IOrderBy = "guest";
+      let role: IOrderBy = data.orders_by;
       if (data.user_id) {
         const user = await UserModel.findById(data.user_id);
         if (user) {
@@ -283,6 +283,8 @@ class Service {
     return order;
   }
 
+  // Assuming you use Mongoose/MongoDB aggregation pipeline for getOrders
+
   async getOrders(query: OrderQuery): Promise<{
     meta: { page: number; limit: number; total: number };
     data: IOrder[];
@@ -295,32 +297,26 @@ class Service {
       status,
       phone,
       order_id,
+      orders_by,
     } = query;
 
-    // Build aggregation pipeline
     const pipeline: any[] = [];
-
-    // Filter conditions
     const matchStage: any = {};
 
-    // Date range (order_at)
     if (start_date || end_date) {
       matchStage.order_at = {};
       if (start_date) matchStage.order_at.$gte = new Date(start_date);
       if (end_date) matchStage.order_at.$lte = new Date(end_date);
     }
 
-    // Status
     if (status) {
       matchStage.order_status = status;
     }
 
-    // Phone (delivery_address.phone_number)
     if (phone) {
       matchStage["delivery_address.phone_number"] = phone;
     }
 
-    // Order ID (number or string)
     if (order_id) {
       if (!isNaN(Number(order_id))) {
         matchStage.order_id = Number(order_id);
@@ -329,74 +325,58 @@ class Service {
       }
     }
 
-    // Only add $match if anything in it
     if (Object.keys(matchStage).length) {
       pipeline.push({ $match: matchStage });
     }
 
-    // Sort by most recent orders (order_at desc)
-    pipeline.push({ $sort: { order_at: -1 } });
+    if (orders_by) {
+      const [field, direction = "desc"] = orders_by.split(":");
+      pipeline.push({ $sort: { [field]: direction === "asc" ? 1 : -1 } });
+    } else {
+      pipeline.push({ $sort: { order_at: -1 } });
+    }
 
     // ---------- Populate items.product ----------
     pipeline.push({
       $lookup: {
-        from: "products", // products collection name
+        from: "products",
         localField: "items.product",
         foreignField: "_id",
         as: "productsDocs",
-      },
-    });
-
-    pipeline.push({
-      $lookup: {
-        from: "user", // products collection name
-        localField: "user",
-        foreignField: "_id",
-        as: "productsDocs",
-      },
-    });
-
-    // ---------- Populate items.product ----------
-    pipeline.push({
-      $lookup: {
-        from: "products", // products collection name
-        localField: "items.product",
-        foreignField: "_id",
-        as: "productsDocs",
-      },
-    });
-
-    // ---------- Populate user ----------
-    pipeline.push({
-      $lookup: {
-        from: "users", // users collection name (must be plural, usually 'users')
-        localField: "user",
-        foreignField: "_id",
-        as: "userDocs",
       },
     });
 
     // ---------- Populate items.variant ----------
     pipeline.push({
       $lookup: {
-        from: "variants", // variants collection name
+        from: "variants",
         localField: "items.variant",
         foreignField: "_id",
         as: "variantsDocs",
       },
     });
 
-    // ---------- Populate courier ----------
+    // ---------- Populate user OR admin ----------
+    const lookupCollection = orders_by === "admin" ? "admins" : "users";
+    console.log(orders_by, "lookupCollection", lookupCollection);
+
     pipeline.push({
       $lookup: {
-        from: "couriers", // couriers collection name
-        localField: "courier",
+        from: lookupCollection,
+        localField: "user",
         foreignField: "_id",
-        as: "courierDocs",
+        as: "userDocs",
       },
     });
 
-    // ---------- Merge populated product/variant into items array ----------
+    pipeline.push({
+      $unwind: {
+        path: "$userDocs",
+        preserveNullAndEmptyArrays: true,
+      },
+    });
+
+    // ---------- Merge populated product/variant/user ----------
     pipeline.push({
       $addFields: {
         items: {
@@ -436,40 +416,19 @@ class Service {
             },
           },
         },
-        // ---------- Merge populated user (excluding password) ----------
         user: {
-          $let: {
-            vars: {
-              userObj: {
-                $arrayElemAt: [
-                  {
-                    $filter: {
-                      input: "$userDocs",
-                      as: "u",
-                      cond: { $eq: ["$user", "$$u._id"] },
-                    },
-                  },
-                  0,
-                ],
-              },
-            },
-            in: {
-              _id: "$$userObj._id",
-              name: "$$userObj.name",
-              email: "$$userObj.email",
-              phone: "$$userObj.phone",
-              role: "$$userObj.role",
-              status: "$$userObj.status",
-              createdAt: "$$userObj.createdAt",
-              updatedAt: "$$userObj.updatedAt",
-              // password intentionally excluded
-            },
-          },
+          _id: "$userDocs._id",
+          name: "$userDocs.name",
+          email: "$userDocs.email",
+          phone: "$userDocs.phone",
+          role: "$userDocs.role",
+          status: "$userDocs.status",
+          createdAt: "$userDocs.createdAt",
+          updatedAt: "$userDocs.updatedAt",
         },
       },
     });
 
-    // ---------- Remove extra arrays ----------
     pipeline.push({
       $project: {
         productsDocs: 0,
@@ -478,13 +437,11 @@ class Service {
       },
     });
 
-    // Pagination
     const _page = Math.max(Number(page), 1);
     const _limit = Math.max(Number(limit), 1);
     pipeline.push({ $skip: (_page - 1) * _limit });
     pipeline.push({ $limit: _limit });
 
-    // Run aggregation
     const orders = await OrderModel.aggregate(pipeline);
     const total = await OrderModel.countDocuments(matchStage);
 

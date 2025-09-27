@@ -27,6 +27,19 @@ class Controller extends BaseController {
       data: result,
     });
   });
+
+  statusByTrackingCode = this.catchAsync(
+    async (req: Request, res: Response) => {
+      const { order_id } = req.params;
+      const result = await CourierService.statusByTrackingCode(order_id);
+      return this.sendResponse(res, {
+        statusCode: HttpStatus.OK,
+        success: true,
+        message: "Order status found successfully",
+        data: result,
+      });
+    }
+  );
 }
 
 export const CourierController = new Controller();

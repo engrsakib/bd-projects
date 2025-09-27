@@ -133,7 +133,7 @@ class JWT {
       refresh_token = req.headers["x-refresh-token"] || undefined;
     }
 
-    console.log({ sourceType, access_token, refresh_token });
+    // console.log({ sourceType, access_token, refresh_token });
 
     return { access_token, refresh_token };
   }

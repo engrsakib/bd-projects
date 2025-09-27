@@ -1,4 +1,5 @@
 export enum ORDER_STATUS {
+  INCOMPLETE = "incomplete",
   PENDING = "pending",
   FAILED = "failed",
   PLACED = "placed",
