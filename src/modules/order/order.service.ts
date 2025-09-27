@@ -76,7 +76,7 @@ class Service {
         session
       );
 
-      let role: IOrderBy = "guest";
+      let role: IOrderBy = data.orders_by;
       if (data.user_id) {
         const user = await UserModel.findById(data.user_id);
         if (user) {
