@@ -79,4 +79,5 @@ export type IOrderPlace = {
   delivery_address: IAddress;
   products: IOrderItem[];
   payment_type: "bkash" | "cod";
+  orders_by: IOrderBy;
 };
