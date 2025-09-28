@@ -11,6 +11,13 @@ router.post(
 
   OrderController.placeOrder
 );
+
+router.patch(
+  "/:id",
+  JwtInstance.authenticate([ROLES.ADMIN]),
+  OrderController.editOrder
+);
+
 router.post(
   "/admin/",
   JwtInstance.authenticate([ROLES.ADMIN]),
