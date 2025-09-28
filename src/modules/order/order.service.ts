@@ -367,7 +367,7 @@ class Service {
       }
 
       // status handling
-      existingOrder.order_status = ORDER_STATUS.PENDING;
+      existingOrder.order_status = ORDER_STATUS.PLACED;
 
       await existingOrder.save({ session });
 
@@ -482,8 +482,21 @@ class Service {
       if (end_date) matchStage.order_at.$lte = new Date(end_date);
     }
 
+    // status as array support
     if (status) {
-      matchStage.order_status = status;
+      // accept: status = ["pending", "delivered"] or status = "pending"
+      if (Array.isArray(status)) {
+        matchStage.order_status = { $in: status };
+      } else {
+        // if comma separated string: "pending,delivered"
+        if (typeof status === "string" && status.includes(",")) {
+          matchStage.order_status = {
+            $in: status.split(",").map((s) => s.trim()),
+          };
+        } else {
+          matchStage.order_status = status;
+        }
+      }
     }
 
     if (phone) {
@@ -531,7 +544,6 @@ class Service {
 
     // ---------- Populate user OR admin ----------
     const lookupCollection = orders_by === "admin" ? "admins" : "users";
-    console.log(orders_by, "lookupCollection", lookupCollection);
 
     pipeline.push({
       $lookup: {
