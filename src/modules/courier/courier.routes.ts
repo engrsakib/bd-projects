@@ -11,4 +11,9 @@ router.patch(
   CourierController.transferToCourier
 );
 
+router.get(
+  "/status-by-tracking-code/:id",
+  CourierController.statusByTrackingCode
+);
+
 export const courierRouter = router;
