@@ -16,6 +16,7 @@ router.post(
 router.patch(
   "/:id",
   JwtInstance.authenticate([ROLES.ADMIN]),
+  JwtInstance.hasPermissions(PermissionEnum.ORDER_UPDATE),
   OrderController.editOrder
 );
 
