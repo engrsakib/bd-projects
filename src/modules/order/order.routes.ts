@@ -28,11 +28,10 @@ router.post(
 router.get(
   "/orders/:id",
   JwtInstance.authenticate([ROLES.ADMIN]),
+  JwtInstance.hasPermissions(PermissionEnum.ORDER_VIEW),
   OrderController.getOrderById
 );
-// If JwtInstance is an instance, use its middleware method (e.g., JwtInstance.verify(ROLES.ADMIN))
-// If JwtInstance should be a function, ensure it is imported as such.
-// Example fix assuming JwtInstance.verify is the correct middleware:
+
 router.get(
   "/all-orders",
   JwtInstance.authenticate([ROLES.ADMIN]),
@@ -43,12 +42,14 @@ router.get(
 router.patch(
   "/update-order-status",
   JwtInstance.authenticate([ROLES.ADMIN]),
+  JwtInstance.hasPermissions(PermissionEnum.ORDER_UPDATE),
   OrderController.updateOrderStatus
 );
 
 router.delete(
   "/orders/delete/:id",
   JwtInstance.authenticate([ROLES.ADMIN]),
+  JwtInstance.hasPermissions(PermissionEnum.ORDER_DELETE),
   OrderController.deleteOrder
 );
 
