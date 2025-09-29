@@ -3,7 +3,14 @@ import { Router } from "express";
 
 import { JwtInstance } from "@/lib/jwt";
 import { ROLES } from "@/constants/roles";
+import { PermissionController } from "./permission.controller";
 
 const router = Router();
+
+router.patch(
+  "/:id",
+  JwtInstance.authenticate([ROLES.ADMIN]),
+  PermissionController.createAndUpdatePermissions
+);
 
 export const PermissionsRoutes = router;

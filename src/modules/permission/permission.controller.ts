@@ -6,12 +6,22 @@ import { PermissionService } from "./permission.service";
 class Controller extends BaseController {
   createAndUpdatePermissions = this.catchAsync(
     async (req: Request, res: Response) => {
-      const userId = req.params.user_id as string;
-      const { permissions, description } = req.body;
+      const userId = req.params.id as string;
+
+      if (!userId) {
+        this.sendResponse(res, {
+          statusCode: HttpStatusCode.BAD_REQUEST,
+          success: false,
+          message: "User ID is required",
+        });
+        return;
+      }
+
+      const { permissions, note } = req.body;
       const data = await PermissionService.CreateAndUpdatePermissions(
         userId,
         permissions,
-        description
+        note
       );
       this.sendResponse(res, {
         statusCode: HttpStatusCode.OK,

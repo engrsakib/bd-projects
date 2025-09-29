@@ -12,8 +12,9 @@ const permissionSchema = new Schema(
       type: [String],
       enum: Object.values(PermissionEnum),
       required: true,
+      unique: true,
     },
-    description: {
+    note: {
       type: String,
       trim: true,
       default: "Permission updated by admin",

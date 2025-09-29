@@ -20,13 +20,11 @@ const adminSchema = new Schema<IAdmin>(
       type: String,
       required: true,
     },
-    permissions: [
-      {
-        type: Schema.Types.ObjectId,
-        ref: "Permission",
-        default: null,
-      },
-    ],
+    permissions: {
+      type: Schema.Types.ObjectId,
+      ref: "Permission",
+      default: null,
+    },
     designation: {
       type: String,
       default: "",

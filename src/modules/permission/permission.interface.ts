@@ -6,7 +6,7 @@ export interface IPermission {
   _id?: Types.ObjectId;
   user: Types.ObjectId;
   key: PermissionEnum;
-  description?: string;
+  note?: string;
   group?: PermissionGroup;
   isActive?: boolean;
   createdBy?: Types.ObjectId;
