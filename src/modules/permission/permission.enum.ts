@@ -26,6 +26,11 @@ export enum PermissionEnum {
   VARIANT_DELETE = "variant.delete",
   VARIANT_VIEW = "variant.view",
 
+  CMS_CREATE = "cms.create",
+  CMS_UPDATE = "cms.update",
+  CMS_DELETE = "cms.delete",
+  CMS_VIEW = "cms.view",
+
   COURIER_CREATE = "courier.create",
   COURIER_UPDATE = "courier.update",
   COURIER_DELETE = "courier.delete",
