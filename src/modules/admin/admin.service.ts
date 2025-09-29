@@ -243,9 +243,32 @@ class Service {
 
     const result = await AdminModel.find({ ...searchCondition })
       .select({ password: 0 })
+      .populate({
+        path: "permissions",
+        select: "key -_id",
+      })
       .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
       .skip(skip)
-      .limit(limit);
+      .limit(limit)
+      .lean();
+
+    if (!result) {
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "Admins not found");
+    }
+
+    const data = result.map((admin: any) => {
+      let keys: string[] = [];
+
+      if (
+        admin.permissions &&
+        typeof admin.permissions === "object" &&
+        "key" in admin.permissions
+      ) {
+        keys = (admin.permissions as { key: string[] }).key;
+      }
+
+      return { ...admin, permissions: keys };
+    });
 
     const total = await AdminModel.countDocuments(searchCondition);
 
@@ -255,7 +278,7 @@ class Service {
         limit,
         total,
       },
-      data: result,
+      data,
     };
   }
 
