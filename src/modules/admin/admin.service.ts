@@ -260,7 +260,29 @@ class Service {
   }
 
   async getAdminById(id: string) {
-    return await AdminModel.findById(id).select({ password: 0 });
+    const data = await AdminModel.findById(id)
+      .select({ password: 0 })
+      .populate({
+        path: "permissions",
+        select: "key",
+      })
+      .lean();
+
+    if (!data) {
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "Admin was not found");
+    }
+
+    let keys: string[] = [];
+
+    if (
+      data.permissions &&
+      typeof data.permissions === "object" &&
+      "key" in data.permissions
+    ) {
+      keys = (data.permissions as { key: string[] }).key;
+    }
+
+    return { ...data, permissions: keys };
   }
 
   async updateAdmin(id: string, data: Partial<IAdmin>) {
