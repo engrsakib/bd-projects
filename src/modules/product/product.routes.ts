@@ -8,9 +8,19 @@ const router = Router();
 
 router.get("/get-by-slug-title", ProductController.getBySlugAndTitle);
 
-router.post("/", ProductController.create);
+router.post(
+  "/",
+  JwtInstance.authenticate([ROLES.ADMIN]),
+  JwtInstance.hasPermissions(PermissionEnum.PRODUCT_CREATE),
+  ProductController.create
+);
 
-router.get("/", ProductController.getAllProductsForAdmin);
+router.get(
+  "/",
+  JwtInstance.authenticate([ROLES.ADMIN]),
+  JwtInstance.hasPermissions(PermissionEnum.PRODUCT_VIEW),
+  ProductController.getAllProductsForAdmin
+);
 
 router.get("/published", ProductController.getAllProducts);
 
