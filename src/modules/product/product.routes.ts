@@ -22,9 +22,19 @@ router.get("/:id", ProductController.getById);
 
 router.get("/slug/:slug", ProductController.getBySlug);
 
-router.patch("/:id", ProductController.update);
+router.patch(
+  "/:id",
+  JwtInstance.authenticate([ROLES.ADMIN]),
+  JwtInstance.hasPermissions(PermissionEnum.PRODUCT_UPDATE),
+  ProductController.update
+);
 
-router.patch("/:id/toggle-visibility", ProductController.toggleVisibility);
+router.patch(
+  "/:id/toggle-visibility",
+  JwtInstance.authenticate([ROLES.ADMIN]),
+  JwtInstance.hasPermissions(PermissionEnum.PRODUCT_UPDATE),
+  ProductController.toggleVisibility
+);
 
 router.delete(
   "/:id",
