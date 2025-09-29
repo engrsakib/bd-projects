@@ -141,6 +141,8 @@ class JWT {
             ? (admin.permissions as { key: string[] }).key
             : [];
 
+        // console.log(keys.includes(requiredPermission), { keys, requiredPermission });
+
         if (!keys.includes(requiredPermission)) {
           return next(
             new ApiError(

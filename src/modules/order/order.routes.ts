@@ -3,6 +3,7 @@ import { Router } from "express";
 import { OrderController } from "./order.controller";
 import { JwtInstance } from "@/lib/jwt";
 import { ROLES } from "@/constants/roles";
+import { PermissionEnum } from "../permission/permission.enum";
 
 const router = Router();
 
@@ -21,6 +22,7 @@ router.patch(
 router.post(
   "/admin/",
   JwtInstance.authenticate([ROLES.ADMIN]),
+  JwtInstance.authenticate([PermissionEnum.ORDER_CREATE]),
   OrderController.placeOrder
 );
 router.get(
@@ -34,6 +36,7 @@ router.get(
 router.get(
   "/all-orders",
   JwtInstance.authenticate([ROLES.ADMIN]),
+  JwtInstance.hasPermissions(PermissionEnum.ORDER_VIEW),
   OrderController.getOrders
 );
 
