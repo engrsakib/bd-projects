@@ -20,6 +20,12 @@ const adminSchema = new Schema<IAdmin>(
       type: String,
       required: true,
     },
+    permissions: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "Permission",
+      },
+    ],
     designation: {
       type: String,
       default: "",
