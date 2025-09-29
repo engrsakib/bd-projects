@@ -9,7 +9,7 @@ const permissionSchema = new Schema(
       required: true,
     },
     key: {
-      type: String,
+      type: [String],
       enum: Object.values(PermissionEnum),
       required: true,
     },
