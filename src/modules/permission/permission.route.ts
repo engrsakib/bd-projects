@@ -4,12 +4,14 @@ import { Router } from "express";
 import { JwtInstance } from "@/lib/jwt";
 import { ROLES } from "@/constants/roles";
 import { PermissionController } from "./permission.controller";
+import { PermissionEnum } from "./permission.enum";
 
 const router = Router();
 
 router.patch(
   "/:id",
   JwtInstance.authenticate([ROLES.ADMIN]),
+  JwtInstance.hasPermissions(PermissionEnum.MANAGE_PERMISSIONS),
   PermissionController.createAndUpdatePermissions
 );
 
