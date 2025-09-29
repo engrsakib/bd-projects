@@ -198,7 +198,29 @@ class Service {
   }
 
   async getLoggedInAdmin(id: string) {
-    return await AdminModel.findById(id).select({ password: 0 });
+    const data = await AdminModel.findById(id)
+      .select("-password")
+      .populate({
+        path: "permissions",
+        select: "key",
+      })
+      .lean();
+
+    if (!data) {
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "Admin was not found");
+    }
+
+    let keys: string[] = [];
+
+    if (
+      data.permissions &&
+      typeof data.permissions === "object" &&
+      "key" in data.permissions
+    ) {
+      keys = (data.permissions as { key: string[] }).key;
+    }
+
+    return { ...data, permissions: keys };
   }
 
   async getAllAdmins(options: IPaginationOptions, search_query: string) {
@@ -221,9 +243,32 @@ class Service {
 
     const result = await AdminModel.find({ ...searchCondition })
       .select({ password: 0 })
+      .populate({
+        path: "permissions",
+        select: "key -_id",
+      })
       .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
       .skip(skip)
-      .limit(limit);
+      .limit(limit)
+      .lean();
+
+    if (!result) {
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "Admins not found");
+    }
+
+    const data = result.map((admin: any) => {
+      let keys: string[] = [];
+
+      if (
+        admin.permissions &&
+        typeof admin.permissions === "object" &&
+        "key" in admin.permissions
+      ) {
+        keys = (admin.permissions as { key: string[] }).key;
+      }
+
+      return { ...admin, permissions: keys };
+    });
 
     const total = await AdminModel.countDocuments(searchCondition);
 
@@ -233,12 +278,34 @@ class Service {
         limit,
         total,
       },
-      data: result,
+      data,
     };
   }
 
   async getAdminById(id: string) {
-    return await AdminModel.findById(id).select({ password: 0 });
+    const data = await AdminModel.findById(id)
+      .select({ password: 0 })
+      .populate({
+        path: "permissions",
+        select: "key",
+      })
+      .lean();
+
+    if (!data) {
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "Admin was not found");
+    }
+
+    let keys: string[] = [];
+
+    if (
+      data.permissions &&
+      typeof data.permissions === "object" &&
+      "key" in data.permissions
+    ) {
+      keys = (data.permissions as { key: string[] }).key;
+    }
+
+    return { ...data, permissions: keys };
   }
 
   async updateAdmin(id: string, data: Partial<IAdmin>) {

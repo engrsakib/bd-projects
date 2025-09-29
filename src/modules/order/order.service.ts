@@ -669,7 +669,16 @@ class Service {
   }
 
   async order_tracking(order_id: string) {
-    const order = await OrderModel.findOne({ order_id: order_id });
+    const order = await OrderModel.findOne({ order_id })
+      .populate({
+        path: "items.product",
+        select: "name slug sku thumbnail description",
+      })
+      .populate({
+        path: "items.variant",
+        select:
+          "attributes attribute_values regular_price sale_price sku barcode image",
+      });
 
     if (!order) {
       throw new ApiError(
