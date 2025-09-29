@@ -1,5 +1,8 @@
 import { Router } from "express";
 import { ProductController } from "./product.controller";
+import { JwtInstance } from "@/lib/jwt";
+import { PermissionEnum } from "../permission/permission.enum";
+import { ROLES } from "@/constants/roles";
 
 const router = Router();
 
@@ -23,6 +26,11 @@ router.patch("/:id", ProductController.update);
 
 router.patch("/:id/toggle-visibility", ProductController.toggleVisibility);
 
-router.delete("/:id", ProductController.deleteProduct);
+router.delete(
+  "/:id",
+  JwtInstance.authenticate([ROLES.ADMIN]),
+  JwtInstance.hasPermissions(PermissionEnum.PRODUCT_DELETE),
+  ProductController.deleteProduct
+);
 
 export const ProductRoutes = router;
