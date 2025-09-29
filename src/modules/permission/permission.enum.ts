@@ -1,0 +1,15 @@
+export enum PermissionEnum {
+  ORDER_CREATE = "order.create",
+  ORDER_DELETE = "order.delete",
+  ORDER_UPDATE = "order.update",
+  ORDER_VIEW = "order.view",
+  PRODUCT_CREATE = "product.create",
+  PRODUCT_DELETE = "product.delete",
+  PRODUCT_UPDATE = "product.update",
+  PRODUCT_VIEW = "product.view",
+  USER_CREATE = "user.create",
+  USER_UPDATE = "user.update",
+  USER_DELETE = "user.delete",
+  USER_VIEW = "user.view",
+  MANAGE_PERMISSIONS = "manage-permissions",
+}
