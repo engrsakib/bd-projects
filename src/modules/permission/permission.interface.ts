@@ -1,10 +1,15 @@
-import { Document } from "mongoose";
+import { PermissionEnum, PermissionGroup } from "./permission.enum";
 
-export interface IPermission extends Document {
-  key: string;
+import { Types } from "mongoose";
+
+export interface IPermission {
+  _id?: Types.ObjectId;
+  user: Types.ObjectId;
+  key: PermissionEnum;
   description?: string;
-  group?: string;
+  group?: PermissionGroup;
   isActive?: boolean;
+  createdBy?: Types.ObjectId;
   createdAt?: Date;
   updatedAt?: Date;
 }

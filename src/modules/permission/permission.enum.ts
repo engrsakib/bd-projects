@@ -13,3 +13,12 @@ export enum PermissionEnum {
   USER_VIEW = "user.view",
   MANAGE_PERMISSIONS = "manage-permissions",
 }
+
+export enum PermissionGroup {
+  ORDER = "Order",
+  PRODUCT = "Product",
+  USER = "User",
+  REPORT = "Report",
+  PAYMENT = "Payment",
+  ADMIN = "Admin",
+}
