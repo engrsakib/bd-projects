@@ -20,6 +20,11 @@ export enum PermissionEnum {
   STOCK_VIEW = "stock.view",
   STOCK_TRANSFER = "stock.transfer",
   MANAGE_PERMISSIONS = "manage-permissions",
+
+  VARIANT_CREATE = "variant.create",
+  VARIANT_UPDATE = "variant.update",
+  VARIANT_DELETE = "variant.delete",
+  VARIANT_VIEW = "variant.view",
 }
 
 export enum PermissionGroup {
