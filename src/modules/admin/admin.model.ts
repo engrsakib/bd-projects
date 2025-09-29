@@ -24,6 +24,7 @@ const adminSchema = new Schema<IAdmin>(
       {
         type: Schema.Types.ObjectId,
         ref: "Permission",
+        default: null,
       },
     ],
     designation: {

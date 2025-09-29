@@ -9,33 +9,46 @@ class Service {
   async CreateAndUpdatePermissions(
     userId: string,
     permissions: string[],
-    description?: string,
-    type?: "add" | "remove"
+    description?: string
   ) {
     const session = await mongoose.startSession();
     session.startTransaction();
+
     try {
       const user = await AdminModel.findById(userId).session(session);
       if (!user) {
         throw new ApiError(HttpStatusCode.NOT_FOUND, "User not found");
       }
-      const ValidPermission = await PermissionModel.findById(user.permissions);
+
+      let ValidPermission = null;
+
+      if (user.permissions) {
+        ValidPermission = await PermissionModel.findById(
+          user.permissions
+        ).session(session);
+      }
+
       if (!ValidPermission) {
-        await session.abortTransaction();
-        throw new ApiError(HttpStatusCode.NOT_FOUND, "Permission not found");
-      }
+        const newPermission = new PermissionModel({
+          user: user._id,
+          key: permissions as PermissionEnum[],
+          description: description || "Permission created by admin",
+          createdBy: user._id,
+        });
 
-      if (type === "add") {
-        ValidPermission.key.push(...(permissions as PermissionEnum[]));
-      } else if (type === "remove") {
-        ValidPermission.key = ValidPermission.key.filter(
-          (perm: any) => !permissions.includes(perm)
-        );
+        await newPermission.save({ session });
+        user.permissions = newPermission._id as any;
+        await user.save({ session });
+        ValidPermission = newPermission;
+      } else {
+        ValidPermission.key = permissions as PermissionEnum[];
+        if (description) {
+          ValidPermission.description = description;
+        }
+        await ValidPermission.save({ session });
       }
-      await ValidPermission.save({ session });
-
       await session.commitTransaction();
-      return user;
+      return { user, permission: ValidPermission };
     } catch (error) {
       await session.abortTransaction();
       throw new ApiError(
