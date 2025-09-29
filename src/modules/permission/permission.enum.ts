@@ -25,6 +25,16 @@ export enum PermissionEnum {
   VARIANT_UPDATE = "variant.update",
   VARIANT_DELETE = "variant.delete",
   VARIANT_VIEW = "variant.view",
+
+  COURIER_CREATE = "courier.create",
+  COURIER_UPDATE = "courier.update",
+  COURIER_DELETE = "courier.delete",
+  COURIER_VIEW = "courier.view",
+
+  SUPPLIER_CREATE = "supplier.create",
+  SUPPLIER_UPDATE = "supplier.update",
+  SUPPLIER_DELETE = "supplier.delete",
+  SUPPLIER_VIEW = "supplier.view",
 }
 
 export enum PermissionGroup {
