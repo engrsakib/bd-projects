@@ -537,20 +537,23 @@ class Service {
     return products;
   }
 
-  async getRelatedOrders(subCategory: string): Promise<IProduct[]> {
+  async getRelatedOrders(subCategoryId: string): Promise<IProduct[]> {
     const products = await ProductModel.find({
-      "items.product": { $in: [subCategory] },
+      subcategory: subCategoryId,
+      is_published: true,
     })
+      .sort({ createdAt: -1 })
       .limit(10)
       .populate({
-        path: "items.product",
-        select: "name slug sku thumbnail description",
+        path: "subcategory",
+        select: "name slug",
       })
       .populate({
-        path: "items.variant",
+        path: "variants",
         select:
           "attributes attribute_values regular_price sale_price sku barcode image",
-      });
+      })
+      .lean();
 
     return products;
   }
