@@ -53,10 +53,19 @@ class Controller extends BaseController {
   });
 
   updateOrderStatus = this.catchAsync(async (req: Request, res: Response) => {
+    const { id, status } = req.body;
+    if (!id || !status) {
+      return this.sendResponse(res, {
+        statusCode: HttpStatusCode.BAD_REQUEST,
+        success: false,
+        message: "Order ID and Status are required",
+      });
+    }
+
     const data = await OrderService.updateOrderStatus(
-      req.body.id as string,
+      id as string,
       req.user?.id as string,
-      req.body.status
+      status
     );
     this.sendResponse(res, {
       statusCode: HttpStatusCode.OK,
