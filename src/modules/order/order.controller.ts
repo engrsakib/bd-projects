@@ -39,6 +39,7 @@ class Controller extends BaseController {
       data,
     });
   });
+
   getOrders = this.catchAsync(async (req: Request, res: Response) => {
     // console.log(req.query, "params")
     const query: any = req.query;

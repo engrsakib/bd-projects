@@ -456,8 +456,6 @@ class Service {
     return order;
   }
 
-  // Assuming you use Mongoose/MongoDB aggregation pipeline for getOrders
-
   async getOrders(query: OrderQuery): Promise<{
     meta: { page: number; limit: number; total: number };
     data: IOrder[];

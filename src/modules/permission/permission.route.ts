@@ -11,7 +11,7 @@ const router = Router();
 router.patch(
   "/:id",
   JwtInstance.authenticate([ROLES.ADMIN]),
-  JwtInstance.hasPermissions(PermissionEnum.MANAGE_PERMISSIONS),
+
   PermissionController.createAndUpdatePermissions
 );
 
