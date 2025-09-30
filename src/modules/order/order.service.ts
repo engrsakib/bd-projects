@@ -648,6 +648,7 @@ class Service {
   // order status update by admin
   async updateOrderStatus(
     order_id: string,
+    user_id: string,
     status: ORDER_STATUS
   ): Promise<IOrder | null> {
     const updatedOrder = await OrderModel.findOneAndUpdate(

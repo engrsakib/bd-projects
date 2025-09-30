@@ -55,6 +55,7 @@ class Controller extends BaseController {
   updateOrderStatus = this.catchAsync(async (req: Request, res: Response) => {
     const data = await OrderService.updateOrderStatus(
       req.body.id as string,
+      req.user?.id as string,
       req.body.status
     );
     this.sendResponse(res, {
