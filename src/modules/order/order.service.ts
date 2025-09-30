@@ -645,7 +645,6 @@ class Service {
     }
   }
 
-  // order status update by admin
   async updateOrderStatus(
     order_id: string,
     user_id: string,
@@ -653,7 +652,16 @@ class Service {
   ): Promise<IOrder | null> {
     const updatedOrder = await OrderModel.findOneAndUpdate(
       { _id: order_id },
-      { $set: { order_status: status } },
+      {
+        $set: { order_status: status },
+        $push: {
+          logs: {
+            user: user_id,
+            time: new Date(),
+            action: `ORDER_STATUS_UPDATED -> ${status}`,
+          },
+        },
+      },
       { new: true }
     );
 
