@@ -456,7 +456,23 @@ class Service {
     return order;
   }
 
-  // Assuming you use Mongoose/MongoDB aggregation pipeline for getOrders
+  async getRelatedOrders(subCategory: string): Promise<IOrder[]> {
+    const orders = await OrderModel.find({
+      "items.product": { $in: [subCategory] },
+    })
+      .limit(10)
+      .populate({
+        path: "items.product",
+        select: "name slug sku thumbnail description",
+      })
+      .populate({
+        path: "items.variant",
+        select:
+          "attributes attribute_values regular_price sale_price sku barcode image",
+      });
+
+    return orders;
+  }
 
   async getOrders(query: OrderQuery): Promise<{
     meta: { page: number; limit: number; total: number };
