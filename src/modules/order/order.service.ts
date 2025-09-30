@@ -654,6 +654,16 @@ class Service {
     user_id: string,
     status: ORDER_STATUS
   ): Promise<IOrder | null> {
+    const order = await OrderModel.findById(order_id);
+    if (!order) {
+      throw new ApiError(
+        HttpStatusCode.NOT_FOUND,
+        `Order was not found with id: ${order_id}`
+      );
+    }
+
+    const previousStatus = order.order_status || "N/A";
+
     const updatedOrder = await OrderModel.findOneAndUpdate(
       { _id: order_id },
       {
@@ -662,19 +672,12 @@ class Service {
           logs: {
             user: user_id,
             time: new Date(),
-            action: `ORDER_STATUS_UPDATED -> ${status}`,
+            action: `ORDER_STATUS_UPDATED: ${previousStatus} -> ${status}`,
           },
         },
       },
       { new: true }
     );
-
-    if (!updatedOrder) {
-      throw new ApiError(
-        HttpStatusCode.NOT_FOUND,
-        `Order was not found with id: ${order_id}`
-      );
-    }
 
     return updatedOrder;
   }
