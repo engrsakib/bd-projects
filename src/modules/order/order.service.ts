@@ -444,6 +444,10 @@ class Service {
       .populate({
         path: "courier",
         select: "",
+      })
+      .populate({
+        path: "logs.user",
+        select: "name phone_number email _id",
       });
 
     if (!order) {

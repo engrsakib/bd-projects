@@ -85,7 +85,7 @@ const orderSchema = new Schema<IOrder>(
 
     logs: [
       {
-        user: { type: Schema.Types.ObjectId, ref: "User" },
+        user: { type: Schema.Types.ObjectId, ref: "Admin" },
         time: { type: Date, default: Date.now },
         action: { type: String },
       },
