@@ -19,12 +19,8 @@ export enum PermissionEnum {
   STOCK_DELETE = "stock.delete",
   STOCK_VIEW = "stock.view",
   STOCK_TRANSFER = "stock.transfer",
-  MANAGE_PERMISSIONS = "manage-permissions",
 
-  VARIANT_CREATE = "variant.create",
-  VARIANT_UPDATE = "variant.update",
-  VARIANT_DELETE = "variant.delete",
-  VARIANT_VIEW = "variant.view",
+  MANAGE_PERMISSIONS = "manage-permissions",
 
   CMS_CREATE = "cms.create",
   CMS_UPDATE = "cms.update",

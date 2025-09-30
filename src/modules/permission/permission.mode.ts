@@ -12,7 +12,7 @@ const permissionSchema = new Schema(
       type: [String],
       enum: Object.values(PermissionEnum),
       required: true,
-      unique: true,
+      default: [],
     },
     note: {
       type: String,
