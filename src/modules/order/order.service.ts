@@ -15,7 +15,6 @@ import { OrderQuery } from "@/interfaces/common.interface";
 import { StockModel } from "../stock/stock.model";
 import { VariantModel } from "../variant/variant.model";
 import { UserModel } from "../user/user.model";
-import { IProduct } from "../product/product.interface";
 
 class Service {
   async placeOrder(
@@ -455,24 +454,6 @@ class Service {
     }
 
     return order;
-  }
-
-  async getRelatedOrders(subCategory: string): Promise<IProduct[]> {
-    const products = await ProductModel.find({
-      "items.product": { $in: [subCategory] },
-    })
-      .limit(10)
-      .populate({
-        path: "items.product",
-        select: "name slug sku thumbnail description",
-      })
-      .populate({
-        path: "items.variant",
-        select:
-          "attributes attribute_values regular_price sale_price sku barcode image",
-      });
-
-    return products;
   }
 
   async getOrders(query: OrderQuery): Promise<{

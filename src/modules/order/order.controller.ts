@@ -40,17 +40,6 @@ class Controller extends BaseController {
     });
   });
 
-  getRelatedOrders = this.catchAsync(async (req: Request, res: Response) => {
-    const subCategory = req.params.subCategory as string;
-    const data = await OrderService.getRelatedOrders(subCategory);
-    this.sendResponse(res, {
-      statusCode: HttpStatusCode.OK,
-      success: true,
-      message: "Related products retrieved successfully",
-      data,
-    });
-  });
-
   getOrders = this.catchAsync(async (req: Request, res: Response) => {
     // console.log(req.query, "params")
     const query: any = req.query;

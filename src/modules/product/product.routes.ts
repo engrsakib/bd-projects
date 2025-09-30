@@ -15,6 +15,8 @@ router.post(
   ProductController.create
 );
 
+router.get("/related/:subCategory", ProductController.getRelatedOrders);
+
 router.get(
   "/",
   JwtInstance.authenticate([ROLES.ADMIN]),
