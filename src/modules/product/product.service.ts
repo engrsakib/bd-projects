@@ -537,9 +537,9 @@ class Service {
     return products;
   }
 
-  async getRelatedOrders(subCategoryId: string): Promise<IProduct[]> {
+  async getRelatedOrders(categoryId: string): Promise<IProduct[]> {
     const products = await ProductModel.find({
-      subcategory: subCategoryId,
+      category: categoryId,
       is_published: true,
     })
       .sort({ createdAt: -1 })
