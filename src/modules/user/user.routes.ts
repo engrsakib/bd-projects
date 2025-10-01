@@ -20,7 +20,7 @@ router.post(
 );
 
 router.post(
-  "/create-by-admin",
+  "/create-user-by-admin",
   validateRequest(UserValidations.create),
   loggerMiddleware,
   UserController.createByAdmin
