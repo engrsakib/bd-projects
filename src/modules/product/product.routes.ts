@@ -15,7 +15,7 @@ router.post(
   ProductController.create
 );
 
-router.get("/related/:subCategory", ProductController.getRelatedOrders);
+router.get("/related/:category", ProductController.getRelatedOrders);
 
 router.get(
   "/",

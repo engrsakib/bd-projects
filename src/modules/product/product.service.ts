@@ -537,9 +537,9 @@ class Service {
     return products;
   }
 
-  async getRelatedOrders(subCategoryId: string): Promise<IProduct[]> {
+  async getRelatedOrders(categoryId: string): Promise<IProduct[]> {
     const products = await ProductModel.find({
-      subcategory: subCategoryId,
+      category: categoryId,
       is_published: true,
     })
       .sort({ createdAt: -1 })
@@ -713,7 +713,8 @@ class Service {
       }
     }
 
-    if (data?.name) {
+    // শুধু নতুন নাম আসলে slug আপডেট হবে, পুরাতন নামের সাথে মিললে হবে না
+    if (data?.name && data.name !== isExist.name) {
       data.slug = await this.generateProductUniqueSlug(data.name);
     }
 

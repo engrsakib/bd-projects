@@ -427,33 +427,68 @@ class Service {
 
   // get order by id
   async getOrderById(id: string): Promise<IOrder | null> {
-    const order = await OrderModel.findById(id)
-      .populate({
-        path: "user",
-        select: "name phone_number email _id",
-      })
-      .populate({
-        path: "items.product",
-        select: "name slug sku thumbnail description",
-      })
-      .populate({
-        path: "items.variant",
-        select:
-          "attributes attribute_values regular_price sale_price sku barcode image",
-      })
-      .populate({
-        path: "courier",
-        select: "",
-      });
+    const order = await OrderModel.aggregate([
+      { $match: { _id: new Types.ObjectId(id) } },
+      {
+        $lookup: {
+          from: "admins",
+          localField: "logs.user",
+          foreignField: "_id",
+          as: "logUsers",
+        },
+      },
+      {
+        $addFields: {
+          logs: {
+            $map: {
+              input: {
+                $sortArray: { input: "$logs", sortBy: { time: -1 } },
+              },
+              as: "log",
+              in: {
+                _id: "$$log._id",
+                time: "$$log.time",
+                action: "$$log.action",
+                user: {
+                  $let: {
+                    vars: {
+                      u: {
+                        $arrayElemAt: [
+                          {
+                            $filter: {
+                              input: "$logUsers",
+                              as: "lu",
+                              cond: { $eq: ["$$lu._id", "$$log.user"] },
+                            },
+                          },
+                          0,
+                        ],
+                      },
+                    },
+                    in: {
+                      _id: "$$u._id",
+                      name: "$$u.name",
+                      image: "$$u.image",
+                      phone_number: "$$u.phone_number",
+                      email: "$$u.email",
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    ]);
 
-    if (!order) {
+    if (!order || !order[0]) {
       throw new ApiError(
         HttpStatusCode.NOT_FOUND,
         `Order was not found with id: ${id}`
       );
     }
 
-    return order;
+    return order[0] as IOrder;
   }
 
   async getOrders(query: OrderQuery): Promise<{
@@ -645,23 +680,35 @@ class Service {
     }
   }
 
-  // order status update by admin
   async updateOrderStatus(
     order_id: string,
+    user_id: string,
     status: ORDER_STATUS
   ): Promise<IOrder | null> {
-    const updatedOrder = await OrderModel.findOneAndUpdate(
-      { _id: order_id },
-      { $set: { order_status: status } },
-      { new: true }
-    );
-
-    if (!updatedOrder) {
+    const order = await OrderModel.findById(order_id);
+    if (!order) {
       throw new ApiError(
         HttpStatusCode.NOT_FOUND,
         `Order was not found with id: ${order_id}`
       );
     }
+
+    const previousStatus = order.order_status || "N/A";
+
+    const updatedOrder = await OrderModel.findOneAndUpdate(
+      { _id: order_id },
+      {
+        $set: { order_status: status },
+        $push: {
+          logs: {
+            user: user_id,
+            time: new Date(),
+            action: `ORDER_STATUS_UPDATED: ${previousStatus} -> ${status}`,
+          },
+        },
+      },
+      { new: true }
+    );
 
     return updatedOrder;
   }

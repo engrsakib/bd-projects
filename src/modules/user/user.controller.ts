@@ -15,6 +15,15 @@ class Controller extends BaseController {
     });
   });
 
+  createByAdmin = this.catchAsync(async (req: Request, res: Response) => {
+    await UserService.createByAdmin(req.body);
+    this.sendResponse(res, {
+      statusCode: HttpStatusCode.CREATED,
+      success: true,
+      message: "User account has been created successfully",
+    });
+  });
+
   verifyAccount = this.catchAsync(async (req: Request, res: Response) => {
     const result = await UserService.verifyAccount(req.body);
     // store tokens on cookie

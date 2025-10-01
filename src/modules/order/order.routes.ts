@@ -14,6 +14,13 @@ router.post(
 );
 
 router.patch(
+  "/update-order-status",
+  JwtInstance.authenticate([ROLES.ADMIN]),
+  JwtInstance.hasPermissions(PermissionEnum.ORDER_UPDATE),
+  OrderController.updateOrderStatus
+);
+
+router.patch(
   "/:id",
   JwtInstance.authenticate([ROLES.ADMIN]),
   JwtInstance.hasPermissions(PermissionEnum.ORDER_UPDATE),
@@ -38,13 +45,6 @@ router.get(
   JwtInstance.authenticate([ROLES.ADMIN]),
   JwtInstance.hasPermissions(PermissionEnum.ORDER_VIEW),
   OrderController.getOrders
-);
-
-router.patch(
-  "/update-order-status",
-  JwtInstance.authenticate([ROLES.ADMIN]),
-  JwtInstance.hasPermissions(PermissionEnum.ORDER_UPDATE),
-  OrderController.updateOrderStatus
 );
 
 router.delete(

@@ -40,6 +40,30 @@ class Service {
       emitter.emit("user.registered", result._id);
     }
   }
+  async createByAdmin(data: IUser) {
+    const isExist = await UserModel.findOne({
+      phone_number: data.phone_number,
+    });
+
+    if (isExist) {
+      throw new ApiError(
+        HttpStatusCode.CONFLICT,
+        `You already have '${isExist?.role}' account with this phone number. Please use a different phone number to create account or login`
+      );
+    }
+    data.status = await USER_STATUS.ACTIVE;
+    data.password = await BcryptInstance.hash(data.password);
+
+    const result = await UserModel.create(data);
+
+    // send verification otp to SMS
+    // await OTPService.sendVerificationOtp(data.phone_number, "user");
+
+    // fire event to create cart if role === "customer"
+    if (data.role === ROLES.CUSTOMER) {
+      emitter.emit("user.registered", result._id);
+    }
+  }
 
   async verifyAccount(data: IOtpVerify): Promise<{
     access_token: string;
