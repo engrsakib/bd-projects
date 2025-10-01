@@ -51,13 +51,13 @@ class Service {
         `You already have '${isExist?.role}' account with this phone number. Please use a different phone number to create account or login`
       );
     }
-
+    data.status = await USER_STATUS.ACTIVE;
     data.password = await BcryptInstance.hash(data.password);
 
     const result = await UserModel.create(data);
 
     // send verification otp to SMS
-    await OTPService.sendVerificationOtp(data.phone_number, "user");
+    // await OTPService.sendVerificationOtp(data.phone_number, "user");
 
     // fire event to create cart if role === "customer"
     if (data.role === ROLES.CUSTOMER) {
