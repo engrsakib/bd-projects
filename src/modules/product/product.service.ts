@@ -713,7 +713,8 @@ class Service {
       }
     }
 
-    if (data?.name) {
+    // শুধু নতুন নাম আসলে slug আপডেট হবে, পুরাতন নামের সাথে মিললে হবে না
+    if (data?.name && data.name !== isExist.name) {
       data.slug = await this.generateProductUniqueSlug(data.name);
     }
 
