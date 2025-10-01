@@ -20,6 +20,13 @@ router.post(
 );
 
 router.post(
+  "/create-admin-by-admin",
+  validateRequest(adminValidations.create),
+  loggerMiddleware,
+  AdminController.createAdminByAdmin
+);
+
+router.post(
   "/login",
   validateRequest(loginValidation),
   loggerMiddleware,
