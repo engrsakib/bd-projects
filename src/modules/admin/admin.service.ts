@@ -38,24 +38,32 @@ class Service {
   }
 
   async createAdminByAdmin(data: IAdmin) {
-    const isExist = await AdminModel.findOne({
-      phone_number: data.phone_number,
-    });
+    try {
+      const isExist = await AdminModel.findOne({
+        phone_number: data.phone_number,
+      });
 
-    if (isExist) {
+      if (isExist) {
+        throw new ApiError(
+          HttpStatusCode.CONFLICT,
+          `You already have an account with the phone number: ${data.phone_number}. Please login to your account`
+        );
+      }
+      data.status = ADMIN_ENUMS.ACTIVE;
+      data.password = await BcryptInstance.hash(data.password);
+      const admin = await AdminModel.create(data);
+
+      return admin;
+
+      // send verification sms with OTP
+      // await OTPService.sendVerificationOtp(data.phone_number, "admin");
+    } catch (error) {
+      console.log(error, "createAdminByAdmin error");
       throw new ApiError(
-        HttpStatusCode.CONFLICT,
-        `You already have an account with the phone number: ${data.phone_number}. Please login to your account`
+        HttpStatusCode.INTERNAL_SERVER_ERROR,
+        "Something went wrong"
       );
     }
-    data.status = ADMIN_ENUMS.ACTIVE;
-    data.password = await BcryptInstance.hash(data.password);
-    const admin = await AdminModel.create(data);
-
-    return admin;
-
-    // send verification sms with OTP
-    // await OTPService.sendVerificationOtp(data.phone_number, "admin");
   }
 
   async adminLogin(data: ILoginCredentials): Promise<{

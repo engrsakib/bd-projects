@@ -23,7 +23,7 @@ router.post(
 router.post(
   "/create-staff",
   validateRequest(adminValidations.create),
-  JwtInstance.hasPermissions(PermissionEnum.USER_CREATE),
+
   loggerMiddleware,
   AdminController.createAdminByAdmin
 );
