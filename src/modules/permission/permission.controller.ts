@@ -6,7 +6,7 @@ import { PermissionService } from "./permission.service";
 class Controller extends BaseController {
   createAndUpdatePermissions = this.catchAsync(
     async (req: Request, res: Response) => {
-      const userId = req.params.id as string;
+      const userId = req.body.id as string;
 
       if (!userId) {
         this.sendResponse(res, {
