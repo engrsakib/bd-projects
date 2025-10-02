@@ -35,7 +35,7 @@ router.post(
 );
 router.get(
   "/orders/:id",
-  JwtInstance.authenticate([ROLES.ADMIN]),
+
   JwtInstance.hasPermissions(PermissionEnum.ORDER_VIEW),
   OrderController.getOrderById
 );
