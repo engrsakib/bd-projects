@@ -9,6 +9,7 @@ import { loggerMiddleware } from "@/middlewares/logger";
 import { loginValidation } from "@/common/validators/login.validator";
 import { changePasswordValidation } from "@/common/validators/change-password-validator";
 import { resetPasswordValidation } from "@/common/validators/reset-password-validator";
+import { PermissionEnum } from "../permission/permission.enum";
 
 const router = Router();
 
@@ -22,6 +23,7 @@ router.post(
 router.post(
   "/create-staff",
   validateRequest(adminValidations.create),
+  JwtInstance.hasPermissions(PermissionEnum.USER_CREATE),
   loggerMiddleware,
   AdminController.createAdminByAdmin
 );
@@ -70,12 +72,14 @@ router.get(
 router.get(
   "/",
   JwtInstance.authenticate([ROLES.SUPER_ADMIN, ROLES.ADMIN]),
+  JwtInstance.hasPermissions(PermissionEnum.USER_VIEW),
   AdminController.getAllAdmins
 );
 
 router.get(
   "/:id",
   JwtInstance.authenticate([ROLES.SUPER_ADMIN, ROLES.ADMIN]),
+  JwtInstance.hasPermissions(PermissionEnum.USER_VIEW),
   AdminController.getAdminById
 );
 

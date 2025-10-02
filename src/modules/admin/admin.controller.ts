@@ -2,8 +2,6 @@ import { Request, Response } from "express";
 import { AdminService } from "./admin.service";
 import BaseController from "@/shared/baseController";
 import { HttpStatusCode } from "@/lib/httpStatus";
-import pickQueries from "@/shared/pickQueries";
-import { paginationFields } from "@/constants/paginationFields";
 import { cookieManager } from "@/shared/cookie";
 
 class Controller extends BaseController {
@@ -89,7 +87,8 @@ class Controller extends BaseController {
   });
 
   getAllAdmins = this.catchAsync(async (req: Request, res: Response) => {
-    const options = pickQueries(req.query, paginationFields);
+    const options = req.query;
+    console.log(options);
     const data = await AdminService.getAllAdmins(
       options,
       req.query.search_query as string
