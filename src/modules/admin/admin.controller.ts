@@ -19,12 +19,12 @@ class Controller extends BaseController {
   });
 
   createAdminByAdmin = this.catchAsync(async (req: Request, res: Response) => {
-    await AdminService.createAdminByAdmin(req.body);
+    const admin = await AdminService.createAdminByAdmin(req.body);
     this.sendResponse(res, {
       statusCode: HttpStatusCode.CREATED,
       success: true,
       message: "Your admin account has been created successfully.",
-      data: null,
+      data: admin,
     });
   });
 

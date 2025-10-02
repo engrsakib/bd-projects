@@ -50,7 +50,9 @@ class Service {
     }
     data.status = ADMIN_ENUMS.ACTIVE;
     data.password = await BcryptInstance.hash(data.password);
-    await AdminModel.create(data);
+    const admin = await AdminModel.create(data);
+
+    return admin;
 
     // send verification sms with OTP
     // await OTPService.sendVerificationOtp(data.phone_number, "admin");
