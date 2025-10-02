@@ -10,8 +10,7 @@ const router = Router();
 
 router.patch(
   "/",
-  JwtInstance.authenticate([ROLES.ADMIN]),
-
+  JwtInstance.authenticate([PermissionEnum.MANAGE_PERMISSIONS]),
   PermissionController.createAndUpdatePermissions
 );
 
