@@ -15,21 +15,21 @@ router.post(
 
 router.patch(
   "/update-order-status",
-  JwtInstance.authenticate([ROLES.ADMIN]),
+
   JwtInstance.hasPermissions(PermissionEnum.ORDER_UPDATE),
   OrderController.updateOrderStatus
 );
 
 router.patch(
   "/:id",
-  JwtInstance.authenticate([ROLES.ADMIN]),
+
   JwtInstance.hasPermissions(PermissionEnum.ORDER_UPDATE),
   OrderController.editOrder
 );
 
 router.post(
   "/admin/",
-  JwtInstance.authenticate([ROLES.ADMIN]),
+
   JwtInstance.authenticate([PermissionEnum.ORDER_CREATE]),
   OrderController.placeOrder
 );
@@ -42,14 +42,13 @@ router.get(
 
 router.get(
   "/all-orders",
-  JwtInstance.authenticate([ROLES.ADMIN]),
+
   JwtInstance.hasPermissions(PermissionEnum.ORDER_VIEW),
   OrderController.getOrders
 );
 
 router.delete(
   "/orders/delete/:id",
-  JwtInstance.authenticate([ROLES.ADMIN]),
   JwtInstance.hasPermissions(PermissionEnum.ORDER_DELETE),
   OrderController.deleteOrder
 );
