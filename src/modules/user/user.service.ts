@@ -118,10 +118,6 @@ class Service {
 
     const result = await UserModel.find({ ...searchCondition })
       .select({ password: 0 })
-      .populate({
-        path: "permissions",
-        select: "key -_id",
-      })
       .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
       .skip(skip)
       .limit(limit)
@@ -131,19 +127,10 @@ class Service {
       throw new ApiError(HttpStatusCode.NOT_FOUND, "Admins not found");
     }
 
-    const data = result.map((admin: any) => {
-      let keys: string[] = [];
-
-      if (
-        admin.permissions &&
-        typeof admin.permissions === "object" &&
-        "key" in admin.permissions
-      ) {
-        keys = (admin.permissions as { key: string[] }).key;
-      }
-
-      return { ...admin, permissions: keys };
-    });
+    const data = result.map((user) => ({
+      ...user,
+      password: undefined as any,
+    }));
 
     const total = await UserModel.countDocuments(searchCondition);
 
@@ -155,6 +142,52 @@ class Service {
       },
       data,
     };
+  }
+
+  async getUserById(id: string) {
+    const data = await UserModel.findById(id).select({ password: 0 }).lean();
+
+    if (!data) {
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "user was not found");
+    }
+    if (data.is_Deleted) {
+      throw new ApiError(HttpStatusCode.GONE, "user has been deleted");
+    }
+
+    // remove password from data
+    data.password = undefined as any;
+
+    return { ...data };
+  }
+
+  async updateUser(id: string, data: Partial<IUser>) {
+    if (!id) {
+      throw new ApiError(HttpStatusCode.BAD_REQUEST, "User ID is required");
+    }
+    const duplicatePhone = await UserModel.findOne({
+      phone_number: data.phone_number,
+      _id: { $ne: id },
+    });
+    if (duplicatePhone) {
+      throw new ApiError(
+        HttpStatusCode.CONFLICT,
+        `You already have an account with the phone number: ${data.phone_number}. Please use a different phone number`
+      );
+    }
+
+    const isExist = await UserModel.findById(id);
+    if (!isExist) {
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "User was not found");
+    }
+    return await UserModel.findByIdAndUpdate(id, { ...data });
+  }
+
+  async deleteUser(id: string) {
+    const isExist = await UserModel.findById(id);
+    if (!isExist) {
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "User was not found");
+    }
+    return await UserModel.findByIdAndUpdate(id, { is_Deleted: true });
   }
 
   private async generateLoginCredentials(id: Types.ObjectId | string): Promise<{

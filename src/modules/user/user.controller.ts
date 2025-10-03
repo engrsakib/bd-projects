@@ -40,6 +40,34 @@ class Controller extends BaseController {
     });
   });
 
+  getUserById = this.catchAsync(async (req: Request, res: Response) => {
+    const id = req.params.id;
+    const data = await UserService.getUserById(id);
+    if (!data) {
+      // Not found or deleted
+      return this.sendResponse(res, {
+        statusCode: 404,
+        success: false,
+        message: "user not found",
+        data: null,
+      });
+    } else if (data.is_Deleted) {
+      return this.sendResponse(res, {
+        statusCode: 410,
+        success: false,
+        message: "user has been deleted",
+        data: null,
+      });
+    }
+
+    this.sendResponse(res, {
+      statusCode: 200,
+      success: true,
+      message: "user retrieved successfully",
+      data: data,
+    });
+  });
+
   verifyAccount = this.catchAsync(async (req: Request, res: Response) => {
     const result = await UserService.verifyAccount(req.body);
     // store tokens on cookie
@@ -111,12 +139,34 @@ class Controller extends BaseController {
     });
   });
 
+  updateUser = this.catchAsync(async (req: Request, res: Response) => {
+    const id = req.params.id;
+    const data = await UserService.updateUser(id, req.body);
+    this.sendResponse(res, {
+      statusCode: 200,
+      success: true,
+      message: "User updated successfully",
+      data: data,
+    });
+  });
+
   logout = this.catchAsync(async (req: Request, res: Response) => {
     cookieManager.clearTokens(res);
     this.sendResponse(res, {
       statusCode: HttpStatusCode.OK,
       success: true,
       message: "Your have logged out",
+      data: null,
+    });
+  });
+
+  deleteUser = this.catchAsync(async (req: Request, res: Response) => {
+    const id = req.params.id;
+    await UserService.deleteUser(id);
+    this.sendResponse(res, {
+      statusCode: 200,
+      success: true,
+      message: "User deleted successfully",
       data: null,
     });
   });
