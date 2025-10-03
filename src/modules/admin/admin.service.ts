@@ -37,6 +37,35 @@ class Service {
     await OTPService.sendVerificationOtp(data.phone_number, "admin");
   }
 
+  async createAdminByAdmin(data: IAdmin) {
+    try {
+      const isExist = await AdminModel.findOne({
+        phone_number: data.phone_number,
+      });
+
+      if (isExist) {
+        throw new ApiError(
+          HttpStatusCode.CONFLICT,
+          `You already have an account with the phone number: ${data.phone_number}. Please login to your account`
+        );
+      }
+      data.status = ADMIN_ENUMS.ACTIVE;
+      data.password = await BcryptInstance.hash(data.password);
+      const admin = await AdminModel.create(data);
+
+      return admin;
+
+      // send verification sms with OTP
+      // await OTPService.sendVerificationOtp(data.phone_number, "admin");
+    } catch (error) {
+      console.log(error, "createAdminByAdmin error");
+      throw new ApiError(
+        HttpStatusCode.INTERNAL_SERVER_ERROR,
+        "Something went wrong"
+      );
+    }
+  }
+
   async adminLogin(data: ILoginCredentials): Promise<{
     access_token: string;
     refresh_token: string;
@@ -47,6 +76,13 @@ class Service {
       throw new ApiError(
         HttpStatusCode.NOT_FOUND,
         "The account you are trying to login is not exist our system. Please create an admin account first"
+      );
+    }
+
+    if (admin.is_Deleted) {
+      throw new ApiError(
+        HttpStatusCode.UNAUTHORIZED,
+        "Your account has been deleted. Please contact support"
       );
     }
 
@@ -198,7 +234,29 @@ class Service {
   }
 
   async getLoggedInAdmin(id: string) {
-    return await AdminModel.findById(id).select({ password: 0 });
+    const data = await AdminModel.findById(id)
+      .select("-password")
+      .populate({
+        path: "permissions",
+        select: "key",
+      })
+      .lean();
+
+    if (!data) {
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "Admin was not found");
+    }
+
+    let keys: string[] = [];
+
+    if (
+      data.permissions &&
+      typeof data.permissions === "object" &&
+      "key" in data.permissions
+    ) {
+      keys = (data.permissions as { key: string[] }).key;
+    }
+
+    return { ...data, permissions: keys };
   }
 
   async getAllAdmins(options: IPaginationOptions, search_query: string) {
@@ -210,20 +268,44 @@ class Service {
       sortOrder = "desc",
     } = paginationHelpers.calculatePagination(options);
 
-    const searchCondition: any = {};
+    const searchCondition: any = { is_Deleted: false };
     if (search_query) {
       searchCondition.$or = [
         { name: { $regex: search_query, $options: "i" } },
         { email: { $regex: search_query, $options: "i" } },
         { designation: { $regex: search_query, $options: "i" } },
+        { phone_number: { $regex: search_query, $options: "i" } },
       ];
     }
 
     const result = await AdminModel.find({ ...searchCondition })
       .select({ password: 0 })
+      .populate({
+        path: "permissions",
+        select: "key -_id",
+      })
       .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
       .skip(skip)
-      .limit(limit);
+      .limit(limit)
+      .lean();
+
+    if (!result) {
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "Admins not found");
+    }
+
+    const data = result.map((admin: any) => {
+      let keys: string[] = [];
+
+      if (
+        admin.permissions &&
+        typeof admin.permissions === "object" &&
+        "key" in admin.permissions
+      ) {
+        keys = (admin.permissions as { key: string[] }).key;
+      }
+
+      return { ...admin, permissions: keys };
+    });
 
     const total = await AdminModel.countDocuments(searchCondition);
 
@@ -233,16 +315,56 @@ class Service {
         limit,
         total,
       },
-      data: result,
+      data,
     };
   }
 
   async getAdminById(id: string) {
-    return await AdminModel.findById(id).select({ password: 0 });
+    const data = await AdminModel.findById(id)
+      .select({ password: 0 })
+      .populate({
+        path: "permissions",
+        select: "key",
+      })
+      .lean();
+
+    if (!data) {
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "Admin was not found");
+    }
+
+    let keys: string[] = [];
+
+    if (
+      data.permissions &&
+      typeof data.permissions === "object" &&
+      "key" in data.permissions
+    ) {
+      keys = (data.permissions as { key: string[] }).key;
+    }
+
+    return { ...data, permissions: keys };
   }
 
   async updateAdmin(id: string, data: Partial<IAdmin>) {
-    await AdminModel.findByIdAndUpdate(id, { ...data });
+    if (!id) {
+      throw new ApiError(HttpStatusCode.BAD_REQUEST, "Admin ID is required");
+    }
+    const duplicatePhone = await AdminModel.findOne({
+      phone_number: data.phone_number,
+      _id: { $ne: id },
+    });
+    if (duplicatePhone) {
+      throw new ApiError(
+        HttpStatusCode.CONFLICT,
+        `You already have an account with the phone number: ${data.phone_number}. Please use a different phone number`
+      );
+    }
+
+    const isExist = await AdminModel.findById(id);
+    if (!isExist) {
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "Admin was not found");
+    }
+    return await AdminModel.findByIdAndUpdate(id, { ...data });
   }
 
   async changePassword(id: string, payload: IChangePassword) {
@@ -295,6 +417,14 @@ class Service {
     await AdminModel.findByIdAndUpdate(isExist._id, {
       password: newPassword,
     });
+  }
+
+  async deleteAdmin(id: string) {
+    const isExist = await AdminModel.findById(id);
+    if (!isExist) {
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "Admin was not found");
+    }
+    return await AdminModel.findByIdAndUpdate(id, { is_Deleted: true });
   }
 }
 

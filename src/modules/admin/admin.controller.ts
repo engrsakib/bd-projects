@@ -2,8 +2,6 @@ import { Request, Response } from "express";
 import { AdminService } from "./admin.service";
 import BaseController from "@/shared/baseController";
 import { HttpStatusCode } from "@/lib/httpStatus";
-import pickQueries from "@/shared/pickQueries";
-import { paginationFields } from "@/constants/paginationFields";
 import { cookieManager } from "@/shared/cookie";
 
 class Controller extends BaseController {
@@ -15,6 +13,17 @@ class Controller extends BaseController {
       message:
         "Your admin account has been created. We've sent a verification OTP to your phone number. Please check your phone and verify your account",
       data: null,
+    });
+  });
+
+  createAdminByAdmin = this.catchAsync(async (req: Request, res: Response) => {
+    const admin = await AdminService.createAdminByAdmin(req.body);
+
+    this.sendResponse(res, {
+      statusCode: HttpStatusCode.CREATED,
+      success: true,
+      message: "Your admin account has been created successfully.",
+      data: admin,
     });
   });
 
@@ -79,7 +88,9 @@ class Controller extends BaseController {
   });
 
   getAllAdmins = this.catchAsync(async (req: Request, res: Response) => {
-    const options = pickQueries(req.query, paginationFields);
+    const options = req.query;
+    // console.log(options);
+
     const data = await AdminService.getAllAdmins(
       options,
       req.query.search_query as string
@@ -95,6 +106,23 @@ class Controller extends BaseController {
   getAdminById = this.catchAsync(async (req: Request, res: Response) => {
     const id = req.params.id;
     const data = await AdminService.getAdminById(id);
+    if (!data) {
+      // Not found or deleted
+      return this.sendResponse(res, {
+        statusCode: 404,
+        success: false,
+        message: "Admin not found",
+        data: null,
+      });
+    } else if (data.is_Deleted) {
+      return this.sendResponse(res, {
+        statusCode: 410,
+        success: false,
+        message: "Admin has been deleted",
+        data: null,
+      });
+    }
+
     this.sendResponse(res, {
       statusCode: 200,
       success: true,
@@ -105,12 +133,12 @@ class Controller extends BaseController {
 
   updateAdmin = this.catchAsync(async (req: Request, res: Response) => {
     const id = req.params.id;
-    await AdminService.updateAdmin(id, req.body);
+    const data = await AdminService.updateAdmin(id, req.body);
     this.sendResponse(res, {
       statusCode: 200,
       success: true,
       message: "Admin updated successfully",
-      data: null,
+      data: data,
     });
   });
 
@@ -143,6 +171,17 @@ class Controller extends BaseController {
       statusCode: 200,
       success: true,
       message: "Logged out successfully!",
+      data: null,
+    });
+  });
+
+  deleteAdmin = this.catchAsync(async (req: Request, res: Response) => {
+    const id = req.params.id;
+    await AdminService.deleteAdmin(id);
+    this.sendResponse(res, {
+      statusCode: 200,
+      success: true,
+      message: "Admin deleted successfully",
       data: null,
     });
   });

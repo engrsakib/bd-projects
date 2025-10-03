@@ -20,6 +20,13 @@ router.post(
 );
 
 router.post(
+  "/create-user-by-admin",
+  validateRequest(UserValidations.create),
+  loggerMiddleware,
+  UserController.createByAdmin
+);
+
+router.post(
   "/verify",
   validateRequest(otpValidations.verifyOtp),
   loggerMiddleware,

@@ -1,17 +1,22 @@
 import { Router } from "express";
 import { SupplierController } from "./supplier.controller";
+import { JwtInstance } from "@/lib/jwt";
+import { ROLES } from "@/constants/roles";
+import { PermissionEnum } from "../permission/permission.enum";
 
 const router = Router();
 
 router.post(
   "/",
-  // verifyToken([UserRole.ADMIN, UserRole.SUPER_ADMIN]),
+  JwtInstance.authenticate([ROLES.ADMIN]),
+  JwtInstance.hasPermissions(PermissionEnum.SUPPLIER_CREATE),
   SupplierController.createSupplier
 );
 
 router.get(
   "/",
-  // verifyToken([UserRole.ADMIN, UserRole.SUPER_ADMIN]),
+  JwtInstance.authenticate([ROLES.ADMIN]),
+  JwtInstance.hasPermissions(PermissionEnum.SUPPLIER_VIEW),
   SupplierController.getAllSupplier
 );
 

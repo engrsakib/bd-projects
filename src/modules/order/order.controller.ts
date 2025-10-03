@@ -17,6 +17,18 @@ class Controller extends BaseController {
       data,
     });
   });
+
+  editOrder = this.catchAsync(async (req: Request, res: Response) => {
+    const orderId = req.params.id as string;
+    const data = await OrderService.editOrder(orderId, req.body);
+    this.sendResponse(res, {
+      statusCode: HttpStatusCode.OK,
+      success: true,
+      message: "Order updated successfully",
+      data,
+    });
+  });
+
   getOrderById = this.catchAsync(async (req: Request, res: Response) => {
     // console.log(req.params.id, req.user);
     const data = await OrderService.getOrderById(req.params.id as string);
@@ -27,6 +39,7 @@ class Controller extends BaseController {
       data,
     });
   });
+
   getOrders = this.catchAsync(async (req: Request, res: Response) => {
     // console.log(req.query, "params")
     const query: any = req.query;
@@ -40,9 +53,19 @@ class Controller extends BaseController {
   });
 
   updateOrderStatus = this.catchAsync(async (req: Request, res: Response) => {
+    const { id, status } = req.body;
+    if (!id || !status) {
+      return this.sendResponse(res, {
+        statusCode: HttpStatusCode.BAD_REQUEST,
+        success: false,
+        message: "Order ID and Status are required",
+      });
+    }
+
     const data = await OrderService.updateOrderStatus(
-      req.body.id as string,
-      req.body.status
+      id as string,
+      req.user?.id as string,
+      status
     );
     this.sendResponse(res, {
       statusCode: HttpStatusCode.OK,

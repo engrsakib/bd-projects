@@ -82,6 +82,14 @@ const orderSchema = new Schema<IOrder>(
     system_message: { type: String, default: "" },
     order_note: { type: String, default: "" },
     notes: { type: String, default: "" },
+
+    logs: [
+      {
+        user: { type: Schema.Types.ObjectId, ref: "Admin" },
+        time: { type: Date, default: Date.now },
+        action: { type: String },
+      },
+    ],
   },
   schemaOptions
 );

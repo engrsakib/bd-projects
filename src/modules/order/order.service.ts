@@ -133,7 +133,7 @@ class Service {
       if (data.payment_type === "cod") {
         payload.payment_status = PAYMENT_STATUS.PENDING;
         payload.payable_amount = payload.total_amount;
-        payload.order_status = ORDER_STATUS.PENDING;
+        payload.order_status = ORDER_STATUS.PLACED;
       }
 
       if (data.payment_type === "bkash") {
@@ -231,6 +231,179 @@ class Service {
     }
   }
 
+  // edit order
+  async editOrder(
+    orderId: string,
+    data: IOrderPlace
+  ): Promise<{ order: IOrder[]; payment_url: string }> {
+    const session = await OrderModel.db.startSession();
+    session.startTransaction();
+
+    try {
+      // 1. Retrieve existing order
+      const existingOrder = await OrderModel.findById(orderId).session(session);
+      if (!existingOrder) {
+        throw new ApiError(HttpStatusCode.NOT_FOUND, "Order not found");
+      }
+
+      // 2. Enrich new products (merge with existing items)
+      const enrichedOrder = await this.enrichProducts(data);
+
+      if (!enrichedOrder?.products || enrichedOrder.products.length <= 0) {
+        throw new ApiError(
+          HttpStatusCode.BAD_REQUEST,
+          "Order cannot be empty after edit"
+        );
+      }
+
+      // 3. Check stock for new/updated products
+      for (const item of enrichedOrder.products) {
+        const stock = await StockModel.findOne(
+          {
+            product: item.product,
+            variant: item.variant,
+          },
+          null,
+          { session }
+        );
+
+        if (!stock || stock.available_quantity < item.quantity) {
+          session.endSession();
+          throw new ApiError(
+            HttpStatusCode.BAD_REQUEST,
+            `Product ${item.product.name} is out of stock or does not have enough quantity`
+          );
+        }
+
+        // If quantity increased, reduce stock
+        const prevItem = (existingOrder.items ?? []).find(
+          (i) =>
+            i.product.toString() === item.product._id.toString() &&
+            i.variant?.toString() === item.variant?._id?.toString()
+        );
+        const prevQty = prevItem ? prevItem.quantity : 0;
+        const deltaQty = item.quantity - prevQty;
+        if (deltaQty > 0) {
+          stock.available_quantity -= deltaQty;
+          await stock.save({ session });
+        }
+      }
+
+      // 4. Calculate new totals
+      const { total_price, items, total_items } =
+        await this.calculateCart(enrichedOrder);
+
+      // 5. Update order fields
+      if (data?.tax && data?.tax > 0) {
+        data.tax = Number(data?.tax.toFixed());
+        existingOrder.total_amount =
+          total_price + data.tax - (data.discounts || 0);
+      } else {
+        existingOrder.total_amount = total_price - (data.discounts || 0);
+      }
+
+      if (data?.discounts && data?.discounts > 0) {
+        data.discounts = Number(data?.discounts.toFixed());
+        existingOrder.total_amount -= data.discounts;
+      }
+
+      data.delivery_charge = this.calculateDeliveryCharge(
+        data.delivery_address.division,
+        data.delivery_address.district
+      );
+
+      if (data?.delivery_charge && data?.delivery_charge > 0) {
+        data.delivery_charge = Number(data?.delivery_charge.toFixed());
+        existingOrder.total_amount += data.delivery_charge;
+        existingOrder.delivery_charge = data.delivery_charge;
+      }
+
+      existingOrder.items = items;
+      existingOrder.total_items = total_items;
+      existingOrder.total_price = total_price;
+      existingOrder.delivery_address = data.delivery_address;
+      existingOrder.customer_name =
+        data.customer_name || existingOrder.customer_name;
+      existingOrder.customer_number =
+        data.customer_number || existingOrder.customer_number;
+      existingOrder.customer_secondary_number =
+        data.customer_secondary_number ||
+        existingOrder.customer_secondary_number;
+      existingOrder.customer_email =
+        data.customer_email || existingOrder.customer_email;
+
+      // Payment handling (optional, depends on business logic)
+      if (
+        data.payment_type &&
+        data.payment_type !== existingOrder.payment_type
+      ) {
+        existingOrder.payment_type = data.payment_type;
+        if (data.payment_type === "bkash") {
+          const { payment_id, payment_url: bkash_payment_url } =
+            await BkashService.createPayment({
+              payable_amount: existingOrder.total_amount,
+              invoice_number: existingOrder.invoice_number,
+            });
+
+          existingOrder.payment_id = payment_id;
+          // payment_url will be returned at end
+          existingOrder.payment_status = PAYMENT_STATUS.PAID;
+          existingOrder.payable_amount = 0;
+          const populatedOrders = await OrderModel.find({
+            _id: existingOrder._id,
+          })
+            .populate({
+              path: "items.product",
+              select: "name slug sku thumbnail description",
+            })
+            .populate({
+              path: "items.variant",
+              select:
+                "attributes attribute_values regular_price sale_price sku barcode image",
+            });
+
+          return { order: populatedOrders, payment_url: bkash_payment_url };
+        }
+      }
+
+      // status handling
+      existingOrder.order_status = ORDER_STATUS.PLACED;
+
+      await existingOrder.save({ session });
+
+      // Optionally clear user's cart (if logic requires)
+      await CartService.clearCartAfterCheckout(
+        existingOrder.user as Types.ObjectId,
+        session
+      );
+
+      await session.commitTransaction();
+      session.endSession();
+
+      const populatedOrders = await OrderModel.find({
+        _id: existingOrder._id,
+      })
+        .populate({
+          path: "items.product",
+          select: "name slug sku thumbnail description",
+        })
+        .populate({
+          path: "items.variant",
+          select:
+            "attributes attribute_values regular_price sale_price sku barcode image",
+        });
+
+      return {
+        order: populatedOrders,
+        payment_url: "",
+      };
+    } catch (err) {
+      await session.abortTransaction();
+      session.endSession();
+      throw err;
+    }
+  }
+
   async updatePaymentStatus(
     payment_id: string,
     transaction_id: string,
@@ -254,36 +427,69 @@ class Service {
 
   // get order by id
   async getOrderById(id: string): Promise<IOrder | null> {
-    const order = await OrderModel.findById(id)
-      .populate({
-        path: "user",
-        select: "name phone_number email _id",
-      })
-      .populate({
-        path: "items.product",
-        select: "name slug sku thumbnail description",
-      })
-      .populate({
-        path: "items.variant",
-        select:
-          "attributes attribute_values regular_price sale_price sku barcode image",
-      })
-      .populate({
-        path: "courier",
-        select: "",
-      });
+    const order = await OrderModel.aggregate([
+      { $match: { _id: new Types.ObjectId(id) } },
+      {
+        $lookup: {
+          from: "admins",
+          localField: "logs.user",
+          foreignField: "_id",
+          as: "logUsers",
+        },
+      },
+      {
+        $addFields: {
+          logs: {
+            $map: {
+              input: {
+                $sortArray: { input: "$logs", sortBy: { time: -1 } },
+              },
+              as: "log",
+              in: {
+                _id: "$$log._id",
+                time: "$$log.time",
+                action: "$$log.action",
+                user: {
+                  $let: {
+                    vars: {
+                      u: {
+                        $arrayElemAt: [
+                          {
+                            $filter: {
+                              input: "$logUsers",
+                              as: "lu",
+                              cond: { $eq: ["$$lu._id", "$$log.user"] },
+                            },
+                          },
+                          0,
+                        ],
+                      },
+                    },
+                    in: {
+                      _id: "$$u._id",
+                      name: "$$u.name",
+                      image: "$$u.image",
+                      phone_number: "$$u.phone_number",
+                      email: "$$u.email",
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    ]);
 
-    if (!order) {
+    if (!order || !order[0]) {
       throw new ApiError(
         HttpStatusCode.NOT_FOUND,
         `Order was not found with id: ${id}`
       );
     }
 
-    return order;
+    return order[0] as IOrder;
   }
-
-  // Assuming you use Mongoose/MongoDB aggregation pipeline for getOrders
 
   async getOrders(query: OrderQuery): Promise<{
     meta: { page: number; limit: number; total: number };
@@ -309,8 +515,21 @@ class Service {
       if (end_date) matchStage.order_at.$lte = new Date(end_date);
     }
 
+    // status as array support
     if (status) {
-      matchStage.order_status = status;
+      // accept: status = ["pending", "delivered"] or status = "pending"
+      if (Array.isArray(status)) {
+        matchStage.order_status = { $in: status };
+      } else {
+        // if comma separated string: "pending,delivered"
+        if (typeof status === "string" && status.includes(",")) {
+          matchStage.order_status = {
+            $in: status.split(",").map((s) => s.trim()),
+          };
+        } else {
+          matchStage.order_status = status;
+        }
+      }
     }
 
     if (phone) {
@@ -358,7 +577,6 @@ class Service {
 
     // ---------- Populate user OR admin ----------
     const lookupCollection = orders_by === "admin" ? "admins" : "users";
-    console.log(orders_by, "lookupCollection", lookupCollection);
 
     pipeline.push({
       $lookup: {
@@ -462,29 +680,50 @@ class Service {
     }
   }
 
-  // order status update by admin
   async updateOrderStatus(
     order_id: string,
+    user_id: string,
     status: ORDER_STATUS
   ): Promise<IOrder | null> {
-    const updatedOrder = await OrderModel.findOneAndUpdate(
-      { _id: order_id },
-      { $set: { order_status: status } },
-      { new: true }
-    );
-
-    if (!updatedOrder) {
+    const order = await OrderModel.findById(order_id);
+    if (!order) {
       throw new ApiError(
         HttpStatusCode.NOT_FOUND,
         `Order was not found with id: ${order_id}`
       );
     }
 
+    const previousStatus = order.order_status || "N/A";
+
+    const updatedOrder = await OrderModel.findOneAndUpdate(
+      { _id: order_id },
+      {
+        $set: { order_status: status },
+        $push: {
+          logs: {
+            user: user_id,
+            time: new Date(),
+            action: `ORDER_STATUS_UPDATED: ${previousStatus} -> ${status}`,
+          },
+        },
+      },
+      { new: true }
+    );
+
     return updatedOrder;
   }
 
   async order_tracking(order_id: string) {
-    const order = await OrderModel.findOne({ order_id: order_id });
+    const order = await OrderModel.findOne({ order_id })
+      .populate({
+        path: "items.product",
+        select: "name slug sku thumbnail description",
+      })
+      .populate({
+        path: "items.variant",
+        select:
+          "attributes attribute_values regular_price sale_price sku barcode image",
+      });
 
     if (!order) {
       throw new ApiError(

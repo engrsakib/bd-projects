@@ -6,6 +6,7 @@ import ApiError from "@/middlewares/error";
 import { HttpStatusCode } from "./httpStatus";
 import { cookieManager } from "@/shared/cookie";
 import { IRoles } from "@/constants/roles";
+import { AdminModel } from "@/modules/admin/admin.model";
 
 class JWT {
   private signToken = async (
@@ -109,6 +110,55 @@ class JWT {
         }
         return next(
           new ApiError(HttpStatusCode.UNAUTHORIZED, "Authentication failed")
+        );
+      }
+    };
+  }
+
+  public hasPermissions(requiredPermission: string) {
+    return async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const adminId = req.user?.id;
+        if (!adminId) {
+          return next(
+            new ApiError(
+              HttpStatusCode.UNAUTHORIZED,
+              "Unauthorized: No user found"
+            )
+          );
+        }
+
+        const admin = await AdminModel.findById(adminId)
+          .select("_id")
+          .populate({ path: "permissions", select: "key" })
+          .lean();
+
+        const keys =
+          admin &&
+          admin.permissions &&
+          typeof admin.permissions === "object" &&
+          "key" in admin.permissions
+            ? (admin.permissions as { key: string[] }).key
+            : [];
+
+        // console.log(keys.includes(requiredPermission), { keys, requiredPermission });
+
+        if (!keys.includes(requiredPermission)) {
+          return next(
+            new ApiError(
+              HttpStatusCode.FORBIDDEN,
+              "Forbidden: Permission denied"
+            )
+          );
+        }
+
+        next();
+      } catch (err) {
+        return next(
+          new ApiError(
+            HttpStatusCode.INTERNAL_SERVER_ERROR,
+            "Internal server error"
+          )
         );
       }
     };

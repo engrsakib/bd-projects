@@ -20,6 +20,15 @@ const adminSchema = new Schema<IAdmin>(
       type: String,
       required: true,
     },
+    is_Deleted: {
+      type: Boolean,
+      default: false,
+    },
+    permissions: {
+      type: Schema.Types.ObjectId,
+      ref: "Permission",
+      default: null,
+    },
     designation: {
       type: String,
       default: "",

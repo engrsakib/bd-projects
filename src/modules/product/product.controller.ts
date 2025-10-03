@@ -151,6 +151,17 @@ class Controller extends BaseController {
     });
   });
 
+  getRelatedOrders = this.catchAsync(async (req: Request, res: Response) => {
+    const category = req.params.category as string;
+    const data = await ProductService.getRelatedOrders(category);
+    this.sendResponse(res, {
+      statusCode: HttpStatusCode.OK,
+      success: true,
+      message: "Related products retrieved successfully",
+      data,
+    });
+  });
+
   update = this.catchAsync(async (req: Request, res: Response) => {
     const id = req.params.id as unknown as Types.ObjectId;
     await ProductService.update(id, req.body);

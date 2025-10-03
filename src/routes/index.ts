@@ -19,6 +19,7 @@ import { BkashRoutes } from "@/modules/bkash/bkash.routes";
 import { OrderRoutes } from "@/modules/order/order.routes";
 import { courierRouter } from "@/modules/courier/courier.routes";
 import { ContentManagementRoutes } from "@/modules/cms/cms.router";
+import { PermissionsRoutes } from "@/modules/permission/permission.route";
 const router = Router();
 
 const moduleRoutes = [
@@ -101,6 +102,10 @@ const moduleRoutes = [
   {
     path: "/cms",
     route: ContentManagementRoutes,
+  },
+  {
+    path: "/permissions",
+    route: PermissionsRoutes,
   },
 ];
 

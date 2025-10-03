@@ -15,6 +15,31 @@ class Controller extends BaseController {
     });
   });
 
+  createByAdmin = this.catchAsync(async (req: Request, res: Response) => {
+    await UserService.createByAdmin(req.body);
+    this.sendResponse(res, {
+      statusCode: HttpStatusCode.CREATED,
+      success: true,
+      message: "User account has been created successfully",
+    });
+  });
+
+  getAllCustomers = this.catchAsync(async (req: Request, res: Response) => {
+    const options = req.query;
+    // console.log(options);
+
+    const data = await UserService.getAllCustomers(
+      options,
+      req.query.search_query as string
+    );
+    this.sendResponse(res, {
+      statusCode: 200,
+      success: true,
+      message: "All customers retrieved successfully",
+      data: data,
+    });
+  });
+
   verifyAccount = this.catchAsync(async (req: Request, res: Response) => {
     const result = await UserService.verifyAccount(req.body);
     // store tokens on cookie

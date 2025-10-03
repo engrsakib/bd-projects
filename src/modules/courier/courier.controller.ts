@@ -30,8 +30,8 @@ class Controller extends BaseController {
 
   statusByTrackingCode = this.catchAsync(
     async (req: Request, res: Response) => {
-      const { order_id } = req.params;
-      const result = await CourierService.statusByTrackingCode(order_id);
+      const { id } = req.params;
+      const result = await CourierService.statusByTrackingCode(id);
       return this.sendResponse(res, {
         statusCode: HttpStatus.OK,
         success: true,

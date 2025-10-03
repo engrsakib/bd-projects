@@ -29,6 +29,12 @@ export type IOrderItem = {
   status?: IOrderStatus;
 };
 
+export type IOrderLog = {
+  user: Types.ObjectId;
+  time: Date;
+  action: string;
+};
+
 export type IOrder = {
   user?: Types.ObjectId;
 
@@ -66,6 +72,8 @@ export type IOrder = {
 
   notes?: string;
   id?: string | Types.ObjectId;
+
+  logs?: IOrderLog[];
 };
 
 export type IOrderPlace = {

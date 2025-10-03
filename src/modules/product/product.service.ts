@@ -537,6 +537,27 @@ class Service {
     return products;
   }
 
+  async getRelatedOrders(categoryId: string): Promise<IProduct[]> {
+    const products = await ProductModel.find({
+      category: categoryId,
+      is_published: true,
+    })
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .populate({
+        path: "subcategory",
+        select: "name slug",
+      })
+      .populate({
+        path: "variants",
+        select:
+          "attributes attribute_values regular_price sale_price sku barcode image",
+      })
+      .lean();
+
+    return products;
+  }
+
   async getProductsByIds(ids: Types.ObjectId[]) {
     const products = await ProductModel.find({
       _id: { $in: ids },
@@ -692,7 +713,8 @@ class Service {
       }
     }
 
-    if (data?.name) {
+    // শুধু নতুন নাম আসলে slug আপডেট হবে, পুরাতন নামের সাথে মিললে হবে না
+    if (data?.name && data.name !== isExist.name) {
       data.slug = await this.generateProductUniqueSlug(data.name);
     }
 
