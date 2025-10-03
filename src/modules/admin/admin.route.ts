@@ -9,6 +9,7 @@ import { loggerMiddleware } from "@/middlewares/logger";
 import { loginValidation } from "@/common/validators/login.validator";
 import { changePasswordValidation } from "@/common/validators/change-password-validator";
 import { resetPasswordValidation } from "@/common/validators/reset-password-validator";
+import { PermissionEnum } from "../permission/permission.enum";
 
 const router = Router();
 
@@ -20,8 +21,9 @@ router.post(
 );
 
 router.post(
-  "/create-admin-by-admin",
+  "/create-staff",
   validateRequest(adminValidations.create),
+
   loggerMiddleware,
   AdminController.createAdminByAdmin
 );
@@ -56,39 +58,27 @@ router.post(
 
 router.get(
   "/auth",
-  JwtInstance.authenticate([
-    ROLES.SUPER_ADMIN,
-    ROLES.ADMIN,
-    ROLES.SUPPORT_STAFF,
-    ROLES.CONTENT_MANAGER,
-    ROLES.ACCOUNT_MANAGER,
-    ROLES.LOGISTICS_MANAGER,
-  ]),
+  JwtInstance.authenticate(Object.values(ROLES)),
   AdminController.getLoggedInAdmin
 );
 
 router.get(
   "/",
-  JwtInstance.authenticate([ROLES.SUPER_ADMIN, ROLES.ADMIN]),
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.USER_VIEW),
   AdminController.getAllAdmins
 );
 
 router.get(
   "/:id",
-  JwtInstance.authenticate([ROLES.SUPER_ADMIN, ROLES.ADMIN]),
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.USER_VIEW),
   AdminController.getAdminById
 );
 
 router.patch(
   "/change-password",
-  JwtInstance.authenticate([
-    ROLES.SUPER_ADMIN,
-    ROLES.ADMIN,
-    ROLES.SUPPORT_STAFF,
-    ROLES.CONTENT_MANAGER,
-    ROLES.ACCOUNT_MANAGER,
-    ROLES.LOGISTICS_MANAGER,
-  ]),
+  JwtInstance.authenticate(Object.values(ROLES)),
   validateRequest(changePasswordValidation),
   loggerMiddleware,
   AdminController.changePassword
@@ -102,18 +92,19 @@ router.patch(
 );
 
 router.patch(
-  "/:id",
-  JwtInstance.authenticate([
-    ROLES.SUPER_ADMIN,
-    ROLES.ADMIN,
-    ROLES.SUPPORT_STAFF,
-    ROLES.CONTENT_MANAGER,
-    ROLES.ACCOUNT_MANAGER,
-    ROLES.LOGISTICS_MANAGER,
-  ]),
+  "/update-staff/:id",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.USER_UPDATE),
   validateRequest(adminValidations.update),
   loggerMiddleware,
   AdminController.updateAdmin
+);
+
+router.delete(
+  "/:id",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.USER_DELETE),
+  AdminController.deleteAdmin
 );
 
 router.delete("/logout", AdminController.logout);

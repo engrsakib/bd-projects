@@ -2,23 +2,50 @@ import { Router } from "express";
 import { PurchaseController } from "./purchase.controller";
 import { JwtInstance } from "@/lib/jwt";
 import { ROLES } from "@/constants/roles";
+import { PermissionEnum } from "../permission/permission.enum";
 
 const router = Router();
 
 router.post(
   "/",
-  JwtInstance.authenticate([ROLES.ADMIN, ROLES.SUPER_ADMIN]),
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.PURCHASE_CREATE),
   PurchaseController.createPurchase
 );
 
-router.get("/", PurchaseController.getAllPurchases);
+router.get(
+  "/",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.PURCHASE_VIEW),
+  PurchaseController.getAllPurchases
+);
 
-router.get("/:id", PurchaseController.getPurchaseById);
+router.get(
+  "/:id",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.PURCHASE_VIEW),
+  PurchaseController.getPurchaseById
+);
 
-router.patch("/:id", PurchaseController.updatePurchase);
+router.patch(
+  "/:id",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.PURCHASE_UPDATE),
+  PurchaseController.updatePurchase
+);
 
-router.patch("/:id/status", PurchaseController.updateStatus);
+router.patch(
+  "/:id/status",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.PURCHASE_UPDATE),
+  PurchaseController.updateStatus
+);
 
-router.delete("/:id", PurchaseController.deletePurchase);
+router.delete(
+  "/:id",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.PURCHASE_DELETE),
+  PurchaseController.deletePurchase
+);
 
 export const PurchaseRoutes = router;

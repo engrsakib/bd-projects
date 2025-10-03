@@ -27,6 +27,13 @@ export enum PermissionEnum {
   CMS_DELETE = "cms.delete",
   CMS_VIEW = "cms.view",
 
+  PURCHASE_CREATE = "purchase.create",
+  PURCHASE_UPDATE = "purchase.update",
+  PURCHASE_DELETE = "purchase.delete",
+  PURCHASE_VIEW = "purchase.view",
+
+  REPORT_VIEW = "report.view",
+
   COURIER_CREATE = "courier.create",
   COURIER_UPDATE = "courier.update",
   COURIER_DELETE = "courier.delete",

@@ -10,6 +10,7 @@ const create = z.object({
       password: z.string().min(6, "Password must be at least 6 characters"),
       image: z.string().url("Invalid image URL").optional(),
       designation: z.string().optional(),
+      role: z.string().optional(),
       bio: z.string().optional(),
     })
     .strict(),
@@ -20,6 +21,8 @@ const update = z.object({
     .object({
       name: z.string().min(1).optional(),
       image: z.any().optional(),
+      phone_number: z.string().optional(),
+      role: z.string().optional(),
       designation: z.string().optional(),
       bio: z.string().optional(),
     })

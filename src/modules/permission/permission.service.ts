@@ -54,6 +54,7 @@ class Service {
         }
         await ValidPermission.save({ session });
       }
+      user.password = undefined as any;
       await session.commitTransaction();
       return { user, permission: ValidPermission };
     } catch (error) {

@@ -38,22 +38,32 @@ class Service {
   }
 
   async createAdminByAdmin(data: IAdmin) {
-    const isExist = await AdminModel.findOne({
-      phone_number: data.phone_number,
-    });
+    try {
+      const isExist = await AdminModel.findOne({
+        phone_number: data.phone_number,
+      });
 
-    if (isExist) {
+      if (isExist) {
+        throw new ApiError(
+          HttpStatusCode.CONFLICT,
+          `You already have an account with the phone number: ${data.phone_number}. Please login to your account`
+        );
+      }
+      data.status = ADMIN_ENUMS.ACTIVE;
+      data.password = await BcryptInstance.hash(data.password);
+      const admin = await AdminModel.create(data);
+
+      return admin;
+
+      // send verification sms with OTP
+      // await OTPService.sendVerificationOtp(data.phone_number, "admin");
+    } catch (error) {
+      console.log(error, "createAdminByAdmin error");
       throw new ApiError(
-        HttpStatusCode.CONFLICT,
-        `You already have an account with the phone number: ${data.phone_number}. Please login to your account`
+        HttpStatusCode.INTERNAL_SERVER_ERROR,
+        "Something went wrong"
       );
     }
-    data.status = ADMIN_ENUMS.ACTIVE;
-    data.password = await BcryptInstance.hash(data.password);
-    await AdminModel.create(data);
-
-    // send verification sms with OTP
-    // await OTPService.sendVerificationOtp(data.phone_number, "admin");
   }
 
   async adminLogin(data: ILoginCredentials): Promise<{
@@ -66,6 +76,13 @@ class Service {
       throw new ApiError(
         HttpStatusCode.NOT_FOUND,
         "The account you are trying to login is not exist our system. Please create an admin account first"
+      );
+    }
+
+    if (admin.is_Deleted) {
+      throw new ApiError(
+        HttpStatusCode.UNAUTHORIZED,
+        "Your account has been deleted. Please contact support"
       );
     }
 
@@ -251,12 +268,13 @@ class Service {
       sortOrder = "desc",
     } = paginationHelpers.calculatePagination(options);
 
-    const searchCondition: any = {};
+    const searchCondition: any = { is_Deleted: false };
     if (search_query) {
       searchCondition.$or = [
         { name: { $regex: search_query, $options: "i" } },
         { email: { $regex: search_query, $options: "i" } },
         { designation: { $regex: search_query, $options: "i" } },
+        { phone_number: { $regex: search_query, $options: "i" } },
       ];
     }
 
@@ -328,7 +346,25 @@ class Service {
   }
 
   async updateAdmin(id: string, data: Partial<IAdmin>) {
-    await AdminModel.findByIdAndUpdate(id, { ...data });
+    if (!id) {
+      throw new ApiError(HttpStatusCode.BAD_REQUEST, "Admin ID is required");
+    }
+    const duplicatePhone = await AdminModel.findOne({
+      phone_number: data.phone_number,
+      _id: { $ne: id },
+    });
+    if (duplicatePhone) {
+      throw new ApiError(
+        HttpStatusCode.CONFLICT,
+        `You already have an account with the phone number: ${data.phone_number}. Please use a different phone number`
+      );
+    }
+
+    const isExist = await AdminModel.findById(id);
+    if (!isExist) {
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "Admin was not found");
+    }
+    return await AdminModel.findByIdAndUpdate(id, { ...data });
   }
 
   async changePassword(id: string, payload: IChangePassword) {
@@ -381,6 +417,14 @@ class Service {
     await AdminModel.findByIdAndUpdate(isExist._id, {
       password: newPassword,
     });
+  }
+
+  async deleteAdmin(id: string) {
+    const isExist = await AdminModel.findById(id);
+    if (!isExist) {
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "Admin was not found");
+    }
+    return await AdminModel.findByIdAndUpdate(id, { is_Deleted: true });
   }
 }
 

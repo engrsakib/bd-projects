@@ -9,9 +9,9 @@ import { PermissionEnum } from "./permission.enum";
 const router = Router();
 
 router.patch(
-  "/:id",
-  JwtInstance.authenticate([ROLES.ADMIN]),
-
+  "/",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.MANAGE_PERMISSIONS),
   PermissionController.createAndUpdatePermissions
 );
 
