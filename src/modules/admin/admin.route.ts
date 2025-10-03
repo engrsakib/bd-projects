@@ -58,41 +58,27 @@ router.post(
 
 router.get(
   "/auth",
-  JwtInstance.authenticate([
-    ROLES.SUPER_ADMIN,
-    ROLES.ADMIN,
-    ROLES.SUPPORT_STAFF,
-    ROLES.CONTENT_MANAGER,
-    ROLES.ACCOUNT_MANAGER,
-    ROLES.LOGISTICS_MANAGER,
-  ]),
+  JwtInstance.authenticate(Object.values(ROLES)),
   AdminController.getLoggedInAdmin
 );
 
 router.get(
   "/",
-  JwtInstance.authenticate([ROLES.SUPER_ADMIN, ROLES.ADMIN]),
+  JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.USER_VIEW),
   AdminController.getAllAdmins
 );
 
 router.get(
   "/:id",
-  JwtInstance.authenticate([ROLES.SUPER_ADMIN, ROLES.ADMIN]),
+  JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.USER_VIEW),
   AdminController.getAdminById
 );
 
 router.patch(
   "/change-password",
-  JwtInstance.authenticate([
-    ROLES.SUPER_ADMIN,
-    ROLES.ADMIN,
-    ROLES.SUPPORT_STAFF,
-    ROLES.CONTENT_MANAGER,
-    ROLES.ACCOUNT_MANAGER,
-    ROLES.LOGISTICS_MANAGER,
-  ]),
+  JwtInstance.authenticate(Object.values(ROLES)),
   validateRequest(changePasswordValidation),
   loggerMiddleware,
   AdminController.changePassword
@@ -107,14 +93,7 @@ router.patch(
 
 router.patch(
   "/:id",
-  JwtInstance.authenticate([
-    ROLES.SUPER_ADMIN,
-    ROLES.ADMIN,
-    ROLES.SUPPORT_STAFF,
-    ROLES.CONTENT_MANAGER,
-    ROLES.ACCOUNT_MANAGER,
-    ROLES.LOGISTICS_MANAGER,
-  ]),
+  JwtInstance.authenticate(Object.values(ROLES)),
   validateRequest(adminValidations.update),
   loggerMiddleware,
   AdminController.updateAdmin
