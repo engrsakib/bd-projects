@@ -16,7 +16,6 @@ import { emitter } from "@/events/eventEmitter";
 import { ROLES } from "@/constants/roles";
 import { IPaginationOptions } from "@/interfaces/pagination.interfaces";
 import { paginationHelpers } from "@/helpers/paginationHelpers";
-import { AdminModel } from "../admin/admin.model";
 
 class Service {
   async create(data: IUser) {
@@ -176,11 +175,19 @@ class Service {
       );
     }
 
-    const isExist = await AdminModel.findById(id);
+    const isExist = await UserModel.findById(id);
     if (!isExist) {
-      throw new ApiError(HttpStatusCode.NOT_FOUND, "Admin was not found");
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "User was not found");
     }
-    return await AdminModel.findByIdAndUpdate(id, { ...data });
+    return await UserModel.findByIdAndUpdate(id, { ...data });
+  }
+
+  async deleteUser(id: string) {
+    const isExist = await UserModel.findById(id);
+    if (!isExist) {
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "User was not found");
+    }
+    return await UserModel.findByIdAndUpdate(id, { is_Deleted: true });
   }
 
   private async generateLoginCredentials(id: Types.ObjectId | string): Promise<{

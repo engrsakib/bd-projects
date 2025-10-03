@@ -159,6 +159,17 @@ class Controller extends BaseController {
       data: null,
     });
   });
+
+  deleteUser = this.catchAsync(async (req: Request, res: Response) => {
+    const id = req.params.id;
+    await UserService.deleteUser(id);
+    this.sendResponse(res, {
+      statusCode: 200,
+      success: true,
+      message: "User deleted successfully",
+      data: null,
+    });
+  });
 }
 
 export const UserController = new Controller();
