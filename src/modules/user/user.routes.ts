@@ -20,6 +20,14 @@ router.post(
   UserController.create
 );
 
+router.patch(
+  "/:id",
+  validateRequest(UserValidations.update),
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.USER_UPDATE),
+  UserController.updateUser
+);
+
 router.get(
   "/",
   JwtInstance.authenticate(Object.values(ROLES)),
@@ -38,6 +46,13 @@ router.get(
   JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.USER_VIEW),
   UserController.getUserById
+);
+
+router.delete(
+  "/:id",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.USER_DELETE),
+  UserController.deleteUser
 );
 
 router.post(

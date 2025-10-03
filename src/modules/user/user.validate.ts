@@ -28,4 +28,25 @@ const create = z.object({
     .strict(),
 });
 
-export const UserValidations = { create };
+const update = z.object({
+  body: z
+    .object({
+      name: z
+        .string({
+          required_error: "Name is required",
+          invalid_type_error: "Name must be string/text",
+        })
+        .min(3, "Name must be at least 3 characters")
+        .optional(),
+      phone_number: z.string({
+        required_error: "Phone number must be provided",
+      }),
+      email: z
+        .string()
+        .email({ message: "Please provide a valid email" })
+        .optional(),
+    })
+    .strict(),
+});
+
+export const UserValidations = { create, update };
