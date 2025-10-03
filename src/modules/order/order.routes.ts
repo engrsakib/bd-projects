@@ -22,33 +22,34 @@ router.patch(
 
 router.patch(
   "/:id",
-
+  JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.ORDER_UPDATE),
   OrderController.editOrder
 );
 
 router.post(
   "/admin/",
-
-  JwtInstance.authenticate([PermissionEnum.ORDER_CREATE]),
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.ORDER_CREATE),
   OrderController.placeOrder
 );
 router.get(
   "/orders/:id",
-
+  JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.ORDER_VIEW),
   OrderController.getOrderById
 );
 
 router.get(
   "/all-orders",
-
+  JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.ORDER_VIEW),
   OrderController.getOrders
 );
 
 router.delete(
   "/orders/delete/:id",
+  JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.ORDER_DELETE),
   OrderController.deleteOrder
 );
