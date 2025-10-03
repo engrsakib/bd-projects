@@ -4,6 +4,7 @@ export type IUser = {
   _id: Types.ObjectId | string;
   name: string;
   phone_number: string;
+  is_Deleted: boolean;
   email: string;
   role: string;
   password: string;
