@@ -268,12 +268,13 @@ class Service {
       sortOrder = "desc",
     } = paginationHelpers.calculatePagination(options);
 
-    const searchCondition: any = {};
+    const searchCondition: any = { is_Deleted: false };
     if (search_query) {
       searchCondition.$or = [
         { name: { $regex: search_query, $options: "i" } },
         { email: { $regex: search_query, $options: "i" } },
         { designation: { $regex: search_query, $options: "i" } },
+        { phone_number: { $regex: search_query, $options: "i" } },
       ];
     }
 
