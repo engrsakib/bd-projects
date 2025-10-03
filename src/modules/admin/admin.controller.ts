@@ -115,12 +115,12 @@ class Controller extends BaseController {
 
   updateAdmin = this.catchAsync(async (req: Request, res: Response) => {
     const id = req.params.id;
-    await AdminService.updateAdmin(id, req.body);
+    const data = await AdminService.updateAdmin(id, req.body);
     this.sendResponse(res, {
       statusCode: 200,
       success: true,
       message: "Admin updated successfully",
-      data: null,
+      data: data,
     });
   });
 

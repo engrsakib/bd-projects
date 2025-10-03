@@ -338,7 +338,14 @@ class Service {
   }
 
   async updateAdmin(id: string, data: Partial<IAdmin>) {
-    await AdminModel.findByIdAndUpdate(id, { ...data });
+    if (!id) {
+      throw new ApiError(HttpStatusCode.BAD_REQUEST, "Admin ID is required");
+    }
+    const isExist = await AdminModel.findById(id);
+    if (!isExist) {
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "Admin was not found");
+    }
+    return await AdminModel.findByIdAndUpdate(id, { ...data });
   }
 
   async changePassword(id: string, payload: IChangePassword) {
