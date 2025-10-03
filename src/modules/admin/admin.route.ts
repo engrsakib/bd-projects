@@ -100,6 +100,13 @@ router.patch(
   AdminController.updateAdmin
 );
 
+router.delete(
+  "/:id",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.USER_DELETE),
+  AdminController.deleteAdmin
+);
+
 router.delete("/logout", AdminController.logout);
 
 export const AdminRoutes = router;

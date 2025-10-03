@@ -105,6 +105,23 @@ class Controller extends BaseController {
   getAdminById = this.catchAsync(async (req: Request, res: Response) => {
     const id = req.params.id;
     const data = await AdminService.getAdminById(id);
+    if (!data) {
+      // Not found or deleted
+      return this.sendResponse(res, {
+        statusCode: 404,
+        success: false,
+        message: "Admin not found",
+        data: null,
+      });
+    } else if (data.is_Deleted) {
+      return this.sendResponse(res, {
+        statusCode: 410,
+        success: false,
+        message: "Admin has been deleted",
+        data: null,
+      });
+    }
+
     this.sendResponse(res, {
       statusCode: 200,
       success: true,
@@ -153,6 +170,17 @@ class Controller extends BaseController {
       statusCode: 200,
       success: true,
       message: "Logged out successfully!",
+      data: null,
+    });
+  });
+
+  deleteAdmin = this.catchAsync(async (req: Request, res: Response) => {
+    const id = req.params.id;
+    await AdminService.deleteAdmin(id);
+    this.sendResponse(res, {
+      statusCode: 200,
+      success: true,
+      message: "Admin deleted successfully",
       data: null,
     });
   });
