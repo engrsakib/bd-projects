@@ -92,7 +92,7 @@ router.patch(
 );
 
 router.patch(
-  "/:id",
+  "/update-staff/:id",
   JwtInstance.authenticate(Object.values(ROLES)),
   validateRequest(adminValidations.update),
   loggerMiddleware,
