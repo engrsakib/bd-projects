@@ -14,6 +14,8 @@ import {
 } from "@/interfaces/common.interface";
 import { emitter } from "@/events/eventEmitter";
 import { ROLES } from "@/constants/roles";
+import { IPaginationOptions } from "@/interfaces/pagination.interfaces";
+import { paginationHelpers } from "@/helpers/paginationHelpers";
 
 class Service {
   async create(data: IUser) {
@@ -93,6 +95,66 @@ class Service {
     });
 
     return this.generateLoginCredentials(user._id);
+  }
+
+  async getAllCustomers(options: IPaginationOptions, search_query: string) {
+    const {
+      limit = 5,
+      page = 1,
+      skip,
+      sortBy = "createdAt",
+      sortOrder = "desc",
+    } = paginationHelpers.calculatePagination(options);
+
+    const searchCondition: any = { is_Deleted: false };
+    if (search_query) {
+      searchCondition.$or = [
+        { name: { $regex: search_query, $options: "i" } },
+        { email: { $regex: search_query, $options: "i" } },
+        { designation: { $regex: search_query, $options: "i" } },
+        { phone_number: { $regex: search_query, $options: "i" } },
+      ];
+    }
+
+    const result = await UserModel.find({ ...searchCondition })
+      .select({ password: 0 })
+      .populate({
+        path: "permissions",
+        select: "key -_id",
+      })
+      .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    if (!result) {
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "Admins not found");
+    }
+
+    const data = result.map((admin: any) => {
+      let keys: string[] = [];
+
+      if (
+        admin.permissions &&
+        typeof admin.permissions === "object" &&
+        "key" in admin.permissions
+      ) {
+        keys = (admin.permissions as { key: string[] }).key;
+      }
+
+      return { ...admin, permissions: keys };
+    });
+
+    const total = await UserModel.countDocuments(searchCondition);
+
+    return {
+      meta: {
+        page,
+        limit,
+        total,
+      },
+      data,
+    };
   }
 
   private async generateLoginCredentials(id: Types.ObjectId | string): Promise<{
