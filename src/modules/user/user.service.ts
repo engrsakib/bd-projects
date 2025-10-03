@@ -106,7 +106,7 @@ class Service {
       sortOrder = "desc",
     } = paginationHelpers.calculatePagination(options);
 
-    const searchCondition: any = { is_Deleted: null };
+    const searchCondition: any = { is_Deleted: false };
     if (search_query) {
       searchCondition.$or = [
         { name: { $regex: search_query, $options: "i" } },
