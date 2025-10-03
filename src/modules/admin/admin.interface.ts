@@ -4,6 +4,7 @@ export type IAdmin = {
   name: string;
   phone_number: string;
   role: string;
+  is_Deleted: boolean;
   image: string;
   status: "inactive" | "admin_approval" | "active";
   permissions?: Types.ObjectId;
