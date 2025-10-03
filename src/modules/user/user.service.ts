@@ -144,6 +144,28 @@ class Service {
     };
   }
 
+  async getAdminById(id: string) {
+    const data = await UserModel.findById(id)
+      .select({ password: 0 })
+      .populate({
+        path: "permissions",
+        select: "key",
+      })
+      .lean();
+
+    if (!data) {
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "Admin was not found");
+    }
+    if (data.is_Deleted) {
+      throw new ApiError(HttpStatusCode.GONE, "user has been deleted");
+    }
+
+    // remove password from data
+    data.password = undefined as any;
+
+    return { ...data };
+  }
+
   private async generateLoginCredentials(id: Types.ObjectId | string): Promise<{
     access_token: string;
     refresh_token: string;
