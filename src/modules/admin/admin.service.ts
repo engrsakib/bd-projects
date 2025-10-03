@@ -79,6 +79,13 @@ class Service {
       );
     }
 
+    if (admin.is_Deleted) {
+      throw new ApiError(
+        HttpStatusCode.UNAUTHORIZED,
+        "Your account has been deleted. Please contact support"
+      );
+    }
+
     const accountStatus = admin.status;
 
     if (accountStatus === ADMIN_ENUMS.INACTIVE) {
@@ -341,6 +348,17 @@ class Service {
     if (!id) {
       throw new ApiError(HttpStatusCode.BAD_REQUEST, "Admin ID is required");
     }
+    const duplicatePhone = await AdminModel.findOne({
+      phone_number: data.phone_number,
+      _id: { $ne: id },
+    });
+    if (duplicatePhone) {
+      throw new ApiError(
+        HttpStatusCode.CONFLICT,
+        `You already have an account with the phone number: ${data.phone_number}. Please use a different phone number`
+      );
+    }
+
     const isExist = await AdminModel.findById(id);
     if (!isExist) {
       throw new ApiError(HttpStatusCode.NOT_FOUND, "Admin was not found");
@@ -398,6 +416,14 @@ class Service {
     await AdminModel.findByIdAndUpdate(isExist._id, {
       password: newPassword,
     });
+  }
+
+  async deleteAdmin(id: string) {
+    const isExist = await AdminModel.findById(id);
+    if (!isExist) {
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "Admin was not found");
+    }
+    return await AdminModel.findByIdAndUpdate(id, { is_Deleted: true });
   }
 }
 
