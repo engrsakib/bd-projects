@@ -16,6 +16,7 @@ import { emitter } from "@/events/eventEmitter";
 import { ROLES } from "@/constants/roles";
 import { IPaginationOptions } from "@/interfaces/pagination.interfaces";
 import { paginationHelpers } from "@/helpers/paginationHelpers";
+import { AdminModel } from "../admin/admin.model";
 
 class Service {
   async create(data: IUser) {
@@ -158,6 +159,28 @@ class Service {
     data.password = undefined as any;
 
     return { ...data };
+  }
+
+  async updateUser(id: string, data: Partial<IUser>) {
+    if (!id) {
+      throw new ApiError(HttpStatusCode.BAD_REQUEST, "User ID is required");
+    }
+    const duplicatePhone = await UserModel.findOne({
+      phone_number: data.phone_number,
+      _id: { $ne: id },
+    });
+    if (duplicatePhone) {
+      throw new ApiError(
+        HttpStatusCode.CONFLICT,
+        `You already have an account with the phone number: ${data.phone_number}. Please use a different phone number`
+      );
+    }
+
+    const isExist = await AdminModel.findById(id);
+    if (!isExist) {
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "Admin was not found");
+    }
+    return await AdminModel.findByIdAndUpdate(id, { ...data });
   }
 
   private async generateLoginCredentials(id: Types.ObjectId | string): Promise<{
