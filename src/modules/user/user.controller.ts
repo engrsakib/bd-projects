@@ -40,6 +40,34 @@ class Controller extends BaseController {
     });
   });
 
+  getUserById = this.catchAsync(async (req: Request, res: Response) => {
+    const id = req.params.id;
+    const data = await UserService.getUserById(id);
+    if (!data) {
+      // Not found or deleted
+      return this.sendResponse(res, {
+        statusCode: 404,
+        success: false,
+        message: "user not found",
+        data: null,
+      });
+    } else if (data.is_Deleted) {
+      return this.sendResponse(res, {
+        statusCode: 410,
+        success: false,
+        message: "user has been deleted",
+        data: null,
+      });
+    }
+
+    this.sendResponse(res, {
+      statusCode: 200,
+      success: true,
+      message: "user retrieved successfully",
+      data: data,
+    });
+  });
+
   verifyAccount = this.catchAsync(async (req: Request, res: Response) => {
     const result = await UserService.verifyAccount(req.body);
     // store tokens on cookie

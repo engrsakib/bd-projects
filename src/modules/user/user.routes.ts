@@ -27,6 +27,13 @@ router.get(
   UserController.getAllCustomers
 );
 
+router.get(
+  "/:id",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.USER_VIEW),
+  UserController.getUserById
+);
+
 router.post(
   "/create-user-by-admin",
   validateRequest(UserValidations.create),

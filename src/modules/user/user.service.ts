@@ -144,17 +144,11 @@ class Service {
     };
   }
 
-  async getAdminById(id: string) {
-    const data = await UserModel.findById(id)
-      .select({ password: 0 })
-      .populate({
-        path: "permissions",
-        select: "key",
-      })
-      .lean();
+  async getUserById(id: string) {
+    const data = await UserModel.findById(id).select({ password: 0 }).lean();
 
     if (!data) {
-      throw new ApiError(HttpStatusCode.NOT_FOUND, "Admin was not found");
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "user was not found");
     }
     if (data.is_Deleted) {
       throw new ApiError(HttpStatusCode.GONE, "user has been deleted");
