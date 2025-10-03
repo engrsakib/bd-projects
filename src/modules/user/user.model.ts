@@ -7,6 +7,8 @@ const userSchema = new Schema<IUser>(
   {
     name: { type: String, required: true },
     phone_number: { type: String, required: true },
+    image: { type: String, default: "" },
+    is_Deleted: { type: Boolean, default: false },
     email: { type: String, default: "" },
     role: { type: String, default: ROLES.CUSTOMER },
     password: { type: String, required: true },
