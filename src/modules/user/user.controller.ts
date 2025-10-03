@@ -139,6 +139,17 @@ class Controller extends BaseController {
     });
   });
 
+  updateUser = this.catchAsync(async (req: Request, res: Response) => {
+    const id = req.params.id;
+    const data = await UserService.updateUser(id, req.body);
+    this.sendResponse(res, {
+      statusCode: 200,
+      success: true,
+      message: "User updated successfully",
+      data: data,
+    });
+  });
+
   logout = this.catchAsync(async (req: Request, res: Response) => {
     cookieManager.clearTokens(res);
     this.sendResponse(res, {
