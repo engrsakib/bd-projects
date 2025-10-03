@@ -9,6 +9,7 @@ import { ROLES } from "@/constants/roles";
 import { loggerMiddleware } from "@/middlewares/logger";
 import { resetPasswordValidation } from "@/common/validators/reset-password-validator";
 import { changePasswordValidation } from "@/common/validators/change-password-validator";
+import { PermissionEnum } from "../permission/permission.enum";
 
 const router = Router();
 
@@ -17,6 +18,13 @@ router.post(
   validateRequest(UserValidations.create),
   loggerMiddleware,
   UserController.create
+);
+
+router.get(
+  "/",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.USER_VIEW),
+  UserController.getAllCustomers
 );
 
 router.post(
