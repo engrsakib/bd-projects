@@ -94,6 +94,7 @@ router.patch(
 router.patch(
   "/update-staff/:id",
   JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.USER_UPDATE),
   validateRequest(adminValidations.update),
   loggerMiddleware,
   AdminController.updateAdmin
