@@ -166,7 +166,7 @@ class Service {
     const data = await UserModel.findById(id).select({ password: 0 }).lean();
 
     if (!data) {
-      throw new ApiError(HttpStatusCode.NOT_FOUND, "user was not found");
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "user not found");
     }
     if (data.is_Deleted) {
       throw new ApiError(HttpStatusCode.GONE, "user has been deleted");
