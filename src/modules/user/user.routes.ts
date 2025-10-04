@@ -85,16 +85,7 @@ router.post(
 
 router.get(
   "/auth",
-  JwtInstance.authenticate([
-    ROLES.VENDOR_OWNER,
-    ROLES.VENDOR_ADMIN,
-    ROLES.VENDOR_MANAGER,
-    ROLES.VENDOR_STAFF,
-    ROLES.VENDOR_ANALYST,
-    ROLES.CUSTOMER,
-    ROLES.SUBSCRIBER,
-    ROLES.WHOLESALE_BUYER,
-  ]),
+  JwtInstance.authenticate(Object.values(ROLES)),
   UserController.getLoggedInUser
 );
 
@@ -106,16 +97,7 @@ router.patch(
 
 router.patch(
   "/change-password",
-  JwtInstance.authenticate([
-    ROLES.VENDOR_OWNER,
-    ROLES.VENDOR_ADMIN,
-    ROLES.VENDOR_MANAGER,
-    ROLES.VENDOR_STAFF,
-    ROLES.VENDOR_ANALYST,
-    ROLES.CUSTOMER,
-    ROLES.SUBSCRIBER,
-    ROLES.WHOLESALE_BUYER,
-  ]),
+  JwtInstance.authenticate(Object.values(ROLES)),
   validateRequest(changePasswordValidation),
   UserController.changePassword
 );

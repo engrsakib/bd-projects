@@ -1,23 +1,24 @@
 export const ROLES = {
   // Platform roles
+  FOUNDER: "founder",
   SUPER_ADMIN: "super_admin",
   ADMIN: "admin",
-  SUPPORT_STAFF: "support_staff",
-  CONTENT_MANAGER: "content_manager",
+  MODERATOR: "moderator",
+
+  // Sales & Support roles
+  SALES_EXECUTIVE: "sales_executive",
+  SUPPORT_ADMIN: "support_admin",
+  CUSTOMER_SUPPORT: "customer_support",
+
+  // Management roles
+  WAREHOUSE_MANAGER: "warehouse_manager",
+  INVENTORY_MANAGER: "inventory_manager",
   ACCOUNT_MANAGER: "account_manager",
-  LOGISTICS_MANAGER: "logistics_manager",
 
-  // Vendor roles
-  VENDOR_OWNER: "vendor_owner",
-  VENDOR_ADMIN: "vendor_admin",
-  VENDOR_MANAGER: "vendor_manager",
-  VENDOR_STAFF: "vendor_staff",
-  VENDOR_ANALYST: "vendor_analyst",
-
-  // Customer roles
-  CUSTOMER: "customer",
+  // Customer roles  CUSTOMER: "customer",
   SUBSCRIBER: "subscriber",
   WHOLESALE_BUYER: "wholesale_buyer",
+  CUSTOMER: "customer",
 };
 
 export type IRoles = (typeof ROLES)[keyof typeof ROLES];

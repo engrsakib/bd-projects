@@ -12,12 +12,7 @@ const router = Router();
 
 router.post(
   "/",
-  JwtInstance.authenticate([
-    ROLES.ADMIN,
-    ROLES.SUPER_ADMIN,
-    ROLES.VENDOR_OWNER,
-    ROLES.VENDOR_ADMIN,
-  ]),
+  JwtInstance.authenticate(Object.values(ROLES)),
   upload.single("image"),
   CategoryMiddleware.uploadCategoryImage,
   validateRequest(CategoryValidations.create),
@@ -27,7 +22,7 @@ router.post(
 
 router.get(
   "/",
-  JwtInstance.authenticate([ROLES.ADMIN, ROLES.SUPER_ADMIN]),
+  JwtInstance.authenticate(Object.values(ROLES)),
   CategoryController.getAll
 );
 
@@ -37,18 +32,13 @@ router.get("/slug/:slug", CategoryController.getBySlug);
 
 router.get(
   "/:id",
-  JwtInstance.authenticate([ROLES.ADMIN, ROLES.SUPER_ADMIN]),
+  JwtInstance.authenticate(Object.values(ROLES)),
   CategoryController.getById
 );
 
 router.patch(
   "/:id",
-  JwtInstance.authenticate([
-    ROLES.ADMIN,
-    ROLES.SUPER_ADMIN,
-    ROLES.VENDOR_OWNER,
-    ROLES.VENDOR_ADMIN,
-  ]),
+  JwtInstance.authenticate(Object.values(ROLES)),
   upload.single("image"),
   CategoryMiddleware.updateCategoryImage,
   validateRequest(CategoryValidations.update),
@@ -58,12 +48,7 @@ router.patch(
 
 router.patch(
   "/:id/status",
-  JwtInstance.authenticate([
-    ROLES.ADMIN,
-    ROLES.SUPER_ADMIN,
-    ROLES.VENDOR_OWNER,
-    ROLES.VENDOR_ADMIN,
-  ]),
+  JwtInstance.authenticate(Object.values(ROLES)),
   validateRequest(CategoryValidations.updateStatus),
   loggerMiddleware,
   CategoryController.updateStatus
