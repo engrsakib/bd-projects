@@ -25,8 +25,9 @@ class Controller extends BaseController {
   });
 
   scanToShipping = this.catchAsync(async (req: Request, res: Response) => {
-    const { note, marchant, order_id } = req.body;
-    if (!order_id || !marchant) {
+    const { note, marchant } = req.body;
+    const { orderId } = req.params;
+    if (!orderId || !marchant) {
       return this.sendResponse(res, {
         statusCode: HttpStatus.BAD_REQUEST,
         success: false,
@@ -34,13 +35,9 @@ class Controller extends BaseController {
       });
     }
 
-    console.log("scanToShipping controller", { order_id, note, marchant });
+    console.log("scanToShipping controller", { orderId, note, marchant });
 
-    const result = await CourierService.scanToShipping(
-      order_id,
-      note,
-      marchant
-    );
+    const result = await CourierService.scanToShipping(orderId, note, marchant);
     return this.sendResponse(res, {
       statusCode: HttpStatus.OK,
       success: true,

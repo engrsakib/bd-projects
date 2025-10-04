@@ -14,7 +14,7 @@ router.patch(
 );
 
 router.patch(
-  "/scan-to-shipping",
+  "/scan-to-shipping/:orderId",
   JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.COURIER_CREATE),
   CourierController.scanToShipping
