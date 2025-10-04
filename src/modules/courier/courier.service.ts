@@ -247,7 +247,7 @@ class Service {
   }
 
   async scanToShipping(
-    order_id: string,
+    id: string,
     note: string = "Order transferred to courier",
     marchant: string
   ) {
@@ -256,7 +256,7 @@ class Service {
 
     try {
       const order = await OrderModel.findOne({
-        order_id: order_id,
+        order_id: id,
       })
         .populate("user")
         .session(session);
@@ -275,6 +275,8 @@ class Service {
           `you can't transfer this order status ${order ? order.order_status : "unknown"} to courier`
         );
       }
+
+      const order_id = order._id;
 
       // if (business_location) {
       //   // Check if the order is already assigned to an business_location

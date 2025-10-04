@@ -5,8 +5,27 @@ import { CourierService } from "./courier.service";
 
 class Controller extends BaseController {
   transferToCourier = this.catchAsync(async (req: Request, res: Response) => {
-    const { order_id } = req.params;
+    const { id } = req.params;
     const { note, marchant } = req.body;
+    if (!id || !marchant) {
+      return this.sendResponse(res, {
+        statusCode: HttpStatus.BAD_REQUEST,
+        success: false,
+        message: "Order ID and Marchant are required",
+      });
+    }
+
+    const result = await CourierService.transferToCourier(id, note, marchant);
+    return this.sendResponse(res, {
+      statusCode: HttpStatus.OK,
+      success: true,
+      message: "Order transferred to courier successfully",
+      data: result,
+    });
+  });
+
+  scanToShipping = this.catchAsync(async (req: Request, res: Response) => {
+    const { note, marchant, order_id } = req.body;
     if (!order_id || !marchant) {
       return this.sendResponse(res, {
         statusCode: HttpStatus.BAD_REQUEST,
@@ -15,7 +34,9 @@ class Controller extends BaseController {
       });
     }
 
-    const result = await CourierService.transferToCourier(
+    console.log("scanToShipping controller", { order_id, note, marchant });
+
+    const result = await CourierService.scanToShipping(
       order_id,
       note,
       marchant
