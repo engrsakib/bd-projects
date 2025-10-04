@@ -486,6 +486,20 @@ class Service {
     }
   }
 
+  async scantToReturn(id: string) {
+    try {
+      const order = await OrderModel.findOne({
+        order_id: id,
+      }).populate("user");
+
+      if (!order) {
+        throw new ApiError(HttpStatusCode.NOT_FOUND, "Order not found");
+      }
+    } catch (error) {
+      throw new ApiError(500, "Internal server error");
+    }
+  }
+
   async statusByTrackingCode(order_id: string) {
     // Start a session for transaction
     const session = await OrderModel.startSession();
