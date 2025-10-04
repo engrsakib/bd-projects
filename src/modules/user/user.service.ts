@@ -106,7 +106,14 @@ class Service {
       sortOrder = "desc",
     } = paginationHelpers.calculatePagination(options);
 
+    const role = options.role;
+
     const searchCondition: any = { is_Deleted: false };
+
+    if (role !== undefined && role !== null && role !== "") {
+      searchCondition.role = role;
+    }
+
     if (search_query) {
       searchCondition.$or = [
         { name: { $regex: search_query, $options: "i" } },
@@ -116,8 +123,12 @@ class Service {
       ];
     }
 
-    const result = await UserModel.find({ ...searchCondition })
+    const result = await UserModel.find(searchCondition)
       .select({ password: 0 })
+      .populate({
+        path: "permissions",
+        select: "key -_id",
+      })
       .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
       .skip(skip)
       .limit(limit)
@@ -127,10 +138,17 @@ class Service {
       throw new ApiError(HttpStatusCode.NOT_FOUND, "Admins not found");
     }
 
-    const data = result.map((user) => ({
-      ...user,
-      password: undefined as any,
-    }));
+    const data = result.map((admin: any) => {
+      let keys: string[] = [];
+      if (
+        admin.permissions &&
+        typeof admin.permissions === "object" &&
+        "key" in admin.permissions
+      ) {
+        keys = (admin.permissions as { key: string[] }).key;
+      }
+      return { ...admin, permissions: keys };
+    });
 
     const total = await UserModel.countDocuments(searchCondition);
 
