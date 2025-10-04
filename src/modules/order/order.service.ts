@@ -429,6 +429,27 @@ class Service {
   async getOrderById(id: string): Promise<IOrder | null> {
     const order = await OrderModel.aggregate([
       { $match: { _id: new Types.ObjectId(id) } },
+
+      // Product lookup
+      {
+        $lookup: {
+          from: "products",
+          localField: "items.product",
+          foreignField: "_id",
+          as: "productsData",
+        },
+      },
+      // Variant lookup
+      {
+        $lookup: {
+          from: "variants",
+          localField: "items.variant",
+          foreignField: "_id",
+          as: "variantsData",
+        },
+      },
+
+      // Admins lookup for logs
       {
         $lookup: {
           from: "admins",
@@ -437,6 +458,53 @@ class Service {
           as: "logUsers",
         },
       },
+
+      // Enrich items.product and items.variant with populated data
+      {
+        $addFields: {
+          items: {
+            $map: {
+              input: {
+                $sortArray: { input: "$items", sortBy: { _id: 1 } },
+              },
+              as: "item",
+              in: {
+                $mergeObjects: [
+                  "$$item",
+                  {
+                    product: {
+                      $arrayElemAt: [
+                        {
+                          $filter: {
+                            input: "$productsData",
+                            as: "pd",
+                            cond: { $eq: ["$$pd._id", "$$item.product"] },
+                          },
+                        },
+                        0,
+                      ],
+                    },
+                    variant: {
+                      $arrayElemAt: [
+                        {
+                          $filter: {
+                            input: "$variantsData",
+                            as: "vd",
+                            cond: { $eq: ["$$vd._id", "$$item.variant"] },
+                          },
+                        },
+                        0,
+                      ],
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+
+      // Enrich logs with admin data
       {
         $addFields: {
           logs: {
