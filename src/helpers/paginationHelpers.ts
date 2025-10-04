@@ -13,6 +13,7 @@ type IReturnOptions = {
   skip: number;
   sortBy: string;
   sortOrder: SortOrder;
+  role?: string;
 };
 
 const calculatePagination = (options: IOptions): IReturnOptions => {

@@ -89,7 +89,7 @@ class Controller extends BaseController {
 
   getAllAdmins = this.catchAsync(async (req: Request, res: Response) => {
     const options = req.query;
-    // console.log(options);
+    // console.log(options, "options");
 
     const data = await AdminService.getAllAdmins(
       options,

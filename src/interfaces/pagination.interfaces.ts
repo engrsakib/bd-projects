@@ -2,6 +2,7 @@ export type IPaginationOptions = {
   page?: number;
   limit?: number;
   sortBy?: string;
+  role?: string;
   sortOrder?: "asc" | "desc";
 };
 
