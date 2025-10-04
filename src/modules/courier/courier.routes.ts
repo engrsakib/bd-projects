@@ -7,10 +7,17 @@ import { PermissionEnum } from "../permission/permission.enum";
 const router = Router();
 
 router.patch(
-  "/transfer-to-courier/:order_id",
+  "/transfer-to-courier/:id",
   JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.COURIER_CREATE),
   CourierController.transferToCourier
+);
+
+router.patch(
+  "/scan-to-shipping/:orderId",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.COURIER_CREATE),
+  CourierController.scanToShipping
 );
 
 router.get(
