@@ -135,19 +135,19 @@ class Service {
       .lean();
 
     if (!result) {
-      throw new ApiError(HttpStatusCode.NOT_FOUND, "Admins not found");
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "user not found");
     }
 
-    const data = result.map((admin: any) => {
+    const data = result.map((user: any) => {
       let keys: string[] = [];
       if (
-        admin.permissions &&
-        typeof admin.permissions === "object" &&
-        "key" in admin.permissions
+        user.permissions &&
+        typeof user.permissions === "object" &&
+        "key" in user.permissions
       ) {
-        keys = (admin.permissions as { key: string[] }).key;
+        keys = (user.permissions as { key: string[] }).key;
       }
-      return { ...admin, permissions: keys };
+      return { ...user, permissions: keys };
     });
 
     const total = await UserModel.countDocuments(searchCondition);
