@@ -7,6 +7,7 @@ import { ORDER_STATUS } from "../order/order.enums";
 import CourierModel from "./courier.model";
 import { HttpStatusCode } from "@/lib/httpStatus";
 import { IOrderStatus } from "../order/order.interface";
+import { StockModel } from "../stock/stock.model";
 
 class Service {
   // courier sevice integration
@@ -486,7 +487,7 @@ class Service {
     }
   }
 
-  async scantToReturn(id: string) {
+  async scanToReturn(id: string) {
     const session = await OrderModel.startSession();
     session.startTransaction();
 
@@ -501,10 +502,35 @@ class Service {
         throw new ApiError(HttpStatusCode.NOT_FOUND, "Order not found");
       }
       order.order_status = ORDER_STATUS.RETURNED;
+
+      // stock update logic here
+      const pairs = this.extractProductVariantQuantity(order);
+
+      for (const { product, variant, quantity } of pairs) {
+        // Stock check, deduct, or update operations
+        const stock = await StockModel.findOne(
+          {
+            product: product,
+            variant: variant,
+          },
+          null,
+          { session }
+        );
+        if (!stock) {
+          throw new ApiError(404, "Stock record not found");
+        }
+        stock.available_quantity += quantity;
+        await stock.save({ session });
+      }
       (await order.save()).$session();
+      await session.commitTransaction();
       return order;
     } catch (error) {
+      await session.abortTransaction();
+      console.error("Error in scantToReturn:", error);
       throw new ApiError(500, "Internal server error");
+    } finally {
+      session.endSession();
     }
   }
 
@@ -617,6 +643,28 @@ class Service {
     } finally {
       session.endSession();
     }
+  }
+
+  // enrich products with details
+  private extractProductVariantQuantity(
+    orderData: any
+  ): { product: string; variant: string; quantity: number }[] {
+    if (!orderData.items || !Array.isArray(orderData.items)) return [];
+
+    return orderData.items.map((item: any) => ({
+      product:
+        typeof item.product === "object" && item.product.$oid
+          ? item.product.$oid
+          : item.product,
+      variant:
+        typeof item.variant === "object" && item.variant.$oid
+          ? item.variant.$oid
+          : item.variant,
+      quantity:
+        typeof item.quantity === "object" && item.quantity.$numberInt
+          ? Number(item.quantity.$numberInt)
+          : item.quantity,
+    }));
   }
 }
 

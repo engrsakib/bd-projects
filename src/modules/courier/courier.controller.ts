@@ -46,6 +46,28 @@ class Controller extends BaseController {
     });
   });
 
+  scanToReturn = this.catchAsync(async (req: Request, res: Response) => {
+    const { note, marchant } = req.body;
+    const { orderId } = req.params;
+    if (!orderId || !marchant) {
+      return this.sendResponse(res, {
+        statusCode: HttpStatus.BAD_REQUEST,
+        success: false,
+        message: "Order ID and Marchant are required",
+      });
+    }
+
+    console.log("scanToReturn controller", { orderId, note, marchant });
+
+    const result = await CourierService.scanToReturn(orderId);
+    return this.sendResponse(res, {
+      statusCode: HttpStatus.OK,
+      success: true,
+      message: "Order returned successfully",
+      data: result,
+    });
+  });
+
   statusByTrackingCode = this.catchAsync(
     async (req: Request, res: Response) => {
       const { id } = req.params;
