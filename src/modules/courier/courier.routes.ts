@@ -8,14 +8,14 @@ const router = Router();
 
 router.patch(
   "/transfer-to-courier/:order_id",
-  JwtInstance.authenticate([ROLES.ADMIN]),
+  JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.COURIER_CREATE),
   CourierController.transferToCourier
 );
 
 router.get(
   "/status-by-tracking-code/:id",
-  JwtInstance.authenticate([ROLES.ADMIN]),
+  JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.COURIER_VIEW),
   CourierController.statusByTrackingCode
 );

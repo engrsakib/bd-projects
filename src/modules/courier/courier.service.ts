@@ -290,10 +290,15 @@ class Service {
             customStatus = ORDER_STATUS.HANDED_OVER_TO_COURIER;
             break;
           case "pending":
+            customStatus = ORDER_STATUS.PENDING;
+            break;
+          case "picked":
+            customStatus = ORDER_STATUS.IN_TRANSIT;
+            break;
           case "delivered_approval_pending":
           case "partial_delivered_approval_pending":
           case "partial_delivered":
-            customStatus = ORDER_STATUS.IN_TRANSIT;
+            customStatus = ORDER_STATUS.PARTIAL_DELIVERED;
             break;
           case "delivered":
             customStatus = ORDER_STATUS.DELIVERED;

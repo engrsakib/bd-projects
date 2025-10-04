@@ -12,7 +12,7 @@ const router = Router();
 
 router.post(
   "/",
-  JwtInstance.authenticate([ROLES.SUPER_ADMIN, ROLES.ADMIN]),
+  JwtInstance.authenticate(Object.values(ROLES)),
   upload.single("image"),
   SubcategoryMiddleware.uploadSubcategoryImage,
   validateRequest(subcategoryValidations.create),
@@ -37,7 +37,7 @@ router.get("/by-category/:category_id", SubcategoryController.getByCategory);
 
 router.patch(
   "/:id",
-  JwtInstance.authenticate([ROLES.SUPER_ADMIN, ROLES.ADMIN]),
+  JwtInstance.authenticate(Object.values(ROLES)),
   upload.single("image"),
   SubcategoryMiddleware.updateSubcategoryImage,
   validateRequest(subcategoryValidations.update),
@@ -47,7 +47,7 @@ router.patch(
 
 router.patch(
   "/:id/status",
-  JwtInstance.authenticate([ROLES.SUPER_ADMIN, ROLES.ADMIN]),
+  JwtInstance.authenticate(Object.values(ROLES)),
   validateRequest(subcategoryValidations.updateStatus),
   loggerMiddleware,
   SubcategoryController.updateStatus
