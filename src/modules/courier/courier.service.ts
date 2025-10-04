@@ -534,8 +534,10 @@ class Service {
             break;
           case "delivered_approval_pending":
           case "partial_delivered_approval_pending":
+            customStatus = ORDER_STATUS.PENDING_RETURN;
+            break;
           case "partial_delivered":
-            customStatus = ORDER_STATUS.PARTIAL_DELIVERED;
+            customStatus = ORDER_STATUS.PENDING_RETURN;
             break;
           case "delivered":
             customStatus = ORDER_STATUS.DELIVERED;
@@ -543,7 +545,7 @@ class Service {
 
           case "cancelled":
           case "cancelled_approval_pending":
-            customStatus = ORDER_STATUS.RETURNED;
+            customStatus = ORDER_STATUS.UNKNOWN;
             break;
           case "unknown":
           case "unknown_approval_pending":
