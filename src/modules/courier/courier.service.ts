@@ -668,9 +668,9 @@ class Service {
         product_ids
       );
 
-      itemStatusQuantities.forEach(({ product, status, quantity }) => {
+      itemStatusQuantities.forEach(({ product, variant, status, quantity }) => {
         console.log(
-          `Product: ${product}, Status: ${status}, Quantity: ${quantity}`
+          `Product: ${product}, Variant: ${variant}, Status: ${status}, Quantity: ${quantity}`
         );
       });
     } catch (error: any) {
@@ -706,7 +706,7 @@ class Service {
   private extractItemStatusQuantityByProductIds(
     order: any,
     productIds: string[]
-  ): { product: string; status: string; quantity: number }[] {
+  ): { product: string; variant: string; status: string; quantity: number }[] {
     // productIds array কে string এ রূপান্তর
     const normalizedProductIds = productIds.map((id) => id.toString());
 
@@ -719,6 +719,7 @@ class Service {
       )
       .map((item: any) => ({
         product: item.product.$oid || item.product.toString(),
+        variant: item.variant.$oid || item.variant.toString(),
         status: item.status,
         quantity:
           typeof item.quantity === "object" && item.quantity.$numberInt
