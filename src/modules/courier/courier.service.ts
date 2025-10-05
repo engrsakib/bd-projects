@@ -501,6 +501,9 @@ class Service {
       if (!order) {
         throw new ApiError(HttpStatusCode.NOT_FOUND, "Order not found");
       }
+      if (order.order_status === ORDER_STATUS.RETURNED) {
+        throw new ApiError(400, `Order is Already returned`);
+      }
       order.order_status = ORDER_STATUS.RETURNED;
 
       // stock update logic here
@@ -645,6 +648,39 @@ class Service {
     }
   }
 
+  async handlePendingReturns(order_id: string, product_ids: string[]) {
+    const session = await OrderModel.startSession();
+    session.startTransaction();
+
+    try {
+      const order = await OrderModel.findById(order_id)
+        .populate("user")
+        .session(session);
+      if (!order) {
+        throw new ApiError(404, "Invalid order id");
+      } else if (order.order_status !== ORDER_STATUS.PENDING_RETURN) {
+        throw new ApiError(400, `Order is not in pending return status`);
+      }
+
+      // items status update logic here
+      const itemStatusQuantities = this.extractItemStatusQuantityByProductIds(
+        order,
+        product_ids
+      );
+
+      itemStatusQuantities.forEach(({ product, status, quantity }) => {
+        console.log(
+          `Product: ${product}, Status: ${status}, Quantity: ${quantity}`
+        );
+      });
+    } catch (error: any) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
+  }
+
   // enrich products with details
   private extractProductVariantQuantity(
     orderData: any
@@ -665,6 +701,30 @@ class Service {
           ? Number(item.quantity.$numberInt)
           : item.quantity,
     }));
+  }
+
+  private extractItemStatusQuantityByProductIds(
+    order: any,
+    productIds: string[]
+  ): { product: string; status: string; quantity: number }[] {
+    // productIds array কে string এ রূপান্তর
+    const normalizedProductIds = productIds.map((id) => id.toString());
+
+    // order.items থেকে ফিল্টার করবে product._id/.$oid আছে কিনা
+    return order.items
+      .filter((item: any) =>
+        normalizedProductIds.includes(
+          item.product.$oid || item.product.toString()
+        )
+      )
+      .map((item: any) => ({
+        product: item.product.$oid || item.product.toString(),
+        status: item.status,
+        quantity:
+          typeof item.quantity === "object" && item.quantity.$numberInt
+            ? Number(item.quantity.$numberInt)
+            : item.quantity,
+      }));
   }
 }
 
