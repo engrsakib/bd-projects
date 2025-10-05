@@ -6,7 +6,7 @@ import { CourierMiddleware } from "./courier.middleware";
 import { ORDER_STATUS } from "../order/order.enums";
 import CourierModel from "./courier.model";
 import { HttpStatusCode } from "@/lib/httpStatus";
-import { IOrderStatus } from "../order/order.interface";
+import { IOrder, IOrderStatus } from "../order/order.interface";
 import { StockModel } from "../stock/stock.model";
 
 class Service {
@@ -648,7 +648,7 @@ class Service {
     }
   }
 
-  async handlePendingReturns(order_id: string, product_ids: string[]) {
+  async handlePendingReturns(order_id: string, variants_ids: string[]) {
     const session = await OrderModel.startSession();
     session.startTransaction();
 
@@ -663,18 +663,16 @@ class Service {
       }
 
       // items status update logic here
-      const itemStatusQuantities = this.extractItemStatusQuantityByProductIds(
-        order,
-        product_ids
-      );
+      const itemStatusQuantities =
+        await this.extractItemStatusQuantityByVariantIds(order, variants_ids);
 
       itemStatusQuantities.forEach(({ product, variant, status, quantity }) => {
         console.log(
           `Product: ${product}, Variant: ${variant}, Status: ${status}, Quantity: ${quantity}`
         );
-        status = ORDER_STATUS.RETURNED;
       });
     } catch (error: any) {
+      console.log(error, "error");
       await session.abortTransaction();
       throw error;
     } finally {
@@ -704,29 +702,64 @@ class Service {
     }));
   }
 
-  private extractItemStatusQuantityByProductIds(
-    order: any,
-    productIds: string[]
-  ): { product: string; variant: string; status: string; quantity: number }[] {
-    // productIds array কে string এ রূপান্তর
-    const normalizedProductIds = productIds.map((id) => id.toString());
+  private async extractItemStatusQuantityByVariantIds(
+    order: IOrder,
+    variant_ids: string[]
+  ): Promise<
+    { product: string; variant: string; status: string; quantity: number }[]
+  > {
+    if (!order) {
+      throw new Error("Valid order object is required");
+    }
 
-    // order.items থেকে ফিল্টার করবে product._id/.$oid আছে কিনা
-    return order.items
-      .filter((item: any) =>
-        normalizedProductIds.includes(
-          item.product.$oid || item.product.toString()
-        )
-      )
-      .map((item: any) => ({
-        product: item.product.$oid || item.product.toString(),
-        variant: item.variant.$oid || item.variant.toString(),
-        status: item.status,
-        quantity:
-          typeof item.quantity === "object" && item.quantity.$numberInt
-            ? Number(item.quantity.$numberInt)
-            : item.quantity,
-      }));
+    if (!Array.isArray(variant_ids) || variant_ids.length === 0) {
+      throw new Error("Variant IDs must be a non-empty array");
+    }
+
+    // normalize variant ids
+    const normalizedIds = variant_ids.map((id) => id.toString());
+
+    // যদি order.items না থাকে
+    if (!order.items || order.items.length === 0) {
+      throw new Error("Order has no items");
+    }
+
+    const matchedItems: any[] = [];
+
+    order.items.forEach((item: any) => {
+      const variantId = item.variant?.toString();
+      if (normalizedIds.includes(variantId)) {
+        // status change
+        item.status = ORDER_STATUS.RETURNED;
+        matchedItems.push(item);
+      }
+    });
+
+    if (matchedItems.length === 0) {
+      throw new Error("No matching variants found in this order");
+    }
+
+    await OrderModel.updateOne(
+      { _id: order.id },
+      {
+        $set: {
+          items: order.items,
+        },
+      }
+    );
+
+    // Return updated info (product + variant + status + quantity)
+    const updatedItems = matchedItems.map((item: any) => ({
+      product: item.product?.toString(),
+      variant: item.variant?.toString(),
+      status: item.status,
+      quantity:
+        typeof item.quantity === "object" && item.quantity.$numberInt
+          ? Number(item.quantity.$numberInt)
+          : item.quantity,
+    }));
+
+    return updatedItems;
   }
 }
 
