@@ -106,7 +106,14 @@ class Service {
       sortOrder = "desc",
     } = paginationHelpers.calculatePagination(options);
 
+    const role = options.role;
+
     const searchCondition: any = { is_Deleted: false };
+
+    if (role !== undefined && role !== null && role !== "") {
+      searchCondition.role = role;
+    }
+
     if (search_query) {
       searchCondition.$or = [
         { name: { $regex: search_query, $options: "i" } },
@@ -116,21 +123,32 @@ class Service {
       ];
     }
 
-    const result = await UserModel.find({ ...searchCondition })
+    const result = await UserModel.find(searchCondition)
       .select({ password: 0 })
+      .populate({
+        path: "permissions",
+        select: "key -_id",
+      })
       .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
       .skip(skip)
       .limit(limit)
       .lean();
 
     if (!result) {
-      throw new ApiError(HttpStatusCode.NOT_FOUND, "Admins not found");
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "user not found");
     }
 
-    const data = result.map((user) => ({
-      ...user,
-      password: undefined as any,
-    }));
+    const data = result.map((user: any) => {
+      let keys: string[] = [];
+      if (
+        user.permissions &&
+        typeof user.permissions === "object" &&
+        "key" in user.permissions
+      ) {
+        keys = (user.permissions as { key: string[] }).key;
+      }
+      return { ...user, permissions: keys };
+    });
 
     const total = await UserModel.countDocuments(searchCondition);
 
@@ -148,7 +166,7 @@ class Service {
     const data = await UserModel.findById(id).select({ password: 0 }).lean();
 
     if (!data) {
-      throw new ApiError(HttpStatusCode.NOT_FOUND, "user was not found");
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "user not found");
     }
     if (data.is_Deleted) {
       throw new ApiError(HttpStatusCode.GONE, "user has been deleted");

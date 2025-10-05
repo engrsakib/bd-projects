@@ -7,15 +7,36 @@ import { PermissionEnum } from "../permission/permission.enum";
 const router = Router();
 
 router.patch(
-  "/transfer-to-courier/:order_id",
-  JwtInstance.authenticate([ROLES.ADMIN]),
+  "/transfer-to-courier/:id",
+  JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.COURIER_CREATE),
   CourierController.transferToCourier
 );
 
+router.patch(
+  "/scan-to-shipping/:orderId",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.COURIER_CREATE),
+  CourierController.scanToShipping
+);
+
+router.patch(
+  "/scan-to-return/:orderId",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.COURIER_UPDATE),
+  CourierController.scanToReturn
+);
+
+router.patch(
+  "/handle-pending-returns",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.COURIER_UPDATE),
+  CourierController.handlePendingReturns
+);
+
 router.get(
   "/status-by-tracking-code/:id",
-  JwtInstance.authenticate([ROLES.ADMIN]),
+  JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.COURIER_VIEW),
   CourierController.statusByTrackingCode
 );

@@ -268,7 +268,14 @@ class Service {
       sortOrder = "desc",
     } = paginationHelpers.calculatePagination(options);
 
+    const role = options.role;
+
     const searchCondition: any = { is_Deleted: false };
+
+    if (role !== undefined && role !== null && role !== "") {
+      searchCondition.role = role;
+    }
+
     if (search_query) {
       searchCondition.$or = [
         { name: { $regex: search_query, $options: "i" } },
@@ -278,7 +285,7 @@ class Service {
       ];
     }
 
-    const result = await AdminModel.find({ ...searchCondition })
+    const result = await AdminModel.find(searchCondition)
       .select({ password: 0 })
       .populate({
         path: "permissions",
@@ -295,7 +302,6 @@ class Service {
 
     const data = result.map((admin: any) => {
       let keys: string[] = [];
-
       if (
         admin.permissions &&
         typeof admin.permissions === "object" &&
@@ -303,7 +309,6 @@ class Service {
       ) {
         keys = (admin.permissions as { key: string[] }).key;
       }
-
       return { ...admin, permissions: keys };
     });
 

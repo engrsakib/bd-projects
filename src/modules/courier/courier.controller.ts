@@ -5,9 +5,9 @@ import { CourierService } from "./courier.service";
 
 class Controller extends BaseController {
   transferToCourier = this.catchAsync(async (req: Request, res: Response) => {
-    const { order_id } = req.params;
+    const { id } = req.params;
     const { note, marchant } = req.body;
-    if (!order_id || !marchant) {
+    if (!id || !marchant) {
       return this.sendResponse(res, {
         statusCode: HttpStatus.BAD_REQUEST,
         success: false,
@@ -15,11 +15,7 @@ class Controller extends BaseController {
       });
     }
 
-    const result = await CourierService.transferToCourier(
-      order_id,
-      note,
-      marchant
-    );
+    const result = await CourierService.transferToCourier(id, note, marchant);
     return this.sendResponse(res, {
       statusCode: HttpStatus.OK,
       success: true,
@@ -27,6 +23,71 @@ class Controller extends BaseController {
       data: result,
     });
   });
+
+  scanToShipping = this.catchAsync(async (req: Request, res: Response) => {
+    const { note, marchant } = req.body;
+    const { orderId } = req.params;
+    if (!orderId || !marchant) {
+      return this.sendResponse(res, {
+        statusCode: HttpStatus.BAD_REQUEST,
+        success: false,
+        message: "Order ID and Marchant are required",
+      });
+    }
+
+    console.log("scanToShipping controller", { orderId, note, marchant });
+
+    const result = await CourierService.scanToShipping(orderId, note, marchant);
+    return this.sendResponse(res, {
+      statusCode: HttpStatus.OK,
+      success: true,
+      message: "Order transferred to courier successfully d",
+      data: result,
+    });
+  });
+
+  scanToReturn = this.catchAsync(async (req: Request, res: Response) => {
+    const { orderId } = req.params;
+    if (!orderId) {
+      return this.sendResponse(res, {
+        statusCode: HttpStatus.BAD_REQUEST,
+        success: false,
+        message: "Order ID and Marchant are required",
+      });
+    }
+
+    const result = await CourierService.scanToReturn(orderId);
+    return this.sendResponse(res, {
+      statusCode: HttpStatus.OK,
+      success: true,
+      message: "Order returned successfully",
+      data: result,
+    });
+  });
+
+  handlePendingReturns = this.catchAsync(
+    async (req: Request, res: Response) => {
+      const { orderId, variants_ids } = req.body;
+      if (!orderId || !variants_ids || !Array.isArray(variants_ids)) {
+        return this.sendResponse(res, {
+          statusCode: HttpStatus.BAD_REQUEST,
+          success: false,
+          message: "Order ID and Variant IDs are required",
+        });
+      }
+
+      const result = await CourierService.handlePendingReturns(
+        orderId,
+        variants_ids
+      );
+      return this.sendResponse(res, {
+        statusCode: HttpStatus.OK,
+        success: true,
+        message: "Pending returns handled successfully",
+        data: result,
+      });
+    }
+  );
 
   statusByTrackingCode = this.catchAsync(
     async (req: Request, res: Response) => {

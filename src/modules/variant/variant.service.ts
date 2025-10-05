@@ -7,6 +7,7 @@ import { HttpStatusCode } from "@/lib/httpStatus";
 import { ProductModel } from "../product/product.model";
 import { IPaginationOptions } from "@/interfaces/pagination.interfaces";
 import { paginationHelpers } from "@/helpers/paginationHelpers";
+import { StockModel } from "../stock/stock.model";
 
 class Service {
   // this is for product service
@@ -254,6 +255,106 @@ class Service {
         total,
       },
       data: result,
+    };
+  }
+
+  async searchVariantsBySkuForAdmin(
+    search_query: string,
+    options: IPaginationOptions
+  ) {
+    const {
+      limit = 10,
+      page = 1,
+      skip,
+      sortBy = "createdAt",
+      sortOrder = "desc",
+    } = paginationHelpers.calculatePagination(options);
+
+    // Aggregation pipeline setup
+    const pipeline: any[] = [
+      // Step 1: SKU search
+      ...(search_query
+        ? [
+            {
+              $match: {
+                sku: { $regex: search_query, $options: "i" },
+              },
+            },
+          ]
+        : []),
+      // Step 2: Join product collection
+      {
+        $lookup: {
+          from: "products",
+          localField: "product",
+          foreignField: "_id",
+          as: "product",
+        },
+      },
+      // Step 3: Unwind product array
+      { $unwind: "$product" },
+      // Step 4: Filter is_published only
+      { $match: { "product.is_published": true } },
+      // Step 5: Sort, skip, limit
+      { $sort: { [sortBy]: sortOrder === "desc" ? -1 : 1 } },
+      { $skip: skip },
+      { $limit: limit },
+    ];
+
+    // Fetch variants
+    const variants = await VariantModel.aggregate(pipeline);
+
+    // Total count with same filter (for pagination meta)
+    const totalCountAgg = await VariantModel.aggregate([
+      ...(search_query
+        ? [
+            {
+              $match: {
+                sku: { $regex: search_query, $options: "i" },
+              },
+            },
+          ]
+        : []),
+      {
+        $lookup: {
+          from: "products",
+          localField: "product",
+          foreignField: "_id",
+          as: "product",
+        },
+      },
+      { $unwind: "$product" },
+      { $match: { "product.is_published": true } },
+      { $count: "total" },
+    ]);
+    const total = totalCountAgg[0]?.total || 0;
+
+    // Stock handle (first item only, as before)
+    const stock =
+      variants[0] &&
+      (await StockModel.findOne({
+        product: variants[0].product._id,
+        variant: variants[0]._id,
+      }));
+
+    // Prepare data (first item stock inject, rest as is)
+    const data = variants.map((item, idx) => {
+      if (idx === 0) {
+        return {
+          ...item,
+          stock: stock?.available_quantity || 0,
+        };
+      }
+      return item;
+    });
+
+    return {
+      meta: {
+        page,
+        limit,
+        total,
+      },
+      data,
     };
   }
 
