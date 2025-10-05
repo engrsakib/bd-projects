@@ -7,6 +7,7 @@ import { HttpStatusCode } from "@/lib/httpStatus";
 import { ProductModel } from "../product/product.model";
 import { IPaginationOptions } from "@/interfaces/pagination.interfaces";
 import { paginationHelpers } from "@/helpers/paginationHelpers";
+import { StockModel } from "../stock/stock.model";
 
 class Service {
   // this is for product service
@@ -254,6 +255,56 @@ class Service {
         total,
       },
       data: result,
+    };
+  }
+
+  async searchVariantsBySkuForAdmin(
+    search_query: string,
+    options: IPaginationOptions
+  ) {
+    const {
+      limit = 10,
+      page = 1,
+      skip,
+      sortBy = "createdAt",
+      sortOrder = "desc",
+    } = paginationHelpers.calculatePagination(options);
+
+    const searchCondition: any = {};
+    if (search_query) {
+      searchCondition.$or = [{ sku: { $regex: search_query, $options: "i" } }];
+    }
+
+    const result = await VariantModel.find({ ...searchCondition })
+      .populate("product", "name slug sku thumbnail is_published")
+      .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
+      .skip(skip)
+      .limit(limit);
+
+    const stock = await StockModel.findOne({
+      product: result[0]?.product._id,
+      variant: result[0]?._id,
+    });
+
+    const data = result.map((item, idx) => {
+      if (idx === 0) {
+        return {
+          ...(item.toObject?.() ?? item),
+          stock: stock?.available_quantity || 0,
+        };
+      }
+      return item;
+    });
+
+    const total = await VariantModel.countDocuments(searchCondition);
+
+    return {
+      meta: {
+        page,
+        limit,
+        total,
+      },
+      data,
     };
   }
 
