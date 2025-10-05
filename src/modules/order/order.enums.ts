@@ -14,6 +14,7 @@ export enum ORDER_STATUS {
   EXCHANGE_REQUESTED = "exchange_requested",
   EXCHANGED = "exchanged",
   PARTIAL_DELIVERED = "partial_delivered",
+  UNKNOWN = "unknown",
 }
 
 export enum PAYMENT_STATUS {

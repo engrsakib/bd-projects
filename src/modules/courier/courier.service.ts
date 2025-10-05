@@ -6,7 +6,8 @@ import { CourierMiddleware } from "./courier.middleware";
 import { ORDER_STATUS } from "../order/order.enums";
 import CourierModel from "./courier.model";
 import { HttpStatusCode } from "@/lib/httpStatus";
-import { IOrderStatus } from "../order/order.interface";
+import { IOrder, IOrderStatus } from "../order/order.interface";
+import { StockModel } from "../stock/stock.model";
 
 class Service {
   // courier sevice integration
@@ -486,6 +487,56 @@ class Service {
     }
   }
 
+  async scanToReturn(id: string) {
+    const session = await OrderModel.startSession();
+    session.startTransaction();
+
+    try {
+      const order = await OrderModel.findOne({
+        order_id: id,
+      })
+        .populate("user")
+        .session(session);
+
+      if (!order) {
+        throw new ApiError(HttpStatusCode.NOT_FOUND, "Order not found");
+      }
+      if (order.order_status === ORDER_STATUS.RETURNED) {
+        throw new ApiError(400, `Order is Already returned`);
+      }
+      order.order_status = ORDER_STATUS.RETURNED;
+
+      // stock update logic here
+      const pairs = this.extractProductVariantQuantity(order);
+
+      for (const { product, variant, quantity } of pairs) {
+        // Stock check, deduct, or update operations
+        const stock = await StockModel.findOne(
+          {
+            product: product,
+            variant: variant,
+          },
+          null,
+          { session }
+        );
+        if (!stock) {
+          throw new ApiError(404, "Stock record not found");
+        }
+        stock.available_quantity += quantity;
+        await stock.save({ session });
+      }
+      (await order.save()).$session();
+      await session.commitTransaction();
+      return order;
+    } catch (error) {
+      await session.abortTransaction();
+      console.error("Error in scantToReturn:", error);
+      throw new ApiError(500, "Internal server error");
+    } finally {
+      session.endSession();
+    }
+  }
+
   async statusByTrackingCode(order_id: string) {
     // Start a session for transaction
     const session = await OrderModel.startSession();
@@ -534,8 +585,10 @@ class Service {
             break;
           case "delivered_approval_pending":
           case "partial_delivered_approval_pending":
+            customStatus = ORDER_STATUS.PENDING_RETURN;
+            break;
           case "partial_delivered":
-            customStatus = ORDER_STATUS.PARTIAL_DELIVERED;
+            customStatus = ORDER_STATUS.PENDING_RETURN;
             break;
           case "delivered":
             customStatus = ORDER_STATUS.DELIVERED;
@@ -543,7 +596,7 @@ class Service {
 
           case "cancelled":
           case "cancelled_approval_pending":
-            customStatus = ORDER_STATUS.RETURNED;
+            customStatus = ORDER_STATUS.UNKNOWN;
             break;
           case "unknown":
           case "unknown_approval_pending":
@@ -593,6 +646,151 @@ class Service {
     } finally {
       session.endSession();
     }
+  }
+
+  async handlePendingReturns(order_id: string, variants_ids: string[]) {
+    const session = await OrderModel.startSession();
+    session.startTransaction();
+
+    try {
+      const order = await OrderModel.findById(order_id)
+        .populate("user")
+        .session(session);
+      if (!order) {
+        throw new ApiError(404, "Invalid order id");
+      } else if (order.order_status !== ORDER_STATUS.PENDING_RETURN) {
+        throw new ApiError(400, `Order is not in pending return status`);
+      }
+
+      // items status update logic here
+      const itemStatusQuantities =
+        await this.extractItemStatusQuantityByVariantIds(
+          order,
+          variants_ids,
+          session
+        );
+
+      for (const {
+        product,
+        variant,
+        status,
+        quantity,
+      } of itemStatusQuantities) {
+        console.log(
+          `Product: ${product}, Variant: ${variant}, Status: ${status}, Quantity: ${quantity}`
+        );
+
+        const stock = await StockModel.findOne(
+          {
+            product: product,
+            variant: variant,
+          },
+          null,
+          { session }
+        );
+        if (!stock) {
+          throw new ApiError(404, "Stock record not found");
+        }
+        stock.available_quantity += quantity;
+        await stock.save({ session });
+      }
+
+      // stock update logic here
+
+      order.order_status = ORDER_STATUS.PARTIAL_DELIVERED;
+      await order.save({ session });
+      await session.commitTransaction();
+      return order;
+    } catch (error: any) {
+      console.log(error, "error");
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
+  }
+
+  // enrich products with details
+  private extractProductVariantQuantity(
+    orderData: any
+  ): { product: string; variant: string; quantity: number }[] {
+    if (!orderData.items || !Array.isArray(orderData.items)) return [];
+
+    return orderData.items.map((item: any) => ({
+      product:
+        typeof item.product === "object" && item.product.$oid
+          ? item.product.$oid
+          : item.product,
+      variant:
+        typeof item.variant === "object" && item.variant.$oid
+          ? item.variant.$oid
+          : item.variant,
+      quantity:
+        typeof item.quantity === "object" && item.quantity.$numberInt
+          ? Number(item.quantity.$numberInt)
+          : item.quantity,
+    }));
+  }
+
+  private async extractItemStatusQuantityByVariantIds(
+    order: IOrder,
+    variant_ids: string[],
+    session: any
+  ): Promise<
+    { product: string; variant: string; status: string; quantity: number }[]
+  > {
+    if (!order) {
+      throw new Error("Valid order object is required");
+    }
+
+    if (!Array.isArray(variant_ids) || variant_ids.length === 0) {
+      throw new Error("Variant IDs must be a non-empty array");
+    }
+
+    // normalize variant ids
+    const normalizedIds = variant_ids.map((id) => id.toString());
+
+    // যদি order.items না থাকে
+    if (!order.items || order.items.length === 0) {
+      throw new Error("Order has no items");
+    }
+
+    const matchedItems: any[] = [];
+
+    order.items.forEach((item: any) => {
+      const variantId = item.variant?.toString();
+      if (normalizedIds.includes(variantId)) {
+        // status change
+        item.status = ORDER_STATUS.RETURNED;
+        matchedItems.push(item);
+      }
+    });
+
+    if (matchedItems.length === 0) {
+      throw new Error("No matching variants found in this order");
+    }
+
+    await OrderModel.updateOne(
+      { _id: order.id },
+      {
+        $set: {
+          items: order.items,
+        },
+      }
+    ).session(session);
+
+    // Return updated info (product + variant + status + quantity)
+    const updatedItems = matchedItems.map((item: any) => ({
+      product: item.product?.toString(),
+      variant: item.variant?.toString(),
+      status: item.status,
+      quantity:
+        typeof item.quantity === "object" && item.quantity.$numberInt
+          ? Number(item.quantity.$numberInt)
+          : item.quantity,
+    }));
+
+    return updatedItems;
   }
 }
 

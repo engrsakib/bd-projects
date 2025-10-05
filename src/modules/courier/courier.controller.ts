@@ -46,6 +46,52 @@ class Controller extends BaseController {
     });
   });
 
+  scanToReturn = this.catchAsync(async (req: Request, res: Response) => {
+    const { note, marchant } = req.body;
+    const { orderId } = req.params;
+    if (!orderId || !marchant) {
+      return this.sendResponse(res, {
+        statusCode: HttpStatus.BAD_REQUEST,
+        success: false,
+        message: "Order ID and Marchant are required",
+      });
+    }
+
+    console.log("scanToReturn controller", { orderId, note, marchant });
+
+    const result = await CourierService.scanToReturn(orderId);
+    return this.sendResponse(res, {
+      statusCode: HttpStatus.OK,
+      success: true,
+      message: "Order returned successfully",
+      data: result,
+    });
+  });
+
+  handlePendingReturns = this.catchAsync(
+    async (req: Request, res: Response) => {
+      const { orderId, variants_ids } = req.body;
+      if (!orderId || !variants_ids || !Array.isArray(variants_ids)) {
+        return this.sendResponse(res, {
+          statusCode: HttpStatus.BAD_REQUEST,
+          success: false,
+          message: "Order ID and Variant IDs are required",
+        });
+      }
+
+      const result = await CourierService.handlePendingReturns(
+        orderId,
+        variants_ids
+      );
+      return this.sendResponse(res, {
+        statusCode: HttpStatus.OK,
+        success: true,
+        message: "Pending returns handled successfully",
+        data: result,
+      });
+    }
+  );
+
   statusByTrackingCode = this.catchAsync(
     async (req: Request, res: Response) => {
       const { id } = req.params;

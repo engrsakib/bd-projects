@@ -20,6 +20,20 @@ router.patch(
   CourierController.scanToShipping
 );
 
+router.patch(
+  "/scan-to-return/:orderId",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.COURIER_UPDATE),
+  CourierController.scanToReturn
+);
+
+router.patch(
+  "/handle-pending-returns",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.COURIER_UPDATE),
+  CourierController.handlePendingReturns
+);
+
 router.get(
   "/status-by-tracking-code/:id",
   JwtInstance.authenticate(Object.values(ROLES)),
