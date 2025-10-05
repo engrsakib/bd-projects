@@ -20,6 +20,8 @@ router.patch(
   OrderController.updateOrderStatus
 );
 
+// status update by admin
+
 router.patch(
   "/:id",
   JwtInstance.authenticate(Object.values(ROLES)),
