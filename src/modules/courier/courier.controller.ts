@@ -41,23 +41,20 @@ class Controller extends BaseController {
     return this.sendResponse(res, {
       statusCode: HttpStatus.OK,
       success: true,
-      message: "Order transferred to courier successfully",
+      message: "Order transferred to courier successfully d",
       data: result,
     });
   });
 
   scanToReturn = this.catchAsync(async (req: Request, res: Response) => {
-    const { note, marchant } = req.body;
     const { orderId } = req.params;
-    if (!orderId || !marchant) {
+    if (!orderId) {
       return this.sendResponse(res, {
         statusCode: HttpStatus.BAD_REQUEST,
         success: false,
         message: "Order ID and Marchant are required",
       });
     }
-
-    console.log("scanToReturn controller", { orderId, note, marchant });
 
     const result = await CourierService.scanToReturn(orderId);
     return this.sendResponse(res, {
