@@ -15,7 +15,7 @@ router.post(
 
 router.patch(
   "/update-order-status",
-
+  JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.ORDER_UPDATE),
   OrderController.updateOrderStatus
 );
