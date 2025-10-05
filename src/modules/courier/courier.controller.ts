@@ -41,7 +41,7 @@ class Controller extends BaseController {
     return this.sendResponse(res, {
       statusCode: HttpStatus.OK,
       success: true,
-      message: "Order transferred to courier successfully",
+      message: "Order transferred to courier successfully d",
       data: result,
     });
   });
