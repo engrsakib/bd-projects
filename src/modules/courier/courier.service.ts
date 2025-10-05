@@ -672,6 +672,7 @@ class Service {
         console.log(
           `Product: ${product}, Variant: ${variant}, Status: ${status}, Quantity: ${quantity}`
         );
+        status = ORDER_STATUS.RETURNED;
       });
     } catch (error: any) {
       await session.abortTransaction();
