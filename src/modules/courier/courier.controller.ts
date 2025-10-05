@@ -70,18 +70,18 @@ class Controller extends BaseController {
 
   handlePendingReturns = this.catchAsync(
     async (req: Request, res: Response) => {
-      const { orderId, productIds } = req.body;
-      if (!orderId || !productIds || !Array.isArray(productIds)) {
+      const { orderId, variants_ids } = req.body;
+      if (!orderId || !variants_ids || !Array.isArray(variants_ids)) {
         return this.sendResponse(res, {
           statusCode: HttpStatus.BAD_REQUEST,
           success: false,
-          message: "Order ID and Product IDs are required",
+          message: "Order ID and Variant IDs are required",
         });
       }
 
       const result = await CourierService.handlePendingReturns(
         orderId,
-        productIds
+        variants_ids
       );
       return this.sendResponse(res, {
         statusCode: HttpStatus.OK,
