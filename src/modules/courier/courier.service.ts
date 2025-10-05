@@ -664,13 +664,43 @@ class Service {
 
       // items status update logic here
       const itemStatusQuantities =
-        await this.extractItemStatusQuantityByVariantIds(order, variants_ids);
+        await this.extractItemStatusQuantityByVariantIds(
+          order,
+          variants_ids,
+          session
+        );
 
-      itemStatusQuantities.forEach(({ product, variant, status, quantity }) => {
+      for (const {
+        product,
+        variant,
+        status,
+        quantity,
+      } of itemStatusQuantities) {
         console.log(
           `Product: ${product}, Variant: ${variant}, Status: ${status}, Quantity: ${quantity}`
         );
-      });
+
+        const stock = await StockModel.findOne(
+          {
+            product: product,
+            variant: variant,
+          },
+          null,
+          { session }
+        );
+        if (!stock) {
+          throw new ApiError(404, "Stock record not found");
+        }
+        stock.available_quantity += quantity;
+        await stock.save({ session });
+      }
+
+      // stock update logic here
+
+      order.order_status = ORDER_STATUS.PARTIAL_DELIVERED;
+      await order.save({ session });
+      await session.commitTransaction();
+      return order;
     } catch (error: any) {
       console.log(error, "error");
       await session.abortTransaction();
@@ -704,7 +734,8 @@ class Service {
 
   private async extractItemStatusQuantityByVariantIds(
     order: IOrder,
-    variant_ids: string[]
+    variant_ids: string[],
+    session: any
   ): Promise<
     { product: string; variant: string; status: string; quantity: number }[]
   > {
@@ -746,7 +777,7 @@ class Service {
           items: order.items,
         },
       }
-    );
+    ).session(session);
 
     // Return updated info (product + variant + status + quantity)
     const updatedItems = matchedItems.map((item: any) => ({
