@@ -68,6 +68,30 @@ class Controller extends BaseController {
     });
   });
 
+  handlePendingReturns = this.catchAsync(
+    async (req: Request, res: Response) => {
+      const { orderId, productIds } = req.body;
+      if (!orderId || !productIds || !Array.isArray(productIds)) {
+        return this.sendResponse(res, {
+          statusCode: HttpStatus.BAD_REQUEST,
+          success: false,
+          message: "Order ID and Product IDs are required",
+        });
+      }
+
+      const result = await CourierService.handlePendingReturns(
+        orderId,
+        productIds
+      );
+      return this.sendResponse(res, {
+        statusCode: HttpStatus.OK,
+        success: true,
+        message: "Pending returns handled successfully",
+        data: result,
+      });
+    }
+  );
+
   statusByTrackingCode = this.catchAsync(
     async (req: Request, res: Response) => {
       const { id } = req.params;
