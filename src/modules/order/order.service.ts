@@ -125,7 +125,10 @@ class Service {
 
       // dakha 70TK OUT SIDE DELIVERY CHARGE 120 TK
       if (data?.delivery_charge && data?.delivery_charge > 0) {
-        data.delivery_charge = Number(data?.delivery_charge.toFixed());
+        data.delivery_charge =
+          data?.delivery_charge !== undefined
+            ? Number(data.delivery_charge.toFixed())
+            : 0;
         payload.total_amount += data.delivery_charge;
         payload.delivery_charge = data.delivery_charge;
       }
@@ -134,56 +137,6 @@ class Service {
         payload.payment_status = PAYMENT_STATUS.PENDING;
         payload.payable_amount = payload.total_amount;
         payload.order_status = ORDER_STATUS.PLACED;
-      }
-
-      if (data.payment_type === "bkash") {
-        const { payment_id, payment_url: bkash_payment_url } =
-          await BkashService.createPayment({
-            payable_amount: payload.total_amount,
-            invoice_number: payload.invoice_number,
-          });
-
-        payload.payment_id = payment_id;
-        payload.total_amount = Number(payload.total_amount.toFixed());
-
-        const createdOrders = await OrderModel.create([payload], { session });
-
-        if (!createdOrders || createdOrders.length <= 0) {
-          throw new ApiError(
-            HttpStatusCode.INTERNAL_SERVER_ERROR,
-            "Failed to create order"
-          );
-        }
-        // const createdOrder = createdOrders[0];
-        // console.log(createdOrder);
-
-        // 6. Clear cart (with session)
-        await CartService.clearCartAfterCheckout(
-          data.user_id as Types.ObjectId,
-          session
-        );
-
-        // 7. Commit transaction
-        await session.commitTransaction();
-        session.endSession();
-
-        const payment_url =
-          data.payment_type === "bkash" ? bkash_payment_url : "";
-
-        const populatedOrders = await OrderModel.find({
-          _id: { $in: createdOrders.map((order) => order._id) },
-        })
-          .populate({
-            path: "items.product",
-            select: "name slug sku thumbnail description",
-          })
-          .populate({
-            path: "items.variant",
-            select:
-              "attributes attribute_values regular_price sale_price sku barcode image",
-          });
-
-        return { order: populatedOrders, payment_url };
       }
 
       payload.total_amount = Number(payload.total_amount.toFixed());
@@ -331,10 +284,9 @@ class Service {
         payload.total_amount -= data.discounts;
       }
 
-      data.delivery_charge = this.calculateDeliveryCharge(
-        data.delivery_address.division,
-        data.delivery_address.district
-      );
+      // console.log(data.delivery_charge, "delivery address");
+
+      // data.delivery_charge = Number(data?.delivery_charge.toFixed());
 
       // dakha 70TK OUT SIDE DELIVERY CHARGE 120 TK
       if (data?.delivery_charge && data?.delivery_charge > 0) {
