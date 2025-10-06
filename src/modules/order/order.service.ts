@@ -836,19 +836,24 @@ class Service {
       "Dhaka",
       "ঢাকা বিভাগ",
     ];
+    const gazipurDistricts = ["gazipur", "গাজীপুর", "গাজিপুর", "Gazipur"];
     const dhakaDistricts = ["dhaka", "ঢাকা", "Dhaka"];
 
     const div = division.toLowerCase().trim();
     const dist = district.toLowerCase().trim();
 
     const isDhakaDivision = dhakaDivisions.some((d) => d.toLowerCase() === div);
+    const isGazipurDistrict = gazipurDistricts.some(
+      (d) => d.toLowerCase() === dist
+    );
+
     const isDhakaDistrict = dhakaDistricts.some(
       (d) => d.toLowerCase() === dist
     );
 
-    if (isDhakaDivision && isDhakaDistrict) return 70;
-    if (isDhakaDivision && !isDhakaDistrict) return 100;
-    return 120;
+    if (isDhakaDivision && isGazipurDistrict) return 70;
+    if (isDhakaDivision && isDhakaDistrict) return 100;
+    return 150;
   }
 
   private async generateOrderId(
