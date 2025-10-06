@@ -15,7 +15,8 @@ export type IOrderStatus =
   | "exchange_requested"
   | "exchanged"
   | "incomplete"
-  | "partial";
+  | "partial"
+  | "lost";
 
 export type IOrderBy = "admin" | "user" | "guest" | "reseller";
 
