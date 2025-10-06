@@ -4,7 +4,7 @@ export enum ORDER_STATUS {
   FAILED = "failed",
   PLACED = "placed",
   ACCEPTED = "accepted",
-  SHIPPED = "shipped",
+  RTS = "RTS",
   HANDED_OVER_TO_COURIER = "handed_over_to_courier",
   IN_TRANSIT = "in_transit",
   DELIVERED = "delivered",
@@ -13,8 +13,9 @@ export enum ORDER_STATUS {
   CANCELLED = "cancelled",
   EXCHANGE_REQUESTED = "exchange_requested",
   EXCHANGED = "exchanged",
-  PARTIAL_DELIVERED = "partial_delivered",
+  PARTIAL = "partial",
   UNKNOWN = "unknown",
+  LOST = "lost",
 }
 
 export enum PAYMENT_STATUS {
