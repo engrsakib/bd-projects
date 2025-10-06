@@ -45,6 +45,7 @@ const orderSchema = new Schema<IOrder>(
     total_price: { type: Number, required: true },
     delivery_charge: { type: Number },
     total_amount: { type: Number },
+    discounts: { type: Number, default: 0 },
     paid_amount: { type: Number, default: 0 },
     payable_amount: { type: Number, required: true, default: 0 },
 

@@ -315,6 +315,8 @@ class Service {
         total_amount: total_price,
         payable_amount: 0,
         delivery_address: data.delivery_address,
+        paid_amount: data.paid_amount || 0,
+        discounts: data.discounts || 0,
         invoice_number,
         order_id,
         payment_type: data.payment_type,
@@ -328,11 +330,6 @@ class Service {
         payload.total_amount += data.tax;
       }
 
-      if (data?.discounts && data?.discounts > 0) {
-        data.discounts = Number(data?.discounts.toFixed());
-        payload.total_amount -= data.discounts;
-      }
-
       // console.log(data.delivery_charge, "delivery address");
 
       // data.delivery_charge = Number(data?.delivery_charge.toFixed());
@@ -342,63 +339,21 @@ class Service {
         data.delivery_charge = Number(data?.delivery_charge.toFixed());
         payload.total_amount += data.delivery_charge;
         payload.delivery_charge = data.delivery_charge;
+        payload.is_delivery_charge_paid = true;
       }
 
-      if (data.payment_type === "cod") {
-        payload.payment_status = PAYMENT_STATUS.PENDING;
-        payload.payable_amount = payload.total_amount;
-        payload.order_status = ORDER_STATUS.PLACED;
+      payload.payment_status = PAYMENT_STATUS.PENDING;
+      payload.payable_amount = payload.total_amount;
+      if (data?.discounts && data?.discounts > 0) {
+        data.discounts = Number(data?.discounts.toFixed());
+        payload.payable_amount -= data.discounts;
+      }
+      if (data?.paid_amount && data?.paid_amount > 0) {
+        data.paid_amount = Number(data?.paid_amount.toFixed());
+        payload.payable_amount -= data.paid_amount;
       }
 
-      if (data.payment_type === "bkash") {
-        const { payment_id, payment_url: bkash_payment_url } =
-          await BkashService.createPayment({
-            payable_amount: payload.total_amount,
-            invoice_number: payload.invoice_number,
-          });
-
-        payload.payment_id = payment_id;
-        payload.total_amount = Number(payload.total_amount.toFixed());
-
-        const createdOrders = await OrderModel.create([payload], { session });
-
-        if (!createdOrders || createdOrders.length <= 0) {
-          throw new ApiError(
-            HttpStatusCode.INTERNAL_SERVER_ERROR,
-            "Failed to create order"
-          );
-        }
-        // const createdOrder = createdOrders[0];
-        // console.log(createdOrder);
-
-        // 6. Clear cart (with session)
-        await CartService.clearCartAfterCheckout(
-          data.user_id as Types.ObjectId,
-          session
-        );
-
-        // 7. Commit transaction
-        await session.commitTransaction();
-        session.endSession();
-
-        const payment_url =
-          data.payment_type === "bkash" ? bkash_payment_url : "";
-
-        const populatedOrders = await OrderModel.find({
-          _id: { $in: createdOrders.map((order) => order._id) },
-        })
-          .populate({
-            path: "items.product",
-            select: "name slug sku thumbnail description",
-          })
-          .populate({
-            path: "items.variant",
-            select:
-              "attributes attribute_values regular_price sale_price sku barcode image",
-          });
-
-        return { order: populatedOrders, payment_url };
-      }
+      payload.order_status = ORDER_STATUS.PLACED;
 
       payload.total_amount = Number(payload.total_amount.toFixed());
 
