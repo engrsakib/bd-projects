@@ -6,7 +6,7 @@ export type IOrderStatus =
   | "pending"
   | "placed"
   | "accepted"
-  | "shipped"
+  | "RTS"
   | "in_transit"
   | "delivered"
   | "pending_return"
@@ -15,7 +15,7 @@ export type IOrderStatus =
   | "exchange_requested"
   | "exchanged"
   | "incomplete"
-  | "partial_delivered";
+  | "partial";
 
 export type IOrderBy = "admin" | "user" | "guest" | "reseller";
 

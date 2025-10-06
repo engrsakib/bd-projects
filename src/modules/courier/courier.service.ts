@@ -697,7 +697,7 @@ class Service {
 
       // stock update logic here
 
-      order.order_status = ORDER_STATUS.PARTIAL_DELIVERED;
+      order.order_status = ORDER_STATUS.PARTIAL;
       await order.save({ session });
       await session.commitTransaction();
       return order;
