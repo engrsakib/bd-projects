@@ -449,6 +449,16 @@ class Service {
         },
       },
 
+      // Courier lookup
+      {
+        $lookup: {
+          from: "couriers",
+          localField: "courier",
+          foreignField: "_id",
+          as: "courierData",
+        },
+      },
+
       // Admins lookup for logs
       {
         $lookup: {
@@ -500,6 +510,10 @@ class Service {
                 ],
               },
             },
+          },
+          // Inject courier object (single)
+          courier: {
+            $arrayElemAt: ["$courierData", 0],
           },
         },
       },
@@ -585,11 +599,9 @@ class Service {
 
     // status as array support
     if (status) {
-      // accept: status = ["pending", "delivered"] or status = "pending"
       if (Array.isArray(status)) {
         matchStage.order_status = { $in: status };
       } else {
-        // if comma separated string: "pending,delivered"
         if (typeof status === "string" && status.includes(",")) {
           matchStage.order_status = {
             $in: status.split(",").map((s) => s.trim()),
@@ -643,6 +655,22 @@ class Service {
       },
     });
 
+    // ---------- Populate courier ----------
+    pipeline.push({
+      $lookup: {
+        from: "couriers",
+        localField: "courier",
+        foreignField: "_id",
+        as: "courierDocs",
+      },
+    });
+    pipeline.push({
+      $unwind: {
+        path: "$courierDocs",
+        preserveNullAndEmptyArrays: true,
+      },
+    });
+
     // ---------- Populate user OR admin ----------
     const lookupCollection = orders_by === "admin" ? "admins" : "users";
 
@@ -662,7 +690,7 @@ class Service {
       },
     });
 
-    // ---------- Merge populated product/variant/user ----------
+    // ---------- Merge populated product/variant/user/courier ----------
     pipeline.push({
       $addFields: {
         items: {
@@ -712,6 +740,7 @@ class Service {
           createdAt: "$userDocs.createdAt",
           updatedAt: "$userDocs.updatedAt",
         },
+        courier: "$courierDocs", // courier object inject
       },
     });
 
@@ -720,6 +749,7 @@ class Service {
         productsDocs: 0,
         variantsDocs: 0,
         userDocs: 0,
+        courierDocs: 0, // hide raw courierDocs
       },
     });
 
@@ -736,7 +766,6 @@ class Service {
       data: orders,
     };
   }
-
   // delete order by id
   async deleteOrder(id: string): Promise<void> {
     const deletedOrder = await OrderModel.findByIdAndDelete(id);
