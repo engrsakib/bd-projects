@@ -6,7 +6,7 @@ export type IOrderStatus =
   | "pending"
   | "placed"
   | "accepted"
-  | "RTS"
+  | "rts"
   | "in_transit"
   | "delivered"
   | "pending_return"
