@@ -836,7 +836,7 @@ class Service {
       "Dhaka",
       "ঢাকা বিভাগ",
     ];
-    const gazipurDistricts = ["gazipur", "গাজীপুর", "Gazipur"];
+    const gazipurDistricts = ["gazipur", "গাজীপুর", "গাজিপুর", "Gazipur"];
     const dhakaDistricts = ["dhaka", "ঢাকা", "Dhaka"];
 
     const div = division.toLowerCase().trim();
