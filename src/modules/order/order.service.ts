@@ -449,6 +449,16 @@ class Service {
         },
       },
 
+      // Courier lookup
+      {
+        $lookup: {
+          from: "couriers",
+          localField: "courier",
+          foreignField: "_id",
+          as: "courierData",
+        },
+      },
+
       // Admins lookup for logs
       {
         $lookup: {
@@ -500,6 +510,10 @@ class Service {
                 ],
               },
             },
+          },
+          // Inject courier object (single)
+          courier: {
+            $arrayElemAt: ["$courierData", 0],
           },
         },
       },
