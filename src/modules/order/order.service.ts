@@ -15,6 +15,7 @@ import { OrderQuery } from "@/interfaces/common.interface";
 import { StockModel } from "../stock/stock.model";
 import { VariantModel } from "../variant/variant.model";
 import { UserModel } from "../user/user.model";
+import { LotModel } from "../lot/lot.model";
 
 class Service {
   async placeOrder(
@@ -1099,6 +1100,54 @@ class Service {
       total_items,
       total_price: Math.ceil(total_price),
     };
+  }
+
+  private async consumeLotsFIFO(
+    productId: string,
+    variantId: string,
+    requiredQty: number,
+    session?: any
+  ): Promise<{ lotId: string; deducted: number }[]> {
+    const lots = await LotModel.find(
+      {
+        product: productId,
+        variant: variantId,
+        qty_total: { $gt: 0 },
+      },
+      null,
+      { session }
+    ).sort({ createdAt: 1 }); // FIFO
+
+    let remaining = requiredQty;
+    const consumption: { lotId: string; deducted: number }[] = [];
+
+    for (const lot of lots) {
+      if (remaining <= 0) break;
+
+      let deductFromThisLot = 0;
+      if (lot.qty_total <= remaining) {
+        deductFromThisLot = lot.qty_total;
+        remaining -= lot.qty_total;
+        lot.qty_total = 0;
+      } else {
+        deductFromThisLot = remaining;
+        lot.qty_total -= remaining;
+        remaining = 0;
+      }
+      await lot.save({ session });
+
+      consumption.push({
+        lotId: lot._id.toString(),
+        deducted: deductFromThisLot,
+      });
+    }
+
+    if (remaining > 0) {
+      throw new Error("Insufficient lots stock!");
+    }
+
+    // Return consumption details
+    return consumption;
   }
 }
 
