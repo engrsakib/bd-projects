@@ -295,6 +295,15 @@ class Service {
           );
         }
 
+        // lot consumption (FIFO)
+        const consumedLots = await this.consumeLotsFIFO(
+          item.product,
+          item.variant,
+          item.quantity,
+          session
+        );
+        item.lots = consumedLots;
+
         stock.available_quantity -= item.quantity;
         await stock.save({ session });
       }
