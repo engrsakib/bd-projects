@@ -33,7 +33,7 @@ router.post(
   "/admin/",
   JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.ORDER_CREATE),
-  OrderController.placeOrder
+  OrderController.placeOrderAdmin
 );
 router.get(
   "/orders/:id",

@@ -6,7 +6,7 @@ export type IOrderStatus =
   | "pending"
   | "placed"
   | "accepted"
-  | "RTS"
+  | "rts"
   | "in_transit"
   | "delivered"
   | "pending_return"
@@ -53,6 +53,7 @@ export type IOrder = {
   total_amount: number;
   paid_amount?: number;
   payable_amount?: number;
+  discounts?: number;
   order_status?: IOrderStatus;
   transfer_to_courier?: boolean;
   courier?: Types.ObjectId;
@@ -85,6 +86,7 @@ export type IOrderPlace = {
   customer_email?: string;
   delivery_charge?: number;
   tax?: number;
+  paid_amount?: number;
   discounts?: number;
   delivery_address: IAddress;
   products: IOrderItem[];
