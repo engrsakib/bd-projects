@@ -199,6 +199,7 @@ class Service {
           );
         }
 
+        // console.log(courierRes?.consignment, "parcel id");
         const [createdCourier] = await CourierModel.create(
           [
             {
