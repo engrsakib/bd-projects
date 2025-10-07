@@ -1152,13 +1152,13 @@ class Service {
       if (remaining <= 0) break;
 
       let deductFromThisLot = 0;
-      if (lot.qty_total <= remaining) {
-        deductFromThisLot = lot.qty_total;
-        remaining -= lot.qty_total;
-        lot.qty_total = 0;
+      if (lot.qty_available <= remaining) {
+        deductFromThisLot = lot.qty_available;
+        remaining -= lot.qty_available;
+        lot.qty_available = 0;
       } else {
         deductFromThisLot = remaining;
-        lot.qty_total -= remaining;
+        lot.qty_available -= remaining;
         remaining = 0;
       }
       await lot.save({ session });
