@@ -24,6 +24,12 @@ export type IOrderItem = {
   product: Types.ObjectId;
   variant: Types.ObjectId;
   attributes: { [key: string]: string };
+  lots: [
+    {
+      lotId: Types.ObjectId;
+      deducted: number;
+    },
+  ];
   quantity: number;
   price: number;
   subtotal: number;
