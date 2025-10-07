@@ -14,12 +14,15 @@ const orderItemSchema = new Schema<IOrderItem>({
   variant: { type: Schema.Types.ObjectId, ref: "Variant", required: true },
   attributes: { type: Map, of: String },
   quantity: { type: Number, required: true, min: 1 },
-  lots: [
-    {
-      lotId: { type: Schema.Types.ObjectId, ref: "Lot", required: true },
-      deducted: { type: Number, required: true, min: 0 },
-    },
-  ],
+  lots: {
+    type: [
+      {
+        lotId: { type: Schema.Types.ObjectId, ref: "Lot", required: true },
+        deducted: { type: Number, required: true, min: 0 },
+      },
+    ],
+    default: [],
+  },
   price: { type: Number, required: true },
   subtotal: { type: Number, required: true },
   status: {

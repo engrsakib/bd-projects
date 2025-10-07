@@ -63,9 +63,24 @@ class Service {
           );
         }
 
+        // lot consumption (FIFO)
+        const consumedLots = await this.consumeLotsFIFO(
+          item.product,
+          item.variant,
+          item.quantity,
+          session
+        );
+        item.lots = consumedLots;
+        // console.log(consumedLots, "consumed lots `");
+
         stock.available_quantity -= item.quantity;
         await stock.save({ session });
       }
+
+      console.log(
+        JSON.stringify(enrichedOrder.products, null, 2),
+        "final enriched order"
+      );
 
       const { total_price, items, total_items } =
         await this.calculateCart(enrichedOrder);
@@ -146,6 +161,8 @@ class Service {
 
         payload.payment_id = payment_id;
         payload.total_amount = Number(payload.total_amount.toFixed());
+
+        // console.log("order items:", payload.items, "order ends");
 
         const createdOrders = await OrderModel.create([payload], { session });
 
@@ -1089,6 +1106,7 @@ class Service {
           variant: cartItem.variant,
           attributes: cartItem.attributes,
           quantity: cartItem.quantity,
+          lots: cartItem.lots,
           price: variant?.sale_price || 0,
           subtotal,
         };
