@@ -15,6 +15,7 @@ import { OrderQuery } from "@/interfaces/common.interface";
 import { StockModel } from "../stock/stock.model";
 import { VariantModel } from "../variant/variant.model";
 import { UserModel } from "../user/user.model";
+import { LotModel } from "../lot/lot.model";
 
 class Service {
   async placeOrder(
@@ -62,9 +63,24 @@ class Service {
           );
         }
 
+        // lot consumption (FIFO)
+        const consumedLots = await this.consumeLotsFIFO(
+          item.product,
+          item.variant,
+          item.quantity,
+          session
+        );
+        item.lots = consumedLots;
+        // console.log(consumedLots, "consumed lots `");
+
         stock.available_quantity -= item.quantity;
         await stock.save({ session });
       }
+
+      console.log(
+        JSON.stringify(enrichedOrder.products, null, 2),
+        "final enriched order"
+      );
 
       const { total_price, items, total_items } =
         await this.calculateCart(enrichedOrder);
@@ -145,6 +161,8 @@ class Service {
 
         payload.payment_id = payment_id;
         payload.total_amount = Number(payload.total_amount.toFixed());
+
+        // console.log("order items:", payload.items, "order ends");
 
         const createdOrders = await OrderModel.create([payload], { session });
 
@@ -276,6 +294,15 @@ class Service {
             `Product ${item.product.name} is out of stock or does not have enough quantity`
           );
         }
+
+        // lot consumption (FIFO)
+        const consumedLots = await this.consumeLotsFIFO(
+          item.product,
+          item.variant,
+          item.quantity,
+          session
+        );
+        item.lots = consumedLots;
 
         stock.available_quantity -= item.quantity;
         await stock.save({ session });
@@ -1088,6 +1115,7 @@ class Service {
           variant: cartItem.variant,
           attributes: cartItem.attributes,
           quantity: cartItem.quantity,
+          lots: cartItem.lots,
           price: variant?.sale_price || 0,
           subtotal,
         };
@@ -1099,6 +1127,54 @@ class Service {
       total_items,
       total_price: Math.ceil(total_price),
     };
+  }
+
+  private async consumeLotsFIFO(
+    productId: string,
+    variantId: string,
+    requiredQty: number,
+    session?: any
+  ): Promise<{ lotId: string; deducted: number }[]> {
+    const lots = await LotModel.find(
+      {
+        product: productId,
+        variant: variantId,
+        qty_total: { $gt: 0 },
+      },
+      null,
+      { session }
+    ).sort({ createdAt: 1 }); // FIFO
+
+    let remaining = requiredQty;
+    const consumption: { lotId: string; deducted: number }[] = [];
+
+    for (const lot of lots) {
+      if (remaining <= 0) break;
+
+      let deductFromThisLot = 0;
+      if (lot.qty_total <= remaining) {
+        deductFromThisLot = lot.qty_total;
+        remaining -= lot.qty_total;
+        lot.qty_total = 0;
+      } else {
+        deductFromThisLot = remaining;
+        lot.qty_total -= remaining;
+        remaining = 0;
+      }
+      await lot.save({ session });
+
+      consumption.push({
+        lotId: lot._id.toString(),
+        deducted: deductFromThisLot,
+      });
+    }
+
+    if (remaining > 0) {
+      throw new Error("Insufficient lots stock!");
+    }
+
+    // Return consumption details
+    return consumption;
   }
 }
 
