@@ -115,6 +115,10 @@ class Service {
     }
   }
 
+  async updatePurchase(id: string, data: IPurchase): Promise<IPurchase | null> {
+    return PurchaseModel.findByIdAndUpdate(id, data, { new: true }).exec();
+  }
+
   async getAllPurchases(
     options: IPaginationOptions,
     filters: IPurchaseFilters
@@ -275,15 +279,6 @@ class Service {
       .exec();
 
     return result;
-  }
-
-  async updatePurchase(
-    id: string,
-    updateData: Partial<IPurchase>
-  ): Promise<IPurchase | null> {
-    return PurchaseModel.findByIdAndUpdate(id, updateData, {
-      new: true,
-    }).exec();
   }
 
   async updateStatus(
