@@ -978,32 +978,89 @@ class Service {
     user_id: string,
     status: ORDER_STATUS
   ): Promise<IOrder | null> {
-    const order = await OrderModel.findById(order_id);
-    if (!order) {
-      throw new ApiError(
-        HttpStatusCode.NOT_FOUND,
-        `Order was not found with id: ${order_id}`
-      );
-    }
+    const session = await OrderModel.startSession();
+    session.startTransaction();
+    try {
+      const order = await OrderModel.findById(order_id).session(session);
+      if (!order) {
+        throw new ApiError(
+          HttpStatusCode.NOT_FOUND,
+          `Order was not found with id: ${order_id}`
+        );
+      }
 
-    const previousStatus = order.order_status || "N/A";
+      const previousStatus = order.order_status || "N/A";
 
-    const updatedOrder = await OrderModel.findOneAndUpdate(
-      { _id: order_id },
-      {
-        $set: { order_status: status },
-        $push: {
-          logs: {
-            user: user_id,
-            time: new Date(),
-            action: `ORDER_STATUS_UPDATED: ${previousStatus} -> ${status}`,
+      const updatedOrder = await OrderModel.findOneAndUpdate(
+        { _id: order_id },
+        {
+          $set: { order_status: status },
+          $push: {
+            logs: {
+              user: user_id,
+              time: new Date(),
+              action: `ORDER_STATUS_UPDATED: ${previousStatus} -> ${status}`,
+            },
           },
         },
-      },
-      { new: true }
-    );
+        { new: true, session }
+      );
 
-    return updatedOrder;
+      if (!updatedOrder) {
+        throw new ApiError(
+          HttpStatusCode.NOT_FOUND,
+          `Order was not found with id: ${order_id}`
+        );
+      }
+
+      if (
+        status === ORDER_STATUS.CANCELLED ||
+        status === ORDER_STATUS.RETURNED ||
+        status === ORDER_STATUS.FAILED
+      ) {
+        // restore stock if order is cancelled
+        for (const item of updatedOrder.items ?? []) {
+          const stock = await StockModel.findOne(
+            {
+              product: item.product,
+              variant: item.variant,
+            },
+            null,
+            { session }
+          );
+
+          if (stock) {
+            stock.available_quantity += item.quantity;
+            await stock.save({ session });
+          }
+
+          // restore lots
+          for (const lotUsage of item.lots) {
+            const lot = await LotModel.findById(lotUsage.lotId).session(
+              session
+            );
+            if (!lot) {
+              throw new ApiError(
+                HttpStatusCode.NOT_FOUND,
+                `Lot not found with id: ${lotUsage.lotId}`
+              );
+            }
+            if (lot) {
+              lot.qty_available += lotUsage.deducted;
+              await lot.save({ session });
+            }
+          }
+        }
+      }
+
+      await session.commitTransaction();
+      return updatedOrder;
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
   }
 
   async order_tracking(order_id: string) {
