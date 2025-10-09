@@ -555,7 +555,7 @@ class Service {
       })
       .lean();
 
-    return products;
+    return products as IProduct[];
   }
 
   async getProductsByIds(ids: Types.ObjectId[]) {
