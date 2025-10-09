@@ -538,8 +538,8 @@ class Service {
       return order;
     } catch (error) {
       await session.abortTransaction();
-      console.error("Error in scantToReturn:", error);
-      throw new ApiError(500, "Internal server error");
+      console.error("Error in scanToReturn:", error);
+      throw error;
     } finally {
       session.endSession();
     }
