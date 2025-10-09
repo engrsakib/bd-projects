@@ -129,8 +129,6 @@ class Service {
         throw new Error("Purchase not found");
       }
 
-      // --- FIX: location compare ---
-      // Convert both to string for safe comparison
       const newLocationString = String(data.location);
       const existingLocationString = String(existingPurchase.location);
 
@@ -144,7 +142,6 @@ class Service {
         data.purchase_number = existingPurchase.purchase_number;
       }
 
-      // Subtotal calculation
       let subtotal = 0;
       for (const item of data.items) {
         const itemTotal =
@@ -152,16 +149,13 @@ class Service {
         subtotal += itemTotal;
       }
 
-      // Expenses calculation
       let totalExpenses = 0;
       for (const expense of data.expenses_applied || []) {
         totalExpenses += expense.amount;
       }
 
-      // Total cost
       data.total_cost = subtotal + totalExpenses;
 
-      // Update purchase document
       const updatedPurchase = await PurchaseModel.findByIdAndUpdate(
         purchaseId,
         { ...data },
@@ -172,11 +166,11 @@ class Service {
         throw new Error("Purchase update failed");
       }
 
-      // --- (Optional) Remove previous lots if needed ---
-      // await LotService.deleteLotsByPurchase(purchaseId, session);
-
       // Update stock & create lots
       for (const item of data.items) {
+        if (!item.product || !item.variant) {
+          throw new Error("Item must have product and variant");
+        }
         const itemTotal =
           item.qty * item.unit_cost - (item.discount || 0) + (item.tax || 0);
         const apportionedExpense =

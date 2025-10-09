@@ -91,6 +91,14 @@ class Controller extends BaseController {
   });
 
   deleteOrder = this.catchAsync(async (req: Request, res: Response) => {
+    if (!req.params.id) {
+      return this.sendResponse(res, {
+        statusCode: HttpStatusCode.BAD_REQUEST,
+        success: false,
+        message: "Order ID is required",
+      });
+    }
+
     const data = await OrderService.deleteOrder(req.params.id as string);
     this.sendResponse(res, {
       statusCode: HttpStatusCode.OK,
