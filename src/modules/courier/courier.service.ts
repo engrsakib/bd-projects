@@ -8,6 +8,7 @@ import CourierModel from "./courier.model";
 import { HttpStatusCode } from "@/lib/httpStatus";
 import { IOrder, IOrderStatus } from "../order/order.interface";
 import { StockModel } from "../stock/stock.model";
+import { LotModel } from "../lot/lot.model";
 
 class Service {
   // courier sevice integration
@@ -510,7 +511,7 @@ class Service {
       // stock update logic here
       const pairs = this.extractProductVariantQuantity(order);
 
-      for (const { product, variant, quantity } of pairs) {
+      for (const { product, variant, quantity, lot } of pairs) {
         // Stock check, deduct, or update operations
         const stock = await StockModel.findOne(
           {
@@ -524,6 +525,12 @@ class Service {
           throw new ApiError(404, "Stock record not found");
         }
         stock.available_quantity += quantity;
+        // lot update
+        const lotRecord = await LotModel.findById(lot).session(session);
+        if (!lotRecord) {
+          throw new ApiError(404, "Lot record not found");
+        }
+        lotRecord.qty_available += quantity;
         await stock.save({ session });
       }
       (await order.save()).$session();
@@ -531,8 +538,8 @@ class Service {
       return order;
     } catch (error) {
       await session.abortTransaction();
-      console.error("Error in scantToReturn:", error);
-      throw new ApiError(500, "Internal server error");
+      console.error("Error in scanToReturn:", error);
+      throw error;
     } finally {
       session.endSession();
     }
@@ -714,7 +721,7 @@ class Service {
   // enrich products with details
   private extractProductVariantQuantity(
     orderData: any
-  ): { product: string; variant: string; quantity: number }[] {
+  ): { product: string; variant: string; quantity: number; lot: string }[] {
     if (!orderData.items || !Array.isArray(orderData.items)) return [];
 
     return orderData.items.map((item: any) => ({
@@ -730,6 +737,7 @@ class Service {
         typeof item.quantity === "object" && item.quantity.$numberInt
           ? Number(item.quantity.$numberInt)
           : item.quantity,
+      lot: item.lot._id ? item.lot._id : item.lot,
     }));
   }
 

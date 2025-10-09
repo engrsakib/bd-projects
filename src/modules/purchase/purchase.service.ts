@@ -115,6 +115,126 @@ class Service {
     }
   }
 
+  async updatePurchase(
+    purchaseId: string,
+    data: IPurchase
+  ): Promise<IPurchase> {
+    const session = await PurchaseModel.startSession();
+    session.startTransaction();
+    try {
+      const existingPurchase = await PurchaseModel.findById(purchaseId)
+        .lean()
+        .session(session);
+      if (!existingPurchase) {
+        throw new Error("Purchase not found");
+      }
+
+      const newLocationString = String(data.location);
+      const existingLocationString = String(existingPurchase.location);
+
+      if (data.location && newLocationString !== existingLocationString) {
+        const purchase_number =
+          (await PurchaseModel.countDocuments({
+            location: data.location,
+          }).session(session)) + 1;
+        data.purchase_number = purchase_number;
+      } else {
+        data.purchase_number = existingPurchase.purchase_number;
+      }
+
+      let subtotal = 0;
+      for (const item of data.items) {
+        const itemTotal =
+          item.qty * item.unit_cost - (item.discount || 0) + (item.tax || 0);
+        subtotal += itemTotal;
+      }
+
+      let totalExpenses = 0;
+      for (const expense of data.expenses_applied || []) {
+        totalExpenses += expense.amount;
+      }
+
+      data.total_cost = subtotal + totalExpenses;
+
+      const updatedPurchase = await PurchaseModel.findByIdAndUpdate(
+        purchaseId,
+        { ...data },
+        { new: true, session, lean: true }
+      ).session(session);
+
+      if (!updatedPurchase) {
+        throw new Error("Purchase update failed");
+      }
+
+      // Update stock & create lots
+      for (const item of data.items) {
+        if (!item.product || !item.variant) {
+          throw new Error("Item must have product and variant");
+        }
+        const itemTotal =
+          item.qty * item.unit_cost - (item.discount || 0) + (item.tax || 0);
+        const apportionedExpense =
+          subtotal > 0 ? (itemTotal / subtotal) * totalExpenses : 0;
+        const effectiveUnitCost =
+          item.qty > 0
+            ? (itemTotal + apportionedExpense) / item.qty
+            : item.unit_cost;
+
+        const stockQuery = {
+          product: item.product,
+          variant: item.variant,
+          location: data.location,
+        };
+        const stock = await StockService.findOneAndUpdateByPurchase(
+          stockQuery,
+          {
+            product: item.product,
+            variant: item.variant,
+            location: data.location,
+            available_quantity: item.qty,
+            total_received: item.qty,
+          },
+          session
+        );
+
+        await LotService.createLot(
+          {
+            qty_available: item.qty,
+            cost_per_unit: effectiveUnitCost,
+            received_at: data.received_at || new Date(),
+            createdBy: data.created_by,
+            variant: item.variant,
+            product: item.product,
+            location: data.location,
+            source: {
+              type: "purchase",
+              ref_id: updatedPurchase._id,
+            },
+            lot_number:
+              item.lot_number ||
+              `PUR-${updatedPurchase.purchase_number}-${String(item.variant).slice(-4)}`,
+            expiry_date: item.expiry_date || null,
+            qty_total: item.qty,
+            qty_reserved: 0,
+            status: "active",
+            notes: "",
+            stock: stock._id,
+          },
+          session
+        );
+      }
+
+      await session.commitTransaction();
+      return updatedPurchase as IPurchase;
+    } catch (error) {
+      console.log(error);
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
+  }
+
   async getAllPurchases(
     options: IPaginationOptions,
     filters: IPurchaseFilters
@@ -275,15 +395,6 @@ class Service {
       .exec();
 
     return result;
-  }
-
-  async updatePurchase(
-    id: string,
-    updateData: Partial<IPurchase>
-  ): Promise<IPurchase | null> {
-    return PurchaseModel.findByIdAndUpdate(id, updateData, {
-      new: true,
-    }).exec();
   }
 
   async updateStatus(
