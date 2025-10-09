@@ -1039,6 +1039,12 @@ class Service {
             const lot = await LotModel.findById(lotUsage.lotId).session(
               session
             );
+            if (!lot) {
+              throw new ApiError(
+                HttpStatusCode.NOT_FOUND,
+                `Lot not found with id: ${lotUsage.lotId}`
+              );
+            }
             if (lot) {
               lot.qty_available += lotUsage.deducted;
               await lot.save({ session });
