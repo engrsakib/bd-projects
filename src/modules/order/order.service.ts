@@ -978,39 +978,49 @@ class Service {
     user_id: string,
     status: ORDER_STATUS
   ): Promise<IOrder | null> {
-    const order = await OrderModel.findById(order_id);
-    if (!order) {
-      throw new ApiError(
-        HttpStatusCode.NOT_FOUND,
-        `Order was not found with id: ${order_id}`
-      );
-    }
+    const session = await OrderModel.startSession();
+    session.startTransaction();
+    try {
+      const order = await OrderModel.findById(order_id).session(session);
+      if (!order) {
+        throw new ApiError(
+          HttpStatusCode.NOT_FOUND,
+          `Order was not found with id: ${order_id}`
+        );
+      }
 
-    const previousStatus = order.order_status || "N/A";
+      const previousStatus = order.order_status || "N/A";
 
-    const updatedOrder = await OrderModel.findOneAndUpdate(
-      { _id: order_id },
-      {
-        $set: { order_status: status },
-        $push: {
-          logs: {
-            user: user_id,
-            time: new Date(),
-            action: `ORDER_STATUS_UPDATED: ${previousStatus} -> ${status}`,
+      const updatedOrder = await OrderModel.findOneAndUpdate(
+        { _id: order_id },
+        {
+          $set: { order_status: status },
+          $push: {
+            logs: {
+              user: user_id,
+              time: new Date(),
+              action: `ORDER_STATUS_UPDATED: ${previousStatus} -> ${status}`,
+            },
           },
         },
-      },
-      { new: true }
-    );
-
-    if (!updatedOrder) {
-      throw new ApiError(
-        HttpStatusCode.NOT_FOUND,
-        `Order was not found with id: ${order_id}`
+        { new: true, session }
       );
-    }
 
-    return updatedOrder;
+      if (!updatedOrder) {
+        throw new ApiError(
+          HttpStatusCode.NOT_FOUND,
+          `Order was not found with id: ${order_id}`
+        );
+      }
+
+      await session.commitTransaction();
+      return updatedOrder;
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
   }
 
   async order_tracking(order_id: string) {
