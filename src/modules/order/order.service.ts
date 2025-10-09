@@ -964,6 +964,22 @@ class Service {
   }
   // delete order by id
   async deleteOrder(id: string): Promise<void> {
+    const order = await OrderModel.findById(id);
+    if (!order) {
+      throw new ApiError(
+        HttpStatusCode.NOT_FOUND,
+        `Order was not found with id: ${id}`
+      );
+    }
+    if (
+      order.order_status !== ORDER_STATUS.CANCELLED &&
+      order.order_status !== ORDER_STATUS.FAILED
+    ) {
+      throw new ApiError(
+        HttpStatusCode.BAD_REQUEST,
+        `Only cancelled and failed orders can be deleted`
+      );
+    }
     const deletedOrder = await OrderModel.findByIdAndDelete(id);
     if (!deletedOrder) {
       throw new ApiError(
