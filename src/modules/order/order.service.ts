@@ -1003,6 +1003,13 @@ class Service {
       { new: true }
     );
 
+    if (!updatedOrder) {
+      throw new ApiError(
+        HttpStatusCode.NOT_FOUND,
+        `Order was not found with id: ${order_id}`
+      );
+    }
+
     return updatedOrder;
   }
 
