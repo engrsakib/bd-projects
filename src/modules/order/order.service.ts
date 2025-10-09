@@ -1013,6 +1013,40 @@ class Service {
         );
       }
 
+      if (
+        status === ORDER_STATUS.CANCELLED ||
+        status === ORDER_STATUS.RETURNED ||
+        status === ORDER_STATUS.FAILED
+      ) {
+        // restore stock if order is cancelled
+        for (const item of updatedOrder.items ?? []) {
+          const stock = await StockModel.findOne(
+            {
+              product: item.product,
+              variant: item.variant,
+            },
+            null,
+            { session }
+          );
+
+          if (stock) {
+            stock.available_quantity += item.quantity;
+            await stock.save({ session });
+          }
+
+          // restore lots
+          for (const lotUsage of item.lots) {
+            const lot = await LotModel.findById(lotUsage.lotId).session(
+              session
+            );
+            if (lot) {
+              lot.qty_available += lotUsage.deducted;
+              await lot.save({ session });
+            }
+          }
+        }
+      }
+
       await session.commitTransaction();
       return updatedOrder;
     } catch (error) {
