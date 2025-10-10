@@ -1,8 +1,98 @@
 import BaseController from "@/shared/baseController";
+import { OrderModel } from "@/modules/order/order.model";
+import { ORDER_STATUS } from "@/modules/order/order.enums";
+import CourierModel from "../courier/courier.model";
+import { IOrderStatus } from "../order/order.interface";
+
+// Map steadfast status to system status
+const STATUS_MAP: Record<string, string> = {
+  pending: ORDER_STATUS.PENDING,
+  delivered: ORDER_STATUS.DELIVERED,
+  partial_delivered: ORDER_STATUS.PENDING_RETURN,
+  cancelled: ORDER_STATUS.CANCELLED,
+  unknown: ORDER_STATUS.UNKNOWN,
+};
 
 class service extends BaseController {
-  async steadfastWebhock(data: any) {
-    return data;
+  /**
+   * Handles Steadfast webhook payload, updates order status/info.
+   * @param data Incoming webhook payload
+   * @param authToken Bearer token from request header
+   * @returns Success or error response object
+   */
+  async steadfastWebhock(data: any, authToken?: string) {
+    const expectedToken = process.env.STEADFAST_WEBHOOK_TOKEN || "";
+    if (!authToken || authToken !== `Bearer ${expectedToken}`) {
+      return {
+        status: "error",
+        message: "Unauthorized webhook request.",
+      };
+    }
+
+    if (!data.consignment_id || typeof data.consignment_id !== "number") {
+      return {
+        status: "error",
+        message: "Invalid consignment ID.",
+      };
+    }
+
+    const courier = await CourierModel.findOne({
+      consignment_id: data.consignment_id,
+    });
+
+    if (!courier) {
+      return {
+        status: "error",
+        message: "Order not found for this consignment ID.",
+      };
+    }
+
+    const order = await OrderModel.findById(courier.order);
+    if (!order) {
+      return {
+        status: "error",
+        message: "Order not found.",
+      };
+    }
+
+    // Handle delivery_status webhook
+    if (data.notification_type === "delivery_status") {
+      const mappedStatus =
+        STATUS_MAP[String(data.status).toLowerCase()] || ORDER_STATUS.UNKNOWN;
+      order.order_status = mappedStatus as IOrderStatus;
+
+      // Update optional fields (if exists in your model)
+      if ("cod_amount" in data) order.paid_amount = data.cod_amount; // Or use a dedicated cod_amount field if exists
+      if ("delivery_charge" in data)
+        order.delivery_charge = data.delivery_charge;
+      if ("tracking_message" in data)
+        order.system_message = data.tracking_message;
+      if ("updated_at" in data)
+        (order.logs ??= []).push({
+          user: null,
+          action: `Status updated to ${mappedStatus} by webhook`,
+          time: new Date(data.updated_at),
+        });
+
+      await order.save();
+    }
+
+    // Handle tracking_update webhook
+    if (data.notification_type === "tracking_update") {
+      order.system_message = data.tracking_message || "";
+      if ("updated_at" in data)
+        (order.logs ??= []).push({
+          user: null,
+          action: `Tracking update: ${data.tracking_message}`,
+          time: new Date(data.updated_at),
+        });
+      await order.save();
+    }
+
+    return {
+      status: "success",
+      message: "Webhook received successfully.",
+    };
   }
 }
 
