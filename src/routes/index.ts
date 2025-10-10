@@ -20,6 +20,7 @@ import { OrderRoutes } from "@/modules/order/order.routes";
 import { courierRouter } from "@/modules/courier/courier.routes";
 import { ContentManagementRoutes } from "@/modules/cms/cms.router";
 import { PermissionsRoutes } from "@/modules/permission/permission.route";
+import { WebhocksRoutes } from "@/modules/webhocks/webhocks.route";
 const router = Router();
 
 const moduleRoutes = [
@@ -106,6 +107,10 @@ const moduleRoutes = [
   {
     path: "/permissions",
     route: PermissionsRoutes,
+  },
+  {
+    path: "/webhooks",
+    route: WebhocksRoutes,
   },
 ];
 
