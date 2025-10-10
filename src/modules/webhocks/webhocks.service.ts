@@ -55,14 +55,13 @@ class service extends BaseController {
       };
     }
 
-    // Handle delivery_status webhook
     if (data.notification_type === "delivery_status") {
       const mappedStatus =
         STATUS_MAP[String(data.status).toLowerCase()] || ORDER_STATUS.UNKNOWN;
       order.order_status = mappedStatus as IOrderStatus;
+      courier.order_status = mappedStatus as ORDER_STATUS;
 
-      // Update optional fields (if exists in your model)
-      if ("cod_amount" in data) order.paid_amount = data.cod_amount; // Or use a dedicated cod_amount field if exists
+      if ("cod_amount" in data) order.paid_amount = data.cod_amount;
       if ("delivery_charge" in data)
         order.delivery_charge = data.delivery_charge;
       if ("tracking_message" in data)
@@ -75,9 +74,9 @@ class service extends BaseController {
         });
 
       await order.save();
+      await courier.save();
     }
 
-    // Handle tracking_update webhook
     if (data.notification_type === "tracking_update") {
       order.system_message = data.tracking_message || "";
       if ("updated_at" in data)
@@ -87,6 +86,7 @@ class service extends BaseController {
           time: new Date(data.updated_at),
         });
       await order.save();
+      await courier.save();
     }
 
     return {
