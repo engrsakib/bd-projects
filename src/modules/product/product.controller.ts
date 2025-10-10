@@ -111,13 +111,9 @@ class Controller extends BaseController {
 
   // get product by id and slug
   getBySlugAndTitle = this.catchAsync(async (req: Request, res: Response) => {
-    // URL params থেকে slug এবং title নাও
     const slug = req.query.slug as string;
     const title = req.query.title as string;
 
-    console.log(slug, title, "slug and title");
-
-    // Query param থেকে pagination নাও (ডিফল্ট page=1, limit=10)
     const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
     const limit = req.query.limit
       ? parseInt(req.query.limit as string, 10)
