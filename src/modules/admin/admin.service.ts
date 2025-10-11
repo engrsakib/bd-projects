@@ -371,7 +371,7 @@ class Service {
     }
 
     if ("password" in data) {
-      if (typeof data.password === "string" && data.password.trim()) {
+      if (data.password && data.password.length > 0 && data.password.trim()) {
         data.password = await BcryptInstance.hash(data.password);
       } else {
         delete data.password;
