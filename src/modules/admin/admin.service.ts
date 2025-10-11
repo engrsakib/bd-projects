@@ -369,7 +369,16 @@ class Service {
     if (!isExist) {
       throw new ApiError(HttpStatusCode.NOT_FOUND, "Admin was not found");
     }
-    return await AdminModel.findByIdAndUpdate(id, { ...data });
+
+    if ("password" in data) {
+      if (data.password && data.password.length > 0 && data.password.trim()) {
+        data.password = await BcryptInstance.hash(data.password);
+      } else {
+        delete data.password;
+      }
+    }
+
+    return await AdminModel.findByIdAndUpdate(id, { ...data }, { new: true });
   }
 
   async changePassword(id: string, payload: IChangePassword) {

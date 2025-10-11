@@ -272,7 +272,6 @@ class Service {
 
     // Aggregation pipeline setup
     const pipeline: any[] = [
-      // Step 1: SKU search
       ...(search_query
         ? [
             {
@@ -282,7 +281,6 @@ class Service {
             },
           ]
         : []),
-      // Step 2: Join product collection
       {
         $lookup: {
           from: "products",
@@ -291,11 +289,8 @@ class Service {
           as: "product",
         },
       },
-      // Step 3: Unwind product array
       { $unwind: "$product" },
-      // Step 4: Filter is_published only
       { $match: { "product.is_published": true } },
-      // Step 5: Sort, skip, limit
       { $sort: { [sortBy]: sortOrder === "desc" ? -1 : 1 } },
       { $skip: skip },
       { $limit: limit },
@@ -329,24 +324,19 @@ class Service {
     ]);
     const total = totalCountAgg[0]?.total || 0;
 
-    // Stock handle (first item only, as before)
-    const stock =
-      variants[0] &&
-      (await StockModel.findOne({
-        product: variants[0].product._id,
-        variant: variants[0]._id,
-      }));
-
-    // Prepare data (first item stock inject, rest as is)
-    const data = variants.map((item, idx) => {
-      if (idx === 0) {
+    // Prepare data: inject stock for all items
+    const data = await Promise.all(
+      variants.map(async (item) => {
+        const stock = await StockModel.findOne({
+          product: item.product._id,
+          variant: item._id,
+        });
         return {
           ...item,
           stock: stock?.available_quantity || 0,
         };
-      }
-      return item;
-    });
+      })
+    );
 
     return {
       meta: {
