@@ -10,6 +10,7 @@ import { IPaginationOptions } from "@/interfaces/pagination.interfaces";
 import { paginationHelpers } from "@/helpers/paginationHelpers";
 import { StockService } from "../stock/stock.service";
 import { LotService } from "../lot/lot.service";
+import { LotModel } from "./../lot/lot.model";
 
 class Service {
   async createPurchase(data: IPurchase): Promise<IPurchase> {
@@ -122,6 +123,7 @@ class Service {
     const session = await PurchaseModel.startSession();
     session.startTransaction();
     try {
+      // 1. Find existing purchase
       const existingPurchase = await PurchaseModel.findById(purchaseId)
         .lean()
         .session(session);
@@ -129,6 +131,7 @@ class Service {
         throw new Error("Purchase not found");
       }
 
+      // 2. Recalculate purchase_number if location changed
       const newLocationString = String(data.location);
       const existingLocationString = String(existingPurchase.location);
 
@@ -142,6 +145,7 @@ class Service {
         data.purchase_number = existingPurchase.purchase_number;
       }
 
+      // 3. Calculate subtotal and expenses
       let subtotal = 0;
       for (const item of data.items) {
         const itemTotal =
@@ -156,6 +160,7 @@ class Service {
 
       data.total_cost = subtotal + totalExpenses;
 
+      // 4. Update purchase document
       const updatedPurchase = await PurchaseModel.findByIdAndUpdate(
         purchaseId,
         { ...data },
@@ -166,7 +171,7 @@ class Service {
         throw new Error("Purchase update failed");
       }
 
-      // Update stock & create lots
+      // 5. Update stock & update lots (do not create new lot)
       for (const item of data.items) {
         if (!item.product || !item.variant) {
           throw new Error("Item must have product and variant");
@@ -180,6 +185,7 @@ class Service {
             ? (itemTotal + apportionedExpense) / item.qty
             : item.unit_cost;
 
+        // Update stock info (as per your previous logic)
         const stockQuery = {
           product: item.product,
           variant: item.variant,
@@ -197,31 +203,35 @@ class Service {
           session
         );
 
-        await LotService.createLot(
-          {
-            qty_available: item.qty,
-            cost_per_unit: effectiveUnitCost,
-            received_at: data.received_at || new Date(),
-            createdBy: data.created_by,
-            variant: item.variant,
-            product: item.product,
-            location: data.location,
-            source: {
-              type: "purchase",
-              ref_id: updatedPurchase._id,
-            },
-            lot_number:
-              item.lot_number ||
-              `PUR-${updatedPurchase.purchase_number}-${String(item.variant).slice(-4)}`,
-            expiry_date: item.expiry_date || null,
-            qty_total: item.qty,
-            qty_reserved: 0,
-            status: "active",
-            notes: "",
-            stock: stock._id,
-          },
-          session
-        );
+        // Instead of creating a new lot, update the existing lot by source.ref_id (purchase)
+        const lot = await LotModel.findOne({
+          product: item.product,
+          variant: item.variant,
+          location: data.location,
+          "source.type": "purchase",
+          "source.ref_id": updatedPurchase._id,
+        }).session(session);
+
+        if (!lot) {
+          throw new Error(
+            `Lot not found for product ${item.product} variant ${item.variant} and source ${updatedPurchase._id}`
+          );
+        }
+
+        lot.qty_available = item.qty;
+        lot.qty_total = item.qty;
+        lot.cost_per_unit = effectiveUnitCost;
+        lot.expiry_date = item.expiry_date || null;
+        lot.lot_number =
+          item.lot_number ||
+          `PUR-${updatedPurchase.purchase_number}-${String(item.variant).slice(-4)}`;
+        lot.status = "active";
+        lot.notes = "";
+        lot.received_at = data.received_at || lot.received_at;
+        lot.createdBy = data.created_by || lot.createdBy;
+        lot.stock = stock._id;
+
+        await lot.save({ session });
       }
 
       await session.commitTransaction();
