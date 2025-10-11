@@ -61,18 +61,41 @@ class service extends BaseController {
       order.order_status = mappedStatus as IOrderStatus;
       courier.order_status = mappedStatus as ORDER_STATUS;
       const prevDeliveryCharge = parseFloat(data.delivery_charge) || 0;
+      const prevOrderStatus = order.order_status;
       if ("cod_amount" in data) order.paid_amount = data.cod_amount;
       if ("delivery_charge" in data)
         order.delivery_charge = data.delivery_charge;
       if ("tracking_message" in data)
         order.system_message = data.tracking_message;
       if ("updated_at" in data)
-        (order.logs ??= []).push({
-          user: null,
-          action: `Status updated to ${mappedStatus}, delivery charge from ${prevDeliveryCharge} to ${data.delivery_charge} and ${data.tracking_message} by webhook`,
-          time: new Date(data.updated_at),
-        });
-
+        if (
+          prevOrderStatus == mappedStatus &&
+          prevDeliveryCharge != order.delivery_charge
+        ) {
+          (order.logs ??= []).push({
+            user: null,
+            action: `Delivery charge updated from ${prevDeliveryCharge} to ${data.delivery_charge} by webhook`,
+            time: new Date(data.updated_at),
+          });
+        } else if (
+          prevOrderStatus != mappedStatus &&
+          prevDeliveryCharge == order.delivery_charge
+        ) {
+          (order.logs ??= []).push({
+            user: null,
+            action: `Status updated to ${mappedStatus} by webhook`,
+            time: new Date(data.updated_at),
+          });
+        } else if (
+          prevOrderStatus != mappedStatus &&
+          prevDeliveryCharge != order.delivery_charge
+        ) {
+          (order.logs ??= []).push({
+            user: null,
+            action: `Status updated to ${mappedStatus}, delivery charge from ${prevDeliveryCharge} to ${data.delivery_charge} and ${data.tracking_message} by webhook`,
+            time: new Date(data.updated_at),
+          });
+        }
       await order.save();
       await courier.save();
     }
