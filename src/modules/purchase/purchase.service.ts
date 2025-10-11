@@ -11,6 +11,7 @@ import { paginationHelpers } from "@/helpers/paginationHelpers";
 import { StockService } from "../stock/stock.service";
 import { LotService } from "../lot/lot.service";
 import { LotModel } from "./../lot/lot.model";
+import { StockModel } from "../stock/stock.model";
 
 class Service {
   async createPurchase(data: IPurchase): Promise<IPurchase> {
@@ -122,6 +123,7 @@ class Service {
   ): Promise<IPurchase> {
     const session = await PurchaseModel.startSession();
     session.startTransaction();
+
     try {
       // 1. Find existing purchase
       const existingPurchase = await PurchaseModel.findById(purchaseId)
@@ -171,11 +173,12 @@ class Service {
         throw new Error("Purchase update failed");
       }
 
-      // 5. Update stock & update lots (do not create new lot)
+      // 5. Update stock & lot adjustments (revised logic)
       for (const item of data.items) {
         if (!item.product || !item.variant) {
           throw new Error("Item must have product and variant");
         }
+
         const itemTotal =
           item.qty * item.unit_cost - (item.discount || 0) + (item.tax || 0);
         const apportionedExpense =
@@ -185,53 +188,118 @@ class Service {
             ? (itemTotal + apportionedExpense) / item.qty
             : item.unit_cost;
 
-        // Update stock info (as per your previous logic)
+        // Find old lots (created by this purchase)
+        const oldLots = await LotModel.find({
+          "source.type": "purchase",
+          "source.ref_id": existingPurchase._id,
+          product: item.product,
+          variant: item.variant,
+          location: data.location,
+        }).session(session);
+
+        const existingQty = oldLots.reduce(
+          (sum, lot) => sum + (lot.qty_total || 0),
+          0
+        );
+
+        const delta = (item.qty || 0) - existingQty;
+
+        // Stock record
         const stockQuery = {
           product: item.product,
           variant: item.variant,
           location: data.location,
         };
-        const stock = await StockService.findOneAndUpdateByPurchase(
-          stockQuery,
-          {
-            product: item.product,
+        const stock = await StockModel.findOne(stockQuery).session(session);
+
+        if (delta === 0) {
+          // Quantity unchanged, only cost may change
+          for (const lot of oldLots) {
+            lot.cost_per_unit = effectiveUnitCost;
+            await lot.save({ session });
+          }
+        } else if (delta > 0) {
+          // Increase stock quantity
+          if (!stock) {
+            await StockModel.findOneAndUpdate(
+              stockQuery,
+              {
+                $setOnInsert: {
+                  product: item.product,
+                  variant: item.variant,
+                  location: data.location,
+                },
+                $inc: { available_quantity: delta, total_received: delta },
+              },
+              { upsert: true, new: true, session }
+            );
+          } else {
+            await StockModel.findByIdAndUpdate(
+              stock._id,
+              { $inc: { available_quantity: delta, total_received: delta } },
+              { session }
+            );
+          }
+
+          // Create new lot for added qty
+          const newLot = new LotModel({
+            qty_available: delta,
+            qty_total: delta,
+            cost_per_unit: effectiveUnitCost,
+            received_at: data.received_at,
+            createdBy: data.created_by,
             variant: item.variant,
+            product: item.product,
             location: data.location,
-            available_quantity: item.qty,
-            total_received: item.qty,
-          },
-          session
-        );
+            source: { type: "purchase", ref_id: existingPurchase._id },
+            lot_number:
+              item.lot_number ||
+              `PUR-${updatedPurchase.purchase_number}-${String(
+                item.variant
+              ).slice(-4)}`,
+            expiry_date: item.expiry_date || null,
+            status: "active",
+            notes: "",
+            stock: (stock && stock._id) || undefined,
+          });
+          await newLot.save({ session });
+        } else {
+          // delta < 0 → reduce inventory
+          let toRemove = Math.abs(delta);
+          const sortedLots = oldLots.sort((a, b) => {
+            return (
+              (b.received_at?.getTime() || b._id.getTimestamp().getTime()) -
+              (a.received_at?.getTime() || a._id.getTimestamp().getTime())
+            );
+          });
 
-        // Instead of creating a new lot, update the existing lot by source.ref_id (purchase)
-        const lot = await LotModel.findOne({
-          product: item.product,
-          variant: item.variant,
-          location: data.location,
-          "source.type": "purchase",
-          "source.ref_id": updatedPurchase._id,
-        }).session(session);
+          for (const lot of sortedLots) {
+            if (toRemove === 0) break;
+            const reducible = Math.min(toRemove, lot.qty_available || 0);
 
-        if (!lot) {
-          throw new Error(
-            `Lot not found for product ${item.product} variant ${item.variant} and source ${updatedPurchase._id}`
-          );
+            await LotModel.findByIdAndUpdate(
+              lot._id,
+              {
+                $inc: { qty_total: -reducible, qty_available: -reducible },
+                ...(lot.qty_total - reducible <= 0 ? { status: "closed" } : {}),
+              },
+              { session }
+            );
+
+            await StockModel.findByIdAndUpdate(
+              lot.stock,
+              {
+                $inc: {
+                  available_quantity: -reducible,
+                  total_received: -reducible,
+                },
+              },
+              { session }
+            );
+
+            toRemove -= reducible;
+          }
         }
-
-        lot.qty_available = item.qty;
-        lot.qty_total = item.qty;
-        lot.cost_per_unit = effectiveUnitCost;
-        lot.expiry_date = item.expiry_date || null;
-        lot.lot_number =
-          item.lot_number ||
-          `PUR-${updatedPurchase.purchase_number}-${String(item.variant).slice(-4)}`;
-        lot.status = "active";
-        lot.notes = "";
-        lot.received_at = data.received_at || lot.received_at;
-        lot.createdBy = data.created_by || lot.createdBy;
-        lot.stock = stock._id;
-
-        await lot.save({ session });
       }
 
       await session.commitTransaction();
