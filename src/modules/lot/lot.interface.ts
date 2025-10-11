@@ -1,23 +1,22 @@
 import { Types } from "mongoose";
 
 export type ILot = {
-  _id?: Types.ObjectId; // কোন ভ্যারিয়েন্ট
-  stock: Types.ObjectId; // কোন ভ্যারিয়েন্ট
-  variant: Types.ObjectId; // কোন ভ্যারিয়েন্ট
-  product: Types.ObjectId; // (রিপোর্টিং/জয়েনের সুবিধা)
-  location: Types.ObjectId; // কোন আউটলেটে lot আছে
-  lot_number: string; // ইনভয়েস/নিজস্ব সিরিয়াল (unique per variant+outlet)
-  received_at: Date; // FIFO-র key
-  cost_per_unit: number; // landed/unit cost (expense-apportioned)
-  qty_total: number; // মোট কত এসেছিল
-  qty_available: number; // এখন কত বাকি
-  qty_reserved?: number; // এখন কত রিজার্ভড
+  _id?: Types.ObjectId;
+  stock: Types.ObjectId;
+  variant: Types.ObjectId;
+  product: Types.ObjectId;
+  location: Types.ObjectId;
+  lot_number: string;
+  received_at: Date;
+  cost_per_unit: number;
+  qty_total: number;
+  qty_available: number;
+  qty_reserved?: number;
   source: {
-    // এই lot কোথা থেকে এলো
     type: "purchase" | "transfer_in" | "return" | "adjustment";
-    ref_id: Types.ObjectId | string; // PO/Transfer/SaleReturn ইত্যাদির আইডি
+    ref_id: Types.ObjectId | string;
   };
-  expiry_date?: Date | null; // থাকলে মেয়াদ
+  expiry_date?: Date | null;
 
   status?: "active" | "expired" | "quarantined" | "closed";
   notes?: string;
