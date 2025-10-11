@@ -55,13 +55,15 @@ class service extends BaseController {
       };
     }
 
+    const prevDeliveryCharge = Number(order.delivery_charge) || 0;
+    const prevOrderStatus = order.order_status;
+
     if (data.notification_type === "delivery_status") {
       const mappedStatus =
         STATUS_MAP[String(data.status).toLowerCase()] || ORDER_STATUS.UNKNOWN;
       order.order_status = mappedStatus as IOrderStatus;
       courier.order_status = mappedStatus as ORDER_STATUS;
-      const prevDeliveryCharge = parseFloat(data.delivery_charge) || 0;
-      const prevOrderStatus = order.order_status;
+
       if ("cod_amount" in data) order.paid_amount = data.cod_amount;
       if ("delivery_charge" in data)
         order.delivery_charge = data.delivery_charge;
