@@ -64,7 +64,7 @@ class service extends BaseController {
       order.order_status = mappedStatus as IOrderStatus;
       courier.order_status = mappedStatus as ORDER_STATUS;
 
-      if ("cod_amount" in data) order.paid_amount = data.cod_amount;
+      if ("cod_amount" in data) order.paid_amount += data.cod_amount;
       if ("delivery_charge" in data)
         order.delivery_charge = data.delivery_charge;
       if ("tracking_message" in data)
