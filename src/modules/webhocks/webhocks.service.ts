@@ -60,7 +60,7 @@ class service extends BaseController {
         STATUS_MAP[String(data.status).toLowerCase()] || ORDER_STATUS.UNKNOWN;
       order.order_status = mappedStatus as IOrderStatus;
       courier.order_status = mappedStatus as ORDER_STATUS;
-
+      const prevDeliveryCharge = parseFloat(data.delivery_charge) || 0;
       if ("cod_amount" in data) order.paid_amount = data.cod_amount;
       if ("delivery_charge" in data)
         order.delivery_charge = data.delivery_charge;
@@ -69,7 +69,7 @@ class service extends BaseController {
       if ("updated_at" in data)
         (order.logs ??= []).push({
           user: null,
-          action: `Status updated to ${mappedStatus} by webhook`,
+          action: `Status updated to ${mappedStatus}, delivery charge from ${prevDeliveryCharge} to ${data.delivery_charge} and ${data.tracking_message} by webhook`,
           time: new Date(data.updated_at),
         });
 
