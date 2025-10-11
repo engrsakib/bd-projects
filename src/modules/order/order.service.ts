@@ -452,44 +452,142 @@ class Service {
         );
       }
 
-      // 3. Check stock for new/updated products
-      for (const item of enrichedOrder.products) {
-        const stock = await StockModel.findOne(
-          {
-            product: item.product,
-            variant: item.variant,
-          },
-          null,
-          { session }
+      // 3. Build old & new items map for delta calculation
+      const oldItemsMap = new Map();
+      (existingOrder.items ?? []).forEach(function (item) {
+        oldItemsMap.set(
+          `${item.product.toString()}_${item.variant?.toString()}`,
+          item
         );
+      });
+      const newItemsMap = new Map();
+      enrichedOrder.products.forEach(function (item: IOrderItem) {
+        newItemsMap.set(
+          `${item.product._id.toString()}_${item.variant?._id?.toString()}`,
+          item
+        );
+      });
 
-        if (!stock || stock.available_quantity < item.quantity) {
-          session.endSession();
-          throw new ApiError(
-            HttpStatusCode.BAD_REQUEST,
-            `Product ${item.product.name} is out of stock or does not have enough quantity`
+      // 4. Stock/Lot adjustment for new/changed products
+      const stockLotTasks: Promise<any>[] = [];
+      newItemsMap.forEach(function (newItem, key) {
+        stockLotTasks.push(
+          (async () => {
+            const oldItem = oldItemsMap.get(key);
+            const prevQty = oldItem ? oldItem.quantity : 0;
+            const newQty = newItem.quantity;
+            const deltaQty = newQty - prevQty;
+
+            const stock = await StockModel.findOne(
+              {
+                product: newItem.product._id,
+                variant: newItem.variant?._id,
+              },
+              null,
+              { session }
+            );
+            if (
+              !stock ||
+              stock.available_quantity < (deltaQty > 0 ? deltaQty : 0)
+            ) {
+              throw new ApiError(
+                HttpStatusCode.BAD_REQUEST,
+                `Product ${newItem.product.name} is out of stock or does not have enough quantity`
+              );
+            }
+
+            // Quantity increased: reduce stock, create new lot
+            if (deltaQty > 0) {
+              stock.available_quantity -= deltaQty;
+              await stock.save({ session });
+
+              await LotModel.create(
+                {
+                  product: newItem.product._id,
+                  variant: newItem.variant?._id,
+                  qty_total: deltaQty,
+                  qty_available: deltaQty,
+                  order: existingOrder._id,
+                  status: "active",
+                },
+                { session }
+              );
+            }
+            // Quantity decreased: restore stock, reduce from lots
+            else if (deltaQty < 0) {
+              stock.available_quantity += Math.abs(deltaQty);
+              await stock.save({ session });
+
+              let toRemove = Math.abs(deltaQty);
+              const lots = await LotModel.find({
+                product: newItem.product._id,
+                variant: newItem.variant?._id,
+                order: existingOrder._id,
+                status: "active",
+              })
+                .sort({ createdAt: -1 })
+                .session(session);
+
+              for (let i = 0; i < lots.length && toRemove > 0; i++) {
+                const lot = lots[i];
+                const reducible = Math.min(toRemove, lot.qty_available);
+                lot.qty_available -= reducible;
+                lot.qty_total -= reducible;
+                if (lot.qty_available <= 0) lot.status = "closed";
+                await lot.save({ session });
+                toRemove -= reducible;
+              }
+            }
+            // deltaQty == 0: nothing to do
+          })()
+        );
+      });
+
+      // Handle removed products (present in old, not in new)
+      oldItemsMap.forEach(function (oldItem, key) {
+        if (!newItemsMap.has(key)) {
+          stockLotTasks.push(
+            (async () => {
+              const stock = await StockModel.findOne(
+                {
+                  product: oldItem.product,
+                  variant: oldItem.variant,
+                },
+                null,
+                { session }
+              );
+              if (stock) {
+                stock.available_quantity += oldItem.quantity;
+                await stock.save({ session });
+              }
+
+              const lots = await LotModel.find({
+                product: oldItem.product,
+                variant: oldItem.variant,
+                order: existingOrder._id,
+                status: "active",
+              }).session(session);
+
+              for (let i = 0; i < lots.length; i++) {
+                const lot = lots[i];
+                lot.qty_available = 0;
+                lot.qty_total = 0;
+                lot.status = "closed";
+                await lot.save({ session });
+              }
+            })()
           );
         }
+      });
 
-        // If quantity increased, reduce stock
-        const prevItem = (existingOrder.items ?? []).find(
-          (i) =>
-            i.product.toString() === item.product._id.toString() &&
-            i.variant?.toString() === item.variant?._id?.toString()
-        );
-        const prevQty = prevItem ? prevItem.quantity : 0;
-        const deltaQty = item.quantity - prevQty;
-        if (deltaQty > 0) {
-          stock.available_quantity -= deltaQty;
-          await stock.save({ session });
-        }
-      }
+      // Await all stock/lot updates before proceeding
+      await Promise.all(stockLotTasks);
 
-      // 4. Calculate new totals
+      // 5. Calculate new totals
       const { total_price, items, total_items } =
         await this.calculateCart(enrichedOrder);
 
-      // 5. Update order fields
+      // 6. Update order fields
       if (data?.tax && data?.tax > 0) {
         data.tax = Number(data?.tax.toFixed());
         existingOrder.total_amount =
@@ -542,9 +640,10 @@ class Service {
             });
 
           existingOrder.payment_id = payment_id;
-          // payment_url will be returned at end
           existingOrder.payment_status = PAYMENT_STATUS.PAID;
           existingOrder.payable_amount = 0;
+          await existingOrder.save({ session });
+
           const populatedOrders = await OrderModel.find({
             _id: existingOrder._id,
           })
@@ -558,16 +657,16 @@ class Service {
                 "attributes attribute_values regular_price sale_price sku barcode image",
             });
 
+          await session.commitTransaction();
+          session.endSession();
           return { order: populatedOrders, payment_url: bkash_payment_url };
         }
       }
 
-      // status handling
       existingOrder.order_status = ORDER_STATUS.PLACED;
 
       await existingOrder.save({ session });
 
-      // Optionally clear user's cart (if logic requires)
       await CartService.clearCartAfterCheckout(
         existingOrder.user as Types.ObjectId,
         session
@@ -595,8 +694,9 @@ class Service {
       };
     } catch (err) {
       await session.abortTransaction();
-      session.endSession();
       throw err;
+    } finally {
+      session.endSession();
     }
   }
 
