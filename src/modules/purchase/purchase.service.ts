@@ -439,40 +439,145 @@ class Service {
     };
   }
 
-  async getPurchaseById(id: string): Promise<IPurchase | null> {
-    const result = await PurchaseModel.findById(id)
-      .populate([
-        {
-          path: "location",
-          model: "Location",
-        },
-        {
-          path: "supplier",
-          model: "Supplier",
-        },
-        {
-          path: "created_by",
-          model: "Admin",
-          select: "-password",
-        },
-        {
-          path: "received_by",
-          model: "Admin",
-          select: "-password",
-        },
-        {
-          path: "items.variant",
-          model: "Variant",
-        },
-        {
-          path: "items.product",
-          model: "Product",
-          select: "name slug sku thumbnail category",
-        },
-      ])
-      .exec();
+  async getPurchaseById(id?: string, sku?: string): Promise<any | null> {
+    const pipeline: any[] = [];
 
-    return result;
+    if (id) {
+      pipeline.push({
+        $match: {
+          purchase_number: isNaN(Number(id)) ? id : Number(id),
+        },
+      });
+    }
+
+    pipeline.push({ $unwind: "$items" });
+
+    if (sku) {
+      pipeline.push(
+        {
+          $lookup: {
+            from: "variants",
+            localField: "items.variant",
+            foreignField: "_id",
+            as: "item_variant_doc",
+          },
+        },
+        { $unwind: "$item_variant_doc" },
+        {
+          $match: {
+            "item_variant_doc.sku": sku,
+          },
+        }
+      );
+    }
+
+    pipeline.push({
+      $group: {
+        _id: "$_id",
+        purchase_number: { $first: "$purchase_number" },
+        purchase_date: { $first: "$purchase_date" },
+        created_by: { $first: "$created_by" },
+        received_by: { $first: "$received_by" },
+        received_at: { $first: "$received_at" },
+        location: { $first: "$location" },
+        supplier: { $first: "$supplier" },
+        total_cost: { $first: "$total_cost" },
+        expenses_applied: { $first: "$expenses_applied" },
+        attachments: { $first: "$attachments" },
+        additional_note: { $first: "$additional_note" },
+        status: { $first: "$status" },
+        items: { $push: "$items" },
+      },
+    });
+
+    pipeline.push(
+      {
+        $lookup: {
+          from: "locations",
+          localField: "location",
+          foreignField: "_id",
+          as: "location",
+        },
+      },
+      { $unwind: { path: "$location", preserveNullAndEmptyArrays: true } }
+    );
+
+    pipeline.push(
+      {
+        $lookup: {
+          from: "suppliers",
+          localField: "supplier",
+          foreignField: "_id",
+          as: "supplier",
+        },
+      },
+      { $unwind: { path: "$supplier", preserveNullAndEmptyArrays: true } }
+    );
+
+    pipeline.push(
+      {
+        $lookup: {
+          from: "admins",
+          localField: "created_by",
+          foreignField: "_id",
+          as: "created_by",
+        },
+      },
+      { $unwind: { path: "$created_by", preserveNullAndEmptyArrays: true } }
+    );
+
+    pipeline.push(
+      {
+        $lookup: {
+          from: "admins",
+          localField: "received_by",
+          foreignField: "_id",
+          as: "received_by",
+        },
+      },
+      { $unwind: { path: "$received_by", preserveNullAndEmptyArrays: true } }
+    );
+
+    pipeline.push({
+      $lookup: {
+        from: "variants",
+        localField: "items.variant",
+        foreignField: "_id",
+        as: "items_variant",
+      },
+    });
+
+    pipeline.push({
+      $lookup: {
+        from: "products",
+        localField: "items.product",
+        foreignField: "_id",
+        as: "items_product",
+      },
+    });
+
+    pipeline.push({
+      $project: {
+        purchase_number: 1,
+        purchase_date: 1,
+        created_by: 1,
+        received_by: 1,
+        received_at: 1,
+        location: 1,
+        supplier: 1,
+        total_cost: 1,
+        expenses_applied: 1,
+        attachments: 1,
+        additional_note: 1,
+        status: 1,
+        items: 1,
+        items_variant: 1,
+        items_product: 1,
+      },
+    });
+
+    const result = await PurchaseModel.aggregate(pipeline);
+    return result[0] || null;
   }
 
   async updateStatus(
