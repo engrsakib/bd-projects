@@ -13,6 +13,13 @@ router.get(
   PurchaseController.getPurchaseByQuery
 );
 
+router.get(
+  "/:id",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.PURCHASE_VIEW),
+  PurchaseController.getPurchaseById
+);
+
 router.post(
   "/",
   JwtInstance.authenticate(Object.values(ROLES)),
@@ -25,13 +32,6 @@ router.get(
   JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.PURCHASE_VIEW),
   PurchaseController.getAllPurchases
-);
-
-router.get(
-  "/:id",
-  JwtInstance.authenticate(Object.values(ROLES)),
-  JwtInstance.hasPermissions(PermissionEnum.PURCHASE_VIEW),
-  PurchaseController.getPurchaseById
 );
 
 router.patch(

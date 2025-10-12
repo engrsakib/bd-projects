@@ -499,7 +499,6 @@ class Service {
           { session }
         );
         if (!stock || stock.available_quantity < item.quantity) {
-          // session.endSession(); // **এটা বাদ দিন**
           throw new ApiError(
             HttpStatusCode.BAD_REQUEST,
             `Product ${item.product.name} is out of stock or does not have enough quantity`
