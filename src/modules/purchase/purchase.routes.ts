@@ -6,6 +6,13 @@ import { PermissionEnum } from "../permission/permission.enum";
 
 const router = Router();
 
+router.get(
+  "/search",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.PURCHASE_VIEW),
+  PurchaseController.getPurchaseById
+);
+
 router.post(
   "/",
   JwtInstance.authenticate(Object.values(ROLES)),
@@ -18,13 +25,6 @@ router.get(
   JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.PURCHASE_VIEW),
   PurchaseController.getAllPurchases
-);
-
-router.get(
-  "/:id",
-  JwtInstance.authenticate(Object.values(ROLES)),
-  JwtInstance.hasPermissions(PermissionEnum.PURCHASE_VIEW),
-  PurchaseController.getPurchaseById
 );
 
 router.patch(
