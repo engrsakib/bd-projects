@@ -332,102 +332,170 @@ class Service {
       purchase_date_end,
       purchase_date_start,
       purchase_number,
+      sku,
       status,
       supplier,
       received_at_end_date,
       received_at_start_date,
     } = filters;
+
+    // Build main query
+    const queries: any = {};
+
+    if (supplier) queries.supplier = supplier;
+    if (location) queries.location = location;
+    if (status) queries.status = status;
+
+    // Received date filter
+    if (received_at_start_date || received_at_end_date) {
+      queries.received_at = {};
+      const receivedAtStartRange = parseDateRange(
+        received_at_start_date as string
+      );
+      const receivedAtEndRange = parseDateRange(received_at_end_date as string);
+      if (received_at_start_date)
+        queries.received_at.$gte = receivedAtStartRange?.start;
+      if (received_at_end_date)
+        queries.received_at.$lte = receivedAtEndRange?.end;
+    }
+
+    // Created date filter
     const startCreateAtDateRange = parseDateRange(
       created_at_start_date as string
     );
     const endCreateAtDateRange = parseDateRange(created_at_end_date as string);
+    if (created_at_start_date || created_at_end_date) queries.created_at = {};
+    if (created_at_start_date)
+      queries.created_at.$gte = startCreateAtDateRange?.start;
+    if (created_at_end_date)
+      queries.created_at.$lte = endCreateAtDateRange?.end;
+
+    // Purchase date filter
     const startPurchaseDateRange = parseDateRange(
       purchase_date_start as string
     );
     const endPurchaseDateRange = parseDateRange(purchase_date_end as string);
-    const receivedAtStartRange = parseDateRange(
-      received_at_start_date as string
-    );
-    const receivedAtEndRange = parseDateRange(received_at_end_date as string);
-    const queries: any = {};
+    if (purchase_date_start || purchase_date_end) queries.purchase_date = {};
+    if (purchase_date_start)
+      queries.purchase_date.$gte = startPurchaseDateRange?.start;
+    if (purchase_date_end)
+      queries.purchase_date.$lte = endPurchaseDateRange?.end;
 
-    if (supplier) {
-      queries.supplier = supplier;
-    }
-    if (location) {
-      queries.location = location;
-    }
-    if (status) {
-      queries.status = status;
-    }
-    if (received_at_start_date || received_at_end_date) {
-      queries.received_at = {};
-    }
-    if (received_at_start_date) {
-      queries.received_at.$gte = receivedAtStartRange?.start;
-    }
-
-    if (received_at_end_date) {
-      queries.received_at.$lte = receivedAtEndRange?.end;
-    }
-    if (startCreateAtDateRange || endCreateAtDateRange) {
-      queries.created_at = {};
-    }
-    if (startCreateAtDateRange) {
-      queries.created_at.$gte = startCreateAtDateRange.start;
-    }
-    if (endCreateAtDateRange) {
-      queries.created_at.$lte = endCreateAtDateRange.end;
-    }
-    if (startPurchaseDateRange || endPurchaseDateRange) {
-      queries.purchase_date = {};
-    }
-    if (startPurchaseDateRange) {
-      queries.purchase_date.$gte = startPurchaseDateRange.start;
-    }
-    if (endPurchaseDateRange) {
-      queries.purchase_date.$lte = endPurchaseDateRange.end;
-    }
-    if (purchase_number) {
+    // Purchase number filter
+    if (purchase_number)
       queries.purchase_number = parseInt(purchase_number as string, 10);
+
+    // Efficient SKU filter inside items.variant.sku using aggregation
+    let purchases: any[] = [];
+    let total = 0;
+
+    if (sku) {
+      // Aggregation pipeline for SKU filtering
+      const pipeline: any[] = [
+        { $match: queries },
+        {
+          $lookup: {
+            from: "variants",
+            localField: "items.variant",
+            foreignField: "_id",
+            as: "variants_docs",
+          },
+        },
+        // Match any items.variant with requested sku
+        {
+          $match: {
+            "variants_docs.sku": sku,
+          },
+        },
+        // Usual populates
+        {
+          $lookup: {
+            from: "locations",
+            localField: "location",
+            foreignField: "_id",
+            as: "location",
+          },
+        },
+        { $unwind: { path: "$location", preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: "suppliers",
+            localField: "supplier",
+            foreignField: "_id",
+            as: "supplier",
+          },
+        },
+        { $unwind: { path: "$supplier", preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: "admins",
+            localField: "created_by",
+            foreignField: "_id",
+            as: "created_by",
+          },
+        },
+        { $unwind: { path: "$created_by", preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: "admins",
+            localField: "received_by",
+            foreignField: "_id",
+            as: "received_by",
+          },
+        },
+        { $unwind: { path: "$received_by", preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: "variants",
+            localField: "items.variant",
+            foreignField: "_id",
+            as: "items_variant",
+          },
+        },
+        {
+          $lookup: {
+            from: "products",
+            localField: "items.product",
+            foreignField: "_id",
+            as: "items_product",
+          },
+        },
+        // Sorting, skipping, limiting
+        { $sort: { [sortBy]: sortOrder === "asc" ? 1 : -1 } },
+        { $skip: skip },
+        { $limit: limit },
+      ];
+      purchases = await PurchaseModel.aggregate(pipeline);
+      // Count total with matching pipeline (without pagination)
+      const totalPipeline = pipeline.filter(
+        (stage) =>
+          !("$skip" in stage) && !("$limit" in stage) && !("$sort" in stage)
+      );
+      total =
+        (
+          await PurchaseModel.aggregate([...totalPipeline, { $count: "count" }])
+        )[0]?.count || 0;
+    } else {
+      // If no SKU, use normal query + populate (faster for non-SKU queries)
+      purchases = await PurchaseModel.find(queries)
+        .populate([
+          { path: "location", model: "Location" },
+          { path: "supplier", model: "Supplier" },
+          { path: "created_by", model: "Admin", select: "-password" },
+          { path: "received_by", model: "Admin", select: "-password" },
+          { path: "items.variant", model: "Variant" },
+          {
+            path: "items.product",
+            model: "Product",
+            select: "name slug sku thumbnail category",
+          },
+        ])
+        .sort({ [sortBy]: sortOrder === "asc" ? 1 : -1 })
+        .skip(skip)
+        .limit(limit)
+        .exec();
+      total = await PurchaseModel.countDocuments(queries);
     }
-
-    const purchases = await PurchaseModel.find(queries)
-      .populate([
-        {
-          path: "location",
-          model: "Location",
-        },
-        {
-          path: "supplier",
-          model: "Supplier",
-        },
-        {
-          path: "created_by",
-          model: "Admin",
-          select: "-password",
-        },
-        {
-          path: "received_by",
-          model: "Admin",
-          select: "-password",
-        },
-        {
-          path: "items.variant",
-          model: "Variant",
-        },
-        {
-          path: "items.product",
-          model: "Product",
-          select: "name slug sku thumbnail category",
-        },
-      ])
-      .sort({ [sortBy]: sortOrder === "asc" ? 1 : -1 })
-      .skip(skip)
-      .limit(limit)
-      .exec();
-
-    const total = await PurchaseModel.countDocuments(queries);
 
     return {
       meta: {

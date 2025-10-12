@@ -42,6 +42,7 @@ export type IPurchaseStatus = PURCHASE_STATUS_ENUM;
 export type IPurchaseFilters = {
   supplier?: string;
   location?: string;
+  sku?: string;
   status?: IPurchaseStatus;
   created_at_start_date?: string | Date;
   created_at_end_date?: string | Date;
