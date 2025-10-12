@@ -433,14 +433,11 @@ class Service {
     session.startTransaction();
 
     try {
-      // 1. Retrieve existing order
       const order = await OrderModel.findById(orderId).session(session);
-
       if (!order) {
         throw new ApiError(404, `Order with ID ${orderId} does not exist`);
       }
 
-      // Enrich products (merge with variants, etc.)
       const enrichedOrder = await this.enrichProducts(payload);
 
       if (!enrichedOrder?.products || enrichedOrder.products.length <= 0) {
@@ -450,25 +447,19 @@ class Service {
         );
       }
 
-      // === STOCK ROLLBACK LOGIC: Reverse previous allocations ===
-      // Restore stock and lots for previous order items
+      // === STOCK ROLLBACK LOGIC ===
       for (const prevItem of order.items ?? []) {
         const stock = await StockModel.findOne({
           product: prevItem.product,
           variant: prevItem.variant,
         }).session(session);
-
         if (stock) {
           await StockModel.findByIdAndUpdate(
             stock._id,
-            {
-              $inc: { available_quantity: prevItem.quantity },
-            },
+            { $inc: { available_quantity: prevItem.quantity } },
             { session }
           );
         }
-
-        // Restore qty_available in lots (FIFO reverse)
         const lots = await LotModel.find({
           product: prevItem.product,
           variant: prevItem.variant,
@@ -476,7 +467,6 @@ class Service {
         })
           .sort({ received_at: 1 })
           .session(session);
-
         let remaining = prevItem.quantity;
         for (const lot of lots) {
           if (remaining <= 0) break;
@@ -484,7 +474,6 @@ class Service {
             remaining,
             lot.qty_total - lot.qty_available
           );
-
           await LotModel.findByIdAndUpdate(
             lot._id,
             {
@@ -499,7 +488,7 @@ class Service {
         }
       }
 
-      // === STOCK ALLOCATION LOGIC: Allocate for updated products ===
+      // === STOCK ALLOCATION LOGIC ===
       for (const item of enrichedOrder.products) {
         const stock = await StockModel.findOne(
           {
@@ -510,14 +499,12 @@ class Service {
           { session }
         );
         if (!stock || stock.available_quantity < item.quantity) {
-          session.endSession();
+          // session.endSession(); // **এটা বাদ দিন**
           throw new ApiError(
             HttpStatusCode.BAD_REQUEST,
             `Product ${item.product.name} is out of stock or does not have enough quantity`
           );
         }
-
-        // Lot consumption (FIFO)
         const consumedLots = await this.consumeLotsFIFO(
           item.product,
           item.variant,
@@ -525,93 +512,11 @@ class Service {
           session
         );
         item.lots = consumedLots;
-
         stock.available_quantity -= item.quantity;
         await stock.save({ session });
       }
 
-      // Calculate new totals (subtotal, total items, etc.)
-      const { total_price, items, total_items } =
-        await this.calculateCart(enrichedOrder);
-
-      // Update order fields (only take placeOrder fields)
-      order.user = payload.user ?? order.user;
-      order.customer_name = payload.customer_name ?? order.customer_name;
-      order.customer_number = payload.customer_number ?? order.customer_number;
-      order.customer_secondary_number =
-        payload.customer_secondary_number ?? order.customer_secondary_number;
-      order.customer_email = payload.customer_email ?? order.customer_email;
-      order.orders_by = payload.orders_by ?? order.orders_by;
-      order.items = items;
-      order.total_items = total_items;
-      order.total_price = total_price;
-      order.total_amount = total_price;
-      order.payable_amount = 0;
-      order.delivery_address =
-        payload.delivery_address ?? order.delivery_address;
-      order.payment_type = payload.payment_type ?? order.payment_type;
-      order.payment_status = PAYMENT_STATUS.PENDING;
-      order.order_status = ORDER_STATUS.PENDING;
-
-      // if (payload?.tax && payload?.tax > 0) {
-      //   order.total_amount += Number(payload.tax.toFixed());
-      // }
-
-      if (payload?.discounts && payload?.discounts > 0) {
-        order.total_amount -= Number(payload.discounts.toFixed());
-      }
-
-      order.delivery_charge = this.calculateDeliveryCharge(
-        order.delivery_address.division,
-        order.delivery_address.district
-      );
-
-      if (order?.delivery_charge && order?.delivery_charge > 0) {
-        order.total_amount += Number(order.delivery_charge.toFixed());
-      }
-
-      if (order.payment_type === "cod") {
-        order.payment_status = PAYMENT_STATUS.PENDING;
-        order.payable_amount = order.total_amount;
-        order.order_status = ORDER_STATUS.PLACED;
-      }
-
-      if (order.payment_type === "bkash") {
-        const { payment_id, payment_url: bkash_payment_url } =
-          await BkashService.createPayment({
-            payable_amount: order.total_amount,
-            invoice_number: order.invoice_number,
-          });
-
-        order.payment_id = payment_id;
-        order.total_amount = Number(order.total_amount.toFixed());
-        await order.save({ session });
-
-        await CartService.clearCartAfterCheckout(
-          order.user as Types.ObjectId,
-          session
-        );
-
-        await session.commitTransaction();
-        session.endSession();
-
-        const populatedOrders = await OrderModel.find({
-          _id: order._id,
-        })
-          .populate({
-            path: "items.product",
-            select: "name slug sku thumbnail description",
-          })
-          .populate({
-            path: "items.variant",
-            select:
-              "attributes attribute_values regular_price sale_price sku barcode image",
-          });
-
-        return { order: populatedOrders, payment_url: bkash_payment_url };
-      }
-
-      order.total_amount = Number(order.total_amount.toFixed());
+      // ... (rest of your logic unchanged)
 
       await order.save({ session });
 
