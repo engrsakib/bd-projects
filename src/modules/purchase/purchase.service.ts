@@ -439,7 +439,7 @@ class Service {
     };
   }
 
-  async getPurchaseById(id?: string, sku?: string): Promise<any | null> {
+  async getPurchaseByQuery(id?: string, sku?: string): Promise<any | null> {
     const pipeline: any[] = [];
 
     if (id) {
@@ -578,6 +578,42 @@ class Service {
 
     const result = await PurchaseModel.aggregate(pipeline);
     return result[0] || null;
+  }
+
+  async getPurchaseById(id: string): Promise<IPurchase | null> {
+    const result = await PurchaseModel.findById(id)
+      .populate([
+        {
+          path: "location",
+          model: "Location",
+        },
+        {
+          path: "supplier",
+          model: "Supplier",
+        },
+        {
+          path: "created_by",
+          model: "Admin",
+          select: "-password",
+        },
+        {
+          path: "received_by",
+          model: "Admin",
+          select: "-password",
+        },
+        {
+          path: "items.variant",
+          model: "Variant",
+        },
+        {
+          path: "items.product",
+          model: "Product",
+          select: "name slug sku thumbnail category",
+        },
+      ])
+      .exec();
+
+    return result;
   }
 
   async updateStatus(
