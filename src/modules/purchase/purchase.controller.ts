@@ -31,8 +31,13 @@ class Controller extends BaseController {
   });
 
   getPurchaseById = this.catchAsync(async (req, res) => {
-    const { id } = req.params;
-    const purchase = await PurchaseService.getPurchaseById(id);
+    const { id, sku } = req.query;
+    const purchase = await PurchaseService.getPurchaseById(
+      id as string,
+      sku as string
+    );
+
+    console.log(sku, "sku in controller");
     this.sendResponse(res, {
       statusCode: HttpStatusCode.OK,
       success: true,

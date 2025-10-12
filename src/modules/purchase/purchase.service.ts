@@ -10,6 +10,8 @@ import { IPaginationOptions } from "@/interfaces/pagination.interfaces";
 import { paginationHelpers } from "@/helpers/paginationHelpers";
 import { StockService } from "../stock/stock.service";
 import { LotService } from "../lot/lot.service";
+import { LotModel } from "./../lot/lot.model";
+import { StockModel } from "../stock/stock.model";
 
 class Service {
   async createPurchase(data: IPurchase): Promise<IPurchase> {
@@ -121,7 +123,9 @@ class Service {
   ): Promise<IPurchase> {
     const session = await PurchaseModel.startSession();
     session.startTransaction();
+
     try {
+      // 1. Find existing purchase
       const existingPurchase = await PurchaseModel.findById(purchaseId)
         .lean()
         .session(session);
@@ -129,6 +133,7 @@ class Service {
         throw new Error("Purchase not found");
       }
 
+      // 2. Recalculate purchase_number if location changed
       const newLocationString = String(data.location);
       const existingLocationString = String(existingPurchase.location);
 
@@ -142,6 +147,7 @@ class Service {
         data.purchase_number = existingPurchase.purchase_number;
       }
 
+      // 3. Calculate subtotal and expenses
       let subtotal = 0;
       for (const item of data.items) {
         const itemTotal =
@@ -156,6 +162,7 @@ class Service {
 
       data.total_cost = subtotal + totalExpenses;
 
+      // 4. Update purchase document
       const updatedPurchase = await PurchaseModel.findByIdAndUpdate(
         purchaseId,
         { ...data },
@@ -166,11 +173,12 @@ class Service {
         throw new Error("Purchase update failed");
       }
 
-      // Update stock & create lots
+      // 5. Update stock & lot adjustments (revised logic)
       for (const item of data.items) {
         if (!item.product || !item.variant) {
           throw new Error("Item must have product and variant");
         }
+
         const itemTotal =
           item.qty * item.unit_cost - (item.discount || 0) + (item.tax || 0);
         const apportionedExpense =
@@ -180,48 +188,118 @@ class Service {
             ? (itemTotal + apportionedExpense) / item.qty
             : item.unit_cost;
 
+        // Find old lots (created by this purchase)
+        const oldLots = await LotModel.find({
+          "source.type": "purchase",
+          "source.ref_id": existingPurchase._id,
+          product: item.product,
+          variant: item.variant,
+          location: data.location,
+        }).session(session);
+
+        const existingQty = oldLots.reduce(
+          (sum, lot) => sum + (lot.qty_total || 0),
+          0
+        );
+
+        const delta = (item.qty || 0) - existingQty;
+
+        // Stock record
         const stockQuery = {
           product: item.product,
           variant: item.variant,
           location: data.location,
         };
-        const stock = await StockService.findOneAndUpdateByPurchase(
-          stockQuery,
-          {
-            product: item.product,
-            variant: item.variant,
-            location: data.location,
-            available_quantity: item.qty,
-            total_received: item.qty,
-          },
-          session
-        );
+        const stock = await StockModel.findOne(stockQuery).session(session);
 
-        await LotService.createLot(
-          {
-            qty_available: item.qty,
+        if (delta === 0) {
+          // Quantity unchanged, only cost may change
+          for (const lot of oldLots) {
+            lot.cost_per_unit = effectiveUnitCost;
+            await lot.save({ session });
+          }
+        } else if (delta > 0) {
+          // Increase stock quantity
+          if (!stock) {
+            await StockModel.findOneAndUpdate(
+              stockQuery,
+              {
+                $setOnInsert: {
+                  product: item.product,
+                  variant: item.variant,
+                  location: data.location,
+                },
+                $inc: { available_quantity: delta, total_received: delta },
+              },
+              { upsert: true, new: true, session }
+            );
+          } else {
+            await StockModel.findByIdAndUpdate(
+              stock._id,
+              { $inc: { available_quantity: delta, total_received: delta } },
+              { session }
+            );
+          }
+
+          // Create new lot for added qty
+          const newLot = new LotModel({
+            qty_available: delta,
+            qty_total: delta,
             cost_per_unit: effectiveUnitCost,
-            received_at: data.received_at || new Date(),
+            received_at: data.received_at,
             createdBy: data.created_by,
             variant: item.variant,
             product: item.product,
             location: data.location,
-            source: {
-              type: "purchase",
-              ref_id: updatedPurchase._id,
-            },
+            source: { type: "purchase", ref_id: existingPurchase._id },
             lot_number:
               item.lot_number ||
-              `PUR-${updatedPurchase.purchase_number}-${String(item.variant).slice(-4)}`,
+              `PUR-${updatedPurchase.purchase_number}-${String(
+                item.variant
+              ).slice(-4)}`,
             expiry_date: item.expiry_date || null,
-            qty_total: item.qty,
-            qty_reserved: 0,
             status: "active",
             notes: "",
-            stock: stock._id,
-          },
-          session
-        );
+            stock: (stock && stock._id) || undefined,
+          });
+          await newLot.save({ session });
+        } else {
+          // delta < 0 → reduce inventory
+          let toRemove = Math.abs(delta);
+          const sortedLots = oldLots.sort((a, b) => {
+            return (
+              (b.received_at?.getTime() || b._id.getTimestamp().getTime()) -
+              (a.received_at?.getTime() || a._id.getTimestamp().getTime())
+            );
+          });
+
+          for (const lot of sortedLots) {
+            if (toRemove === 0) break;
+            const reducible = Math.min(toRemove, lot.qty_available || 0);
+
+            await LotModel.findByIdAndUpdate(
+              lot._id,
+              {
+                $inc: { qty_total: -reducible, qty_available: -reducible },
+                ...(lot.qty_total - reducible <= 0 ? { status: "closed" } : {}),
+              },
+              { session }
+            );
+
+            await StockModel.findByIdAndUpdate(
+              lot.stock,
+              {
+                $inc: {
+                  available_quantity: -reducible,
+                  total_received: -reducible,
+                },
+              },
+              { session }
+            );
+
+            toRemove -= reducible;
+          }
+        }
       }
 
       await session.commitTransaction();
@@ -361,40 +439,145 @@ class Service {
     };
   }
 
-  async getPurchaseById(id: string): Promise<IPurchase | null> {
-    const result = await PurchaseModel.findById(id)
-      .populate([
-        {
-          path: "location",
-          model: "Location",
-        },
-        {
-          path: "supplier",
-          model: "Supplier",
-        },
-        {
-          path: "created_by",
-          model: "Admin",
-          select: "-password",
-        },
-        {
-          path: "received_by",
-          model: "Admin",
-          select: "-password",
-        },
-        {
-          path: "items.variant",
-          model: "Variant",
-        },
-        {
-          path: "items.product",
-          model: "Product",
-          select: "name slug sku thumbnail category",
-        },
-      ])
-      .exec();
+  async getPurchaseById(id?: string, sku?: string): Promise<any | null> {
+    const pipeline: any[] = [];
 
-    return result;
+    if (id) {
+      pipeline.push({
+        $match: {
+          purchase_number: isNaN(Number(id)) ? id : Number(id),
+        },
+      });
+    }
+
+    pipeline.push({ $unwind: "$items" });
+
+    if (sku) {
+      pipeline.push(
+        {
+          $lookup: {
+            from: "variants",
+            localField: "items.variant",
+            foreignField: "_id",
+            as: "item_variant_doc",
+          },
+        },
+        { $unwind: "$item_variant_doc" },
+        {
+          $match: {
+            "item_variant_doc.sku": sku,
+          },
+        }
+      );
+    }
+
+    pipeline.push({
+      $group: {
+        _id: "$_id",
+        purchase_number: { $first: "$purchase_number" },
+        purchase_date: { $first: "$purchase_date" },
+        created_by: { $first: "$created_by" },
+        received_by: { $first: "$received_by" },
+        received_at: { $first: "$received_at" },
+        location: { $first: "$location" },
+        supplier: { $first: "$supplier" },
+        total_cost: { $first: "$total_cost" },
+        expenses_applied: { $first: "$expenses_applied" },
+        attachments: { $first: "$attachments" },
+        additional_note: { $first: "$additional_note" },
+        status: { $first: "$status" },
+        items: { $push: "$items" },
+      },
+    });
+
+    pipeline.push(
+      {
+        $lookup: {
+          from: "locations",
+          localField: "location",
+          foreignField: "_id",
+          as: "location",
+        },
+      },
+      { $unwind: { path: "$location", preserveNullAndEmptyArrays: true } }
+    );
+
+    pipeline.push(
+      {
+        $lookup: {
+          from: "suppliers",
+          localField: "supplier",
+          foreignField: "_id",
+          as: "supplier",
+        },
+      },
+      { $unwind: { path: "$supplier", preserveNullAndEmptyArrays: true } }
+    );
+
+    pipeline.push(
+      {
+        $lookup: {
+          from: "admins",
+          localField: "created_by",
+          foreignField: "_id",
+          as: "created_by",
+        },
+      },
+      { $unwind: { path: "$created_by", preserveNullAndEmptyArrays: true } }
+    );
+
+    pipeline.push(
+      {
+        $lookup: {
+          from: "admins",
+          localField: "received_by",
+          foreignField: "_id",
+          as: "received_by",
+        },
+      },
+      { $unwind: { path: "$received_by", preserveNullAndEmptyArrays: true } }
+    );
+
+    pipeline.push({
+      $lookup: {
+        from: "variants",
+        localField: "items.variant",
+        foreignField: "_id",
+        as: "items_variant",
+      },
+    });
+
+    pipeline.push({
+      $lookup: {
+        from: "products",
+        localField: "items.product",
+        foreignField: "_id",
+        as: "items_product",
+      },
+    });
+
+    pipeline.push({
+      $project: {
+        purchase_number: 1,
+        purchase_date: 1,
+        created_by: 1,
+        received_by: 1,
+        received_at: 1,
+        location: 1,
+        supplier: 1,
+        total_cost: 1,
+        expenses_applied: 1,
+        attachments: 1,
+        additional_note: 1,
+        status: 1,
+        items: 1,
+        items_variant: 1,
+        items_product: 1,
+      },
+    });
+
+    const result = await PurchaseModel.aggregate(pipeline);
+    return result[0] || null;
   }
 
   async updateStatus(
