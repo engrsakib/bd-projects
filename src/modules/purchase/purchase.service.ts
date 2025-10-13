@@ -12,6 +12,7 @@ import { StockService } from "../stock/stock.service";
 import { LotService } from "../lot/lot.service";
 import { LotModel } from "./../lot/lot.model";
 import { StockModel } from "../stock/stock.model";
+import mongoose from "mongoose";
 
 class Service {
   async createPurchase(data: IPurchase): Promise<IPurchase> {
@@ -645,43 +646,178 @@ class Service {
     });
 
     const result = await PurchaseModel.aggregate(pipeline);
-    return result[0] || null;
+    const purchase = result[0] || null;
+
+    // ---- Lot info fetch & attach ----
+    if (purchase) {
+      let qty_total_sum = 0;
+      let qty_available_sum = 0;
+      let total_sold_sum = 0;
+
+      const lots: any[] = [];
+      for (const item of purchase.items) {
+        const lot = await LotModel.findOne({
+          "source.ref_id": purchase._id,
+          "source.type": "purchase",
+          variant: item.variant,
+        })
+          .populate("variant")
+          .populate("product")
+          .lean();
+
+        if (lot) {
+          lots.push(lot);
+          qty_total_sum += lot.qty_total ?? 0;
+          qty_available_sum += lot.qty_available ?? 0;
+          total_sold_sum += (lot.qty_total ?? 0) - (lot.qty_available ?? 0);
+        }
+      }
+
+      // attach only numbers, no object id keys
+      purchase.qty_total = qty_total_sum;
+      purchase.qty_available = qty_available_sum;
+      purchase.total_sold = total_sold_sum;
+      purchase.lots = lots;
+    }
+
+    return purchase;
   }
 
-  async getPurchaseById(id: string): Promise<IPurchase | null> {
-    const result = await PurchaseModel.findById(id)
-      .populate([
-        {
-          path: "location",
-          model: "Location",
-        },
-        {
-          path: "supplier",
-          model: "Supplier",
-        },
-        {
-          path: "created_by",
-          model: "Admin",
-          select: "-password",
-        },
-        {
-          path: "received_by",
-          model: "Admin",
-          select: "-password",
-        },
-        {
-          path: "items.variant",
-          model: "Variant",
-        },
-        {
-          path: "items.product",
-          model: "Product",
-          select: "name slug sku thumbnail category",
-        },
-      ])
-      .exec();
+  async getPurchaseById(id: string): Promise<any | null> {
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return null;
+    }
 
-    return result;
+    const pipeline: any[] = [];
+
+    // 🧩 Step 1: Match purchase by ObjectId
+    pipeline.push({
+      $match: {
+        _id: new mongoose.Types.ObjectId(id),
+      },
+    });
+
+    // 🧩 Step 2: Unwind items
+    pipeline.push({ $unwind: "$items" });
+
+    // 🧩 Step 3: Regroup to rebuild structure
+    pipeline.push({
+      $group: {
+        _id: "$_id",
+        purchase_number: { $first: "$purchase_number" },
+        purchase_date: { $first: "$purchase_date" },
+        created_by: { $first: "$created_by" },
+        received_by: { $first: "$received_by" },
+        received_at: { $first: "$received_at" },
+        location: { $first: "$location" },
+        supplier: { $first: "$supplier" },
+        total_cost: { $first: "$total_cost" },
+        expenses_applied: { $first: "$expenses_applied" },
+        attachments: { $first: "$attachments" },
+        additional_note: { $first: "$additional_note" },
+        status: { $first: "$status" },
+        items: { $push: "$items" },
+      },
+    });
+
+    // 🧩 Step 4: Populate location, supplier, created_by, received_by
+    const lookups = [
+      { from: "locations", localField: "location", as: "location" },
+      { from: "suppliers", localField: "supplier", as: "supplier" },
+      { from: "admins", localField: "created_by", as: "created_by" },
+      { from: "admins", localField: "received_by", as: "received_by" },
+    ];
+
+    for (const l of lookups) {
+      pipeline.push(
+        {
+          $lookup: {
+            from: l.from,
+            localField: l.localField,
+            foreignField: "_id",
+            as: l.as,
+          },
+        },
+        { $unwind: { path: `$${l.as}`, preserveNullAndEmptyArrays: true } }
+      );
+    }
+
+    // 🧩 Step 5: Populate variant & product for items
+    pipeline.push({
+      $lookup: {
+        from: "variants",
+        localField: "items.variant",
+        foreignField: "_id",
+        as: "items_variant",
+      },
+    });
+
+    pipeline.push({
+      $lookup: {
+        from: "products",
+        localField: "items.product",
+        foreignField: "_id",
+        as: "items_product",
+      },
+    });
+
+    // 🧩 Step 6: Project all fields
+    pipeline.push({
+      $project: {
+        purchase_number: 1,
+        purchase_date: 1,
+        created_by: 1,
+        received_by: 1,
+        received_at: 1,
+        location: 1,
+        supplier: 1,
+        total_cost: 1,
+        expenses_applied: 1,
+        attachments: 1,
+        additional_note: 1,
+        status: 1,
+        items: 1,
+        items_variant: 1,
+        items_product: 1,
+      },
+    });
+
+    const result = await PurchaseModel.aggregate(pipeline);
+    const purchase = result[0] || null;
+
+    // 🧩 Step 7: Attach lot info (only 1 lot expected)
+    if (purchase) {
+      let qty_total_sum = 0;
+      let qty_available_sum = 0;
+      let total_sold_sum = 0;
+
+      const lots: any[] = [];
+      for (const item of purchase.items) {
+        const lot = await LotModel.findOne({
+          "source.ref_id": purchase._id,
+          "source.type": "purchase",
+          variant: item.variant,
+        })
+          .populate("variant")
+          .populate("product")
+          .lean();
+
+        if (lot) {
+          lots.push(lot);
+          qty_total_sum += lot.qty_total ?? 0;
+          qty_available_sum += lot.qty_available ?? 0;
+          total_sold_sum += (lot.qty_total ?? 0) - (lot.qty_available ?? 0);
+        }
+      }
+
+      // 🧩 attach lot data summary
+      purchase.qty_total = qty_total_sum;
+      purchase.qty_available = qty_available_sum;
+      purchase.total_sold = total_sold_sum;
+      purchase.lots = lots.length === 1 ? lots[0] : lots;
+    }
+
+    return purchase;
   }
 
   async updateStatus(
