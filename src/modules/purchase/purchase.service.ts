@@ -607,21 +607,21 @@ class Service {
       { $unwind: { path: "$received_by", preserveNullAndEmptyArrays: true } }
     );
 
+    // Fully populate items.variant and items.product
     pipeline.push({
       $lookup: {
         from: "variants",
         localField: "items.variant",
         foreignField: "_id",
-        as: "items_variant",
+        as: "items_variant_full",
       },
     });
-
     pipeline.push({
       $lookup: {
         from: "products",
         localField: "items.product",
         foreignField: "_id",
-        as: "items_product",
+        as: "items_product_full",
       },
     });
 
@@ -639,9 +639,10 @@ class Service {
         attachments: 1,
         additional_note: 1,
         status: 1,
+        // items: 1, <-- we'll manually assign after populating
+        items_variant_full: 1,
+        items_product_full: 1,
         items: 1,
-        items_variant: 1,
-        items_product: 1,
       },
     });
 
@@ -655,11 +656,35 @@ class Service {
       let total_sold_sum = 0;
 
       const lots: any[] = [];
+
+      // Map for quick lookup
+      const variantMap: Record<string, any> = {};
+      const productMap: Record<string, any> = {};
+      if (purchase.items_variant_full) {
+        for (const v of purchase.items_variant_full) {
+          variantMap[String(v._id)] = v;
+        }
+      }
+      if (purchase.items_product_full) {
+        for (const p of purchase.items_product_full) {
+          productMap[String(p._id)] = p;
+        }
+      }
+
+      // Fully populate items with variant/product
+      if (purchase.items) {
+        purchase.items = purchase.items.map((item: any) => ({
+          ...item,
+          variant: variantMap[String(item.variant)] || item.variant,
+          product: productMap[String(item.product)] || item.product,
+        }));
+      }
+
       for (const item of purchase.items) {
         const lot = await LotModel.findOne({
           "source.ref_id": purchase._id,
           "source.type": "purchase",
-          variant: item.variant,
+          variant: item.variant?._id ?? item.variant,
         })
           .populate("variant")
           .populate("product")
