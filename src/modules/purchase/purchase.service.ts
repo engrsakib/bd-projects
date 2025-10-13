@@ -607,21 +607,21 @@ class Service {
       { $unwind: { path: "$received_by", preserveNullAndEmptyArrays: true } }
     );
 
+    // Fully populate items.variant and items.product
     pipeline.push({
       $lookup: {
         from: "variants",
         localField: "items.variant",
         foreignField: "_id",
-        as: "items_variant",
+        as: "items_variant_full",
       },
     });
-
     pipeline.push({
       $lookup: {
         from: "products",
         localField: "items.product",
         foreignField: "_id",
-        as: "items_product",
+        as: "items_product_full",
       },
     });
 
@@ -639,9 +639,10 @@ class Service {
         attachments: 1,
         additional_note: 1,
         status: 1,
+        // items: 1, <-- we'll manually assign after populating
+        items_variant_full: 1,
+        items_product_full: 1,
         items: 1,
-        items_variant: 1,
-        items_product: 1,
       },
     });
 
@@ -655,11 +656,35 @@ class Service {
       let total_sold_sum = 0;
 
       const lots: any[] = [];
+
+      // Map for quick lookup
+      const variantMap: Record<string, any> = {};
+      const productMap: Record<string, any> = {};
+      if (purchase.items_variant_full) {
+        for (const v of purchase.items_variant_full) {
+          variantMap[String(v._id)] = v;
+        }
+      }
+      if (purchase.items_product_full) {
+        for (const p of purchase.items_product_full) {
+          productMap[String(p._id)] = p;
+        }
+      }
+
+      // Fully populate items with variant/product
+      if (purchase.items) {
+        purchase.items = purchase.items.map((item: any) => ({
+          ...item,
+          variant: variantMap[String(item.variant)] || item.variant,
+          product: productMap[String(item.product)] || item.product,
+        }));
+      }
+
       for (const item of purchase.items) {
         const lot = await LotModel.findOne({
           "source.ref_id": purchase._id,
           "source.type": "purchase",
-          variant: item.variant,
+          variant: item.variant?._id ?? item.variant,
         })
           .populate("variant")
           .populate("product")
@@ -690,17 +715,56 @@ class Service {
 
     const pipeline: any[] = [];
 
-    // 🧩 Step 1: Match purchase by ObjectId
+    // 🎯 Step 1: Match specific purchase
     pipeline.push({
-      $match: {
-        _id: new mongoose.Types.ObjectId(id),
+      $match: { _id: new mongoose.Types.ObjectId(id) },
+    });
+
+    // 🎯 Step 2: Unwind items
+    pipeline.push({ $unwind: "$items" });
+
+    // 🎯 Step 3: Lookup product & variant (with all fields)
+    pipeline.push(
+      {
+        $lookup: {
+          from: "products",
+          localField: "items.product",
+          foreignField: "_id",
+          as: "product_info",
+        },
+      },
+      { $unwind: { path: "$product_info", preserveNullAndEmptyArrays: true } }
+    );
+
+    pipeline.push(
+      {
+        $lookup: {
+          from: "variants",
+          localField: "items.variant",
+          foreignField: "_id",
+          as: "variant_info",
+        },
+      },
+      { $unwind: { path: "$variant_info", preserveNullAndEmptyArrays: true } }
+    );
+
+    // 🎯 Step 4: Replace IDs with full objects
+    pipeline.push({
+      $addFields: {
+        "items.product": "$product_info",
+        "items.variant": "$variant_info",
       },
     });
 
-    // 🧩 Step 2: Unwind items
-    pipeline.push({ $unwind: "$items" });
+    // 🎯 Step 5: Clean helper
+    pipeline.push({
+      $project: {
+        product_info: 0,
+        variant_info: 0,
+      },
+    });
 
-    // 🧩 Step 3: Regroup to rebuild structure
+    // 🎯 Step 6: Re-group
     pipeline.push({
       $group: {
         _id: "$_id",
@@ -717,10 +781,12 @@ class Service {
         additional_note: { $first: "$additional_note" },
         status: { $first: "$status" },
         items: { $push: "$items" },
+        createdAt: { $first: "$createdAt" },
+        updatedAt: { $first: "$updatedAt" },
       },
     });
 
-    // 🧩 Step 4: Populate location, supplier, created_by, received_by
+    // 🎯 Step 7: Populate all reference fields with ALL FIELDS
     const lookups = [
       { from: "locations", localField: "location", as: "location" },
       { from: "suppliers", localField: "supplier", as: "supplier" },
@@ -742,28 +808,10 @@ class Service {
       );
     }
 
-    // 🧩 Step 5: Populate variant & product for items
-    pipeline.push({
-      $lookup: {
-        from: "variants",
-        localField: "items.variant",
-        foreignField: "_id",
-        as: "items_variant",
-      },
-    });
-
-    pipeline.push({
-      $lookup: {
-        from: "products",
-        localField: "items.product",
-        foreignField: "_id",
-        as: "items_product",
-      },
-    });
-
-    // 🧩 Step 6: Project all fields
+    // 🎯 Step 8: Don't limit projection (all fields)
     pipeline.push({
       $project: {
+        _id: 1,
         purchase_number: 1,
         purchase_date: 1,
         created_by: 1,
@@ -777,29 +825,34 @@ class Service {
         additional_note: 1,
         status: 1,
         items: 1,
-        items_variant: 1,
-        items_product: 1,
+        createdAt: 1,
+        updatedAt: 1,
       },
     });
 
+    // 🎯 Step 9: Run aggregation
     const result = await PurchaseModel.aggregate(pipeline);
     const purchase = result[0] || null;
 
-    // 🧩 Step 7: Attach lot info (only 1 lot expected)
+    // 🎯 Step 10: Attach Lot info (unique per variant)
     if (purchase) {
       let qty_total_sum = 0;
       let qty_available_sum = 0;
       let total_sold_sum = 0;
 
       const lots: any[] = [];
+
       for (const item of purchase.items) {
         const lot = await LotModel.findOne({
           "source.ref_id": purchase._id,
           "source.type": "purchase",
-          variant: item.variant,
+          variant: item.variant?._id,
         })
           .populate("variant")
           .populate("product")
+          .populate("createdBy")
+          .populate("updatedBy")
+          .populate("location")
           .lean();
 
         if (lot) {
@@ -810,7 +863,6 @@ class Service {
         }
       }
 
-      // 🧩 attach lot data summary
       purchase.qty_total = qty_total_sum;
       purchase.qty_available = qty_available_sum;
       purchase.total_sold = total_sold_sum;
