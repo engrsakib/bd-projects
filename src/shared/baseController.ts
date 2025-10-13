@@ -2,7 +2,7 @@ import { NextFunction, Request, RequestHandler, Response } from "express";
 
 type IApiResponse<T> = {
   statusCode: number;
-  success: boolean;
+  success: boolean | string;
   message?: string | null;
   data?: T | null;
 };
