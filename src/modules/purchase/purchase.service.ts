@@ -866,7 +866,7 @@ class Service {
           // qty logic for this product/variant
           const qty_total = lot.qty_total ?? 0;
           const qty_available = lot.qty_available ?? 0;
-          const total_sold = qty_total - qty_available;
+          const total_sold = Math.max(qty_total - qty_available, 0);
 
           // Attach these fields inside item object
           item.qty_total = qty_total;
