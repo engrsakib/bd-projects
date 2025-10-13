@@ -11,6 +11,8 @@ import { IPaginationOptions } from "@/interfaces/pagination.interfaces";
 import { paginationHelpers } from "@/helpers/paginationHelpers";
 import { ProductService } from "../product/product.service";
 import { ITransfer } from "../transfer/transfer.interface";
+import { ProductModel } from "../product/product.model";
+import { VariantModel } from "../variant/variant.model";
 
 class Service {
   private async generateTransferNumber(): Promise<string> {
@@ -463,6 +465,63 @@ class Service {
     }
 
     return true;
+  }
+
+  async getFullStockReport({ sku = "", page = 1, limit = 20 } = {}) {
+    const stockQuery: any = {};
+
+    if (sku) {
+      // Join with product/variant to search by SKU
+      const products = await ProductModel.find({
+        sku: { $regex: sku, $options: "i" },
+      })
+        .select("_id")
+        .lean();
+      const variants = await VariantModel.find({
+        sku: { $regex: sku, $options: "i" },
+      })
+        .select("_id")
+        .lean();
+      stockQuery.$or = [
+        { product: { $in: products.map((p) => p._id) } },
+        { variant: { $in: variants.map((v) => v._id) } },
+      ];
+    }
+
+    const total = await StockModel.countDocuments(stockQuery);
+    const stocks = await StockModel.find(stockQuery)
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .populate("product")
+      .populate("variant")
+      .populate("location")
+      .lean();
+
+    // For each stock, get all lots (not only active), all fields
+    const report: any[] = [];
+    for (const stock of stocks) {
+      const lots = await LotModel.find({ stock: stock._id })
+        .populate("createdBy", "name email")
+        .lean();
+      report.push({
+        stock_id: stock._id,
+        product: stock.product,
+        variant: stock.variant,
+        location: stock.location,
+        available_quantity: stock.available_quantity,
+        qty_reserved: stock.qty_reserved,
+        total_sold: stock.total_sold,
+        lots,
+      });
+    }
+
+    return {
+      data: report,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 }
 
