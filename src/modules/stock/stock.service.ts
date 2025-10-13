@@ -525,6 +525,72 @@ class Service {
       data: report,
     };
   }
+
+  async getLowStockProducts({ threshold = 5, page = 1, limit = 20 } = {}) {
+    const skip = (page - 1) * limit;
+
+    // Aggregation pipeline: join product, variant, location and filter by threshold
+    const pipeline = [
+      {
+        $match: {
+          available_quantity: { $lte: threshold },
+        },
+      },
+      // Join product
+      {
+        $lookup: {
+          from: "products",
+          localField: "product",
+          foreignField: "_id",
+          as: "product",
+        },
+      },
+      { $unwind: { path: "$product", preserveNullAndEmptyArrays: true } },
+      // Join variant
+      {
+        $lookup: {
+          from: "variants",
+          localField: "variant",
+          foreignField: "_id",
+          as: "variant",
+        },
+      },
+      { $unwind: { path: "$variant", preserveNullAndEmptyArrays: true } },
+      // Join location
+      {
+        $lookup: {
+          from: "locations",
+          localField: "location",
+          foreignField: "_id",
+          as: "location",
+        },
+      },
+      { $unwind: { path: "$location", preserveNullAndEmptyArrays: true } },
+      // Count total for pagination meta
+      {
+        $facet: {
+          data: [{ $skip: skip }, { $limit: limit }],
+          meta: [{ $count: "total" }],
+        },
+      },
+    ];
+
+    const result = await StockModel.aggregate(pipeline);
+
+    const data = result[0]?.data ?? [];
+    const total = result[0]?.meta[0]?.total ?? 0;
+
+    // Format response for each entry, include all fields
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
 }
 
 export const StockService = new Service();
