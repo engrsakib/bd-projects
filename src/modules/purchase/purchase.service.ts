@@ -882,7 +882,6 @@ class Service {
 
       purchase.lots = lots.length === 1 ? lots[0] : lots;
 
-      // Remove qty fields from root
       // (Do not add purchase.qty_total, purchase.qty_available, purchase.total_sold)
     }
 
