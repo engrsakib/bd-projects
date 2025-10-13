@@ -713,11 +713,13 @@ class Service {
       return null;
     }
 
+    const objectId = new mongoose.Types.ObjectId(id);
+
     const pipeline: any[] = [];
 
-    // 🎯 Step 1: Match specific purchase
+    // 🎯 Step 1: Match specific purchase by ObjectId
     pipeline.push({
-      $match: { _id: new mongoose.Types.ObjectId(id) },
+      $match: { _id: objectId },
     });
 
     // 🎯 Step 2: Unwind items
@@ -844,15 +846,15 @@ class Service {
 
       for (const item of purchase.items) {
         const lot = await LotModel.findOne({
-          "source.ref_id": purchase._id,
+          "source.ref_id": objectId,
           "source.type": "purchase",
           variant: item.variant?._id,
         })
           .populate("variant")
           .populate("product")
           .populate("createdBy")
-          .populate("updatedBy")
-          .populate("location")
+          // .populate("updatedBy") // Remove this if not present in schema!
+
           .lean();
 
         if (lot) {
