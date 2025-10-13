@@ -94,6 +94,21 @@ class Controller extends BaseController {
       data: report,
     });
   });
+
+  getLowStockProducts = this.catchAsync(async (req: Request, res: Response) => {
+    const { threshold, page, limit } = req.query;
+    const report = await StockService.getLowStockProducts({
+      threshold: threshold ? parseInt(threshold as string, 10) : 10,
+      page: page ? parseInt(page as string, 10) : 1,
+      limit: limit ? parseInt(limit as string, 10) : 10,
+    });
+    return this.sendResponse(res, {
+      statusCode: HttpStatusCode.OK,
+      success: true,
+      message: "Low stock products fetched successfully",
+      data: report,
+    });
+  });
 }
 
 export const StockController = new Controller();
