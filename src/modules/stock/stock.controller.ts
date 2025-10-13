@@ -81,9 +81,10 @@ class Controller extends BaseController {
   });
 
   getFullStockReport = this.catchAsync(async (req: Request, res: Response) => {
-    const { sku, page, limit } = req.query;
+    const { sku, threshold, page, limit } = req.query;
     const report = await StockService.getFullStockReport({
       sku: sku as string,
+      threshold: threshold ? parseInt(threshold as string, 0) : undefined,
       page: page ? parseInt(page as string, 10) : undefined,
       limit: limit ? parseInt(limit as string, 10) : undefined,
     });

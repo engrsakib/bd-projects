@@ -1,6 +1,6 @@
 import mongoose, { Types } from "mongoose";
 import { StockModel } from "./stock.model";
-import { IStock, IStockFilters } from "./stock.interface";
+import { IStock, IStockFilters, IStockReportQuery } from "./stock.interface";
 import ApiError from "@/middlewares/error";
 import { HttpStatusCode } from "@/lib/httpStatus";
 import { LotService } from "../lot/lot.service";
@@ -467,62 +467,144 @@ class Service {
     return true;
   }
 
-  async getFullStockReport({ sku = "", page = 1, limit = 20 } = {}) {
-    const stockQuery: any = {};
+  async getFullStockReport({
+    sku = "",
+    threshold,
+    page = 1,
+    limit = 20,
+  }: IStockReportQuery = {}) {
+    const matchStage: any = {};
 
+    // sku search — from product or variant
     if (sku) {
-      // Join with product/variant to search by SKU
-      const products = await ProductModel.find({
+      const productIds = await ProductModel.find({
         sku: { $regex: sku, $options: "i" },
       })
         .select("_id")
         .lean();
-      const variants = await VariantModel.find({
+
+      const variantIds = await VariantModel.find({
         sku: { $regex: sku, $options: "i" },
       })
         .select("_id")
         .lean();
-      stockQuery.$or = [
-        { product: { $in: products.map((p) => p._id) } },
-        { variant: { $in: variants.map((v) => v._id) } },
+
+      matchStage.$or = [
+        { product: { $in: productIds.map((p) => p._id) } },
+        { variant: { $in: variantIds.map((v) => v._id) } },
       ];
     }
 
-    const total = await StockModel.countDocuments(stockQuery);
-    const stocks = await StockModel.find(stockQuery)
-      .skip((page - 1) * limit)
-      .limit(limit)
-      .populate("product")
-      .populate("variant")
-      .populate("location")
-      .lean();
-
-    // For each stock, get all lots (not only active), all fields
-    const report: any[] = [];
-    for (const stock of stocks) {
-      const lots = await LotModel.find({ stock: stock._id })
-        .populate("createdBy", "name email")
-        .lean();
-      report.push({
-        stock_id: stock._id,
-        product: stock.product,
-        variant: stock.variant,
-        location: stock.location,
-        available_quantity: stock.available_quantity,
-        qty_reserved: stock.qty_reserved,
-        total_sold: stock.total_sold,
-        lots,
-      });
+    // threshold filter
+    if (threshold && threshold > 0) {
+      matchStage.available_quantity = { $lte: threshold };
     }
+
+    // aggregation pipeline
+    const pipeline: any[] = [
+      { $match: matchStage },
+
+      // populate product
+      {
+        $lookup: {
+          from: "products",
+          localField: "product",
+          foreignField: "_id",
+          as: "product",
+        },
+      },
+      { $unwind: { path: "$product", preserveNullAndEmptyArrays: true } },
+
+      // populate variant
+      {
+        $lookup: {
+          from: "variants",
+          localField: "variant",
+          foreignField: "_id",
+          as: "variant",
+        },
+      },
+      { $unwind: { path: "$variant", preserveNullAndEmptyArrays: true } },
+
+      // populate location
+      {
+        $lookup: {
+          from: "locations",
+          localField: "location",
+          foreignField: "_id",
+          as: "location",
+        },
+      },
+      { $unwind: { path: "$location", preserveNullAndEmptyArrays: true } },
+
+      // populate lots
+      {
+        $lookup: {
+          from: "lots",
+          localField: "_id",
+          foreignField: "stock",
+          as: "lots",
+        },
+      },
+
+      // populate createdBy in lots
+      {
+        $lookup: {
+          from: "users",
+          localField: "lots.createdBy",
+          foreignField: "_id",
+          as: "createdByUsers",
+        },
+      },
+      {
+        $addFields: {
+          lots: {
+            $map: {
+              input: "$lots",
+              as: "lot",
+              in: {
+                $mergeObjects: [
+                  "$$lot",
+                  {
+                    createdBy: {
+                      $arrayElemAt: [
+                        {
+                          $filter: {
+                            input: "$createdByUsers",
+                            as: "u",
+                            cond: { $eq: ["$$u._id", "$$lot.createdBy"] },
+                          },
+                        },
+                        0,
+                      ],
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+      { $unset: "createdByUsers" },
+
+      // pagination
+      { $skip: (page - 1) * limit },
+      { $limit: limit },
+    ];
+
+    const [data, totalCount] = await Promise.all([
+      StockModel.aggregate(pipeline),
+      StockModel.countDocuments(matchStage),
+    ]);
 
     return {
       meta: {
-        total,
+        total: totalCount,
         page,
         limit,
-        totalPages: Math.ceil(total / limit),
+        totalPages: Math.ceil(totalCount / limit),
       },
-      data: report,
+      data,
     };
   }
 

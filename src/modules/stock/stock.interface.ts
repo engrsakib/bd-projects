@@ -13,6 +13,7 @@ export type IStockFilters = {
   location?: string;
   product?: string;
   variant?: string;
+  threshold?: number;
   category?: string;
   subcategory?: string;
   sku?: string;
@@ -31,4 +32,12 @@ export const stockFilterableFields = [
   "search_query",
   "min_qty",
   "max_qty",
+  "threshold",
 ];
+
+export interface IStockReportQuery {
+  sku?: string;
+  threshold?: number;
+  page?: number;
+  limit?: number;
+}
