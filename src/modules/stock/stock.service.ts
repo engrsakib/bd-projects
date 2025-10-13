@@ -582,13 +582,13 @@ class Service {
 
     // Format response for each entry, include all fields
     return {
-      data,
       meta: {
         total,
         page,
         limit,
         totalPages: Math.ceil(total / limit),
       },
+      data,
     };
   }
 }

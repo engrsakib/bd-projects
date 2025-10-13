@@ -20,10 +20,12 @@ router.get(
   StockController.getFullStockReport
 );
 
-// router.get(
-//   "/",
-//   JwtInstance.authenticate(Object.values(ROLES)),
-//   JwtInstance.hasPermissions(PermissionEnum.STOCK_VIEW),
+router.get(
+  "/low-stock",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.STOCK_VIEW),
+  StockController.getLowStockProducts
+);
 //   StockController.getAllStocks
 // );
 
