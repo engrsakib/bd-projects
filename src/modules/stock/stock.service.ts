@@ -1,6 +1,6 @@
 import mongoose, { Types } from "mongoose";
 import { StockModel } from "./stock.model";
-import { IStock, IStockFilters } from "./stock.interface";
+import { IStock, IStockFilters, IStockReportQuery } from "./stock.interface";
 import ApiError from "@/middlewares/error";
 import { HttpStatusCode } from "@/lib/httpStatus";
 import { LotService } from "../lot/lot.service";
@@ -11,6 +11,8 @@ import { IPaginationOptions } from "@/interfaces/pagination.interfaces";
 import { paginationHelpers } from "@/helpers/paginationHelpers";
 import { ProductService } from "../product/product.service";
 import { ITransfer } from "../transfer/transfer.interface";
+import { ProductModel } from "../product/product.model";
+import { VariantModel } from "../variant/variant.model";
 
 class Service {
   private async generateTransferNumber(): Promise<string> {
@@ -463,6 +465,213 @@ class Service {
     }
 
     return true;
+  }
+
+  async getFullStockReport({
+    sku = "",
+    threshold,
+    page = 1,
+    limit = 20,
+  }: IStockReportQuery = {}) {
+    const matchStage: any = {};
+
+    // sku search — from product or variant
+    if (sku) {
+      const productIds = await ProductModel.find({
+        sku: { $regex: sku, $options: "i" },
+      })
+        .select("_id")
+        .lean();
+
+      const variantIds = await VariantModel.find({
+        sku: { $regex: sku, $options: "i" },
+      })
+        .select("_id")
+        .lean();
+
+      matchStage.$or = [
+        { product: { $in: productIds.map((p) => p._id) } },
+        { variant: { $in: variantIds.map((v) => v._id) } },
+      ];
+    }
+
+    // threshold filter
+    if (threshold && threshold > 0) {
+      matchStage.available_quantity = { $lte: threshold };
+    }
+
+    // aggregation pipeline
+    const pipeline: any[] = [
+      { $match: matchStage },
+
+      // populate product
+      {
+        $lookup: {
+          from: "products",
+          localField: "product",
+          foreignField: "_id",
+          as: "product",
+        },
+      },
+      { $unwind: { path: "$product", preserveNullAndEmptyArrays: true } },
+
+      // populate variant
+      {
+        $lookup: {
+          from: "variants",
+          localField: "variant",
+          foreignField: "_id",
+          as: "variant",
+        },
+      },
+      { $unwind: { path: "$variant", preserveNullAndEmptyArrays: true } },
+
+      // populate location
+      {
+        $lookup: {
+          from: "locations",
+          localField: "location",
+          foreignField: "_id",
+          as: "location",
+        },
+      },
+      { $unwind: { path: "$location", preserveNullAndEmptyArrays: true } },
+
+      // populate lots
+      {
+        $lookup: {
+          from: "lots",
+          localField: "_id",
+          foreignField: "stock",
+          as: "lots",
+        },
+      },
+
+      // populate createdBy in lots
+      {
+        $lookup: {
+          from: "users",
+          localField: "lots.createdBy",
+          foreignField: "_id",
+          as: "createdByUsers",
+        },
+      },
+      {
+        $addFields: {
+          lots: {
+            $map: {
+              input: "$lots",
+              as: "lot",
+              in: {
+                $mergeObjects: [
+                  "$$lot",
+                  {
+                    createdBy: {
+                      $arrayElemAt: [
+                        {
+                          $filter: {
+                            input: "$createdByUsers",
+                            as: "u",
+                            cond: { $eq: ["$$u._id", "$$lot.createdBy"] },
+                          },
+                        },
+                        0,
+                      ],
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+      { $unset: "createdByUsers" },
+
+      // pagination
+      { $skip: (page - 1) * limit },
+      { $limit: limit },
+    ];
+
+    const [data, totalCount] = await Promise.all([
+      StockModel.aggregate(pipeline),
+      StockModel.countDocuments(matchStage),
+    ]);
+
+    return {
+      meta: {
+        total: totalCount,
+        page,
+        limit,
+        totalPages: Math.ceil(totalCount / limit),
+      },
+      data,
+    };
+  }
+
+  async getLowStockProducts({ threshold = 5, page = 1, limit = 20 } = {}) {
+    const skip = (page - 1) * limit;
+
+    // Aggregation pipeline: join product, variant, location and filter by threshold
+    const pipeline = [
+      {
+        $match: {
+          available_quantity: { $lte: threshold },
+        },
+      },
+      // Join product
+      {
+        $lookup: {
+          from: "products",
+          localField: "product",
+          foreignField: "_id",
+          as: "product",
+        },
+      },
+      { $unwind: { path: "$product", preserveNullAndEmptyArrays: true } },
+      // Join variant
+      {
+        $lookup: {
+          from: "variants",
+          localField: "variant",
+          foreignField: "_id",
+          as: "variant",
+        },
+      },
+      { $unwind: { path: "$variant", preserveNullAndEmptyArrays: true } },
+      // Join location
+      {
+        $lookup: {
+          from: "locations",
+          localField: "location",
+          foreignField: "_id",
+          as: "location",
+        },
+      },
+      { $unwind: { path: "$location", preserveNullAndEmptyArrays: true } },
+      // Count total for pagination meta
+      {
+        $facet: {
+          data: [{ $skip: skip }, { $limit: limit }],
+          meta: [{ $count: "total" }],
+        },
+      },
+    ];
+
+    const result = await StockModel.aggregate(pipeline);
+
+    const data = result[0]?.data ?? [];
+    const total = result[0]?.meta[0]?.total ?? 0;
+
+    // Format response for each entry, include all fields
+    return {
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+      data,
+    };
   }
 }
 

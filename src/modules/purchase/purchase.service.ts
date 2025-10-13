@@ -12,6 +12,7 @@ import { StockService } from "../stock/stock.service";
 import { LotService } from "../lot/lot.service";
 import { LotModel } from "./../lot/lot.model";
 import { StockModel } from "../stock/stock.model";
+import mongoose from "mongoose";
 
 class Service {
   async createPurchase(data: IPurchase): Promise<IPurchase> {
@@ -332,102 +333,170 @@ class Service {
       purchase_date_end,
       purchase_date_start,
       purchase_number,
+      sku,
       status,
       supplier,
       received_at_end_date,
       received_at_start_date,
     } = filters;
+
+    // Build main query
+    const queries: any = {};
+
+    if (supplier) queries.supplier = supplier;
+    if (location) queries.location = location;
+    if (status) queries.status = status;
+
+    // Received date filter
+    if (received_at_start_date || received_at_end_date) {
+      queries.received_at = {};
+      const receivedAtStartRange = parseDateRange(
+        received_at_start_date as string
+      );
+      const receivedAtEndRange = parseDateRange(received_at_end_date as string);
+      if (received_at_start_date)
+        queries.received_at.$gte = receivedAtStartRange?.start;
+      if (received_at_end_date)
+        queries.received_at.$lte = receivedAtEndRange?.end;
+    }
+
+    // Created date filter
     const startCreateAtDateRange = parseDateRange(
       created_at_start_date as string
     );
     const endCreateAtDateRange = parseDateRange(created_at_end_date as string);
+    if (created_at_start_date || created_at_end_date) queries.created_at = {};
+    if (created_at_start_date)
+      queries.created_at.$gte = startCreateAtDateRange?.start;
+    if (created_at_end_date)
+      queries.created_at.$lte = endCreateAtDateRange?.end;
+
+    // Purchase date filter
     const startPurchaseDateRange = parseDateRange(
       purchase_date_start as string
     );
     const endPurchaseDateRange = parseDateRange(purchase_date_end as string);
-    const receivedAtStartRange = parseDateRange(
-      received_at_start_date as string
-    );
-    const receivedAtEndRange = parseDateRange(received_at_end_date as string);
-    const queries: any = {};
+    if (purchase_date_start || purchase_date_end) queries.purchase_date = {};
+    if (purchase_date_start)
+      queries.purchase_date.$gte = startPurchaseDateRange?.start;
+    if (purchase_date_end)
+      queries.purchase_date.$lte = endPurchaseDateRange?.end;
 
-    if (supplier) {
-      queries.supplier = supplier;
-    }
-    if (location) {
-      queries.location = location;
-    }
-    if (status) {
-      queries.status = status;
-    }
-    if (received_at_start_date || received_at_end_date) {
-      queries.received_at = {};
-    }
-    if (received_at_start_date) {
-      queries.received_at.$gte = receivedAtStartRange?.start;
-    }
-
-    if (received_at_end_date) {
-      queries.received_at.$lte = receivedAtEndRange?.end;
-    }
-    if (startCreateAtDateRange || endCreateAtDateRange) {
-      queries.created_at = {};
-    }
-    if (startCreateAtDateRange) {
-      queries.created_at.$gte = startCreateAtDateRange.start;
-    }
-    if (endCreateAtDateRange) {
-      queries.created_at.$lte = endCreateAtDateRange.end;
-    }
-    if (startPurchaseDateRange || endPurchaseDateRange) {
-      queries.purchase_date = {};
-    }
-    if (startPurchaseDateRange) {
-      queries.purchase_date.$gte = startPurchaseDateRange.start;
-    }
-    if (endPurchaseDateRange) {
-      queries.purchase_date.$lte = endPurchaseDateRange.end;
-    }
-    if (purchase_number) {
+    // Purchase number filter
+    if (purchase_number)
       queries.purchase_number = parseInt(purchase_number as string, 10);
+
+    // Efficient SKU filter inside items.variant.sku using aggregation
+    let purchases: any[] = [];
+    let total = 0;
+
+    if (sku) {
+      // Aggregation pipeline for SKU filtering
+      const pipeline: any[] = [
+        { $match: queries },
+        {
+          $lookup: {
+            from: "variants",
+            localField: "items.variant",
+            foreignField: "_id",
+            as: "variants_docs",
+          },
+        },
+        // Match any items.variant with requested sku
+        {
+          $match: {
+            "variants_docs.sku": sku,
+          },
+        },
+        // Usual populates
+        {
+          $lookup: {
+            from: "locations",
+            localField: "location",
+            foreignField: "_id",
+            as: "location",
+          },
+        },
+        { $unwind: { path: "$location", preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: "suppliers",
+            localField: "supplier",
+            foreignField: "_id",
+            as: "supplier",
+          },
+        },
+        { $unwind: { path: "$supplier", preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: "admins",
+            localField: "created_by",
+            foreignField: "_id",
+            as: "created_by",
+          },
+        },
+        { $unwind: { path: "$created_by", preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: "admins",
+            localField: "received_by",
+            foreignField: "_id",
+            as: "received_by",
+          },
+        },
+        { $unwind: { path: "$received_by", preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: "variants",
+            localField: "items.variant",
+            foreignField: "_id",
+            as: "items_variant",
+          },
+        },
+        {
+          $lookup: {
+            from: "products",
+            localField: "items.product",
+            foreignField: "_id",
+            as: "items_product",
+          },
+        },
+        // Sorting, skipping, limiting
+        { $sort: { [sortBy]: sortOrder === "asc" ? 1 : -1 } },
+        { $skip: skip },
+        { $limit: limit },
+      ];
+      purchases = await PurchaseModel.aggregate(pipeline);
+      // Count total with matching pipeline (without pagination)
+      const totalPipeline = pipeline.filter(
+        (stage) =>
+          !("$skip" in stage) && !("$limit" in stage) && !("$sort" in stage)
+      );
+      total =
+        (
+          await PurchaseModel.aggregate([...totalPipeline, { $count: "count" }])
+        )[0]?.count || 0;
+    } else {
+      // If no SKU, use normal query + populate (faster for non-SKU queries)
+      purchases = await PurchaseModel.find(queries)
+        .populate([
+          { path: "location", model: "Location" },
+          { path: "supplier", model: "Supplier" },
+          { path: "created_by", model: "Admin", select: "-password" },
+          { path: "received_by", model: "Admin", select: "-password" },
+          { path: "items.variant", model: "Variant" },
+          {
+            path: "items.product",
+            model: "Product",
+            select: "name slug sku thumbnail category",
+          },
+        ])
+        .sort({ [sortBy]: sortOrder === "asc" ? 1 : -1 })
+        .skip(skip)
+        .limit(limit)
+        .exec();
+      total = await PurchaseModel.countDocuments(queries);
     }
-
-    const purchases = await PurchaseModel.find(queries)
-      .populate([
-        {
-          path: "location",
-          model: "Location",
-        },
-        {
-          path: "supplier",
-          model: "Supplier",
-        },
-        {
-          path: "created_by",
-          model: "Admin",
-          select: "-password",
-        },
-        {
-          path: "received_by",
-          model: "Admin",
-          select: "-password",
-        },
-        {
-          path: "items.variant",
-          model: "Variant",
-        },
-        {
-          path: "items.product",
-          model: "Product",
-          select: "name slug sku thumbnail category",
-        },
-      ])
-      .sort({ [sortBy]: sortOrder === "asc" ? 1 : -1 })
-      .skip(skip)
-      .limit(limit)
-      .exec();
-
-    const total = await PurchaseModel.countDocuments(queries);
 
     return {
       meta: {
@@ -577,43 +646,178 @@ class Service {
     });
 
     const result = await PurchaseModel.aggregate(pipeline);
-    return result[0] || null;
+    const purchase = result[0] || null;
+
+    // ---- Lot info fetch & attach ----
+    if (purchase) {
+      let qty_total_sum = 0;
+      let qty_available_sum = 0;
+      let total_sold_sum = 0;
+
+      const lots: any[] = [];
+      for (const item of purchase.items) {
+        const lot = await LotModel.findOne({
+          "source.ref_id": purchase._id,
+          "source.type": "purchase",
+          variant: item.variant,
+        })
+          .populate("variant")
+          .populate("product")
+          .lean();
+
+        if (lot) {
+          lots.push(lot);
+          qty_total_sum += lot.qty_total ?? 0;
+          qty_available_sum += lot.qty_available ?? 0;
+          total_sold_sum += (lot.qty_total ?? 0) - (lot.qty_available ?? 0);
+        }
+      }
+
+      // attach only numbers, no object id keys
+      purchase.qty_total = qty_total_sum;
+      purchase.qty_available = qty_available_sum;
+      purchase.total_sold = total_sold_sum;
+      purchase.lots = lots;
+    }
+
+    return purchase;
   }
 
-  async getPurchaseById(id: string): Promise<IPurchase | null> {
-    const result = await PurchaseModel.findById(id)
-      .populate([
-        {
-          path: "location",
-          model: "Location",
-        },
-        {
-          path: "supplier",
-          model: "Supplier",
-        },
-        {
-          path: "created_by",
-          model: "Admin",
-          select: "-password",
-        },
-        {
-          path: "received_by",
-          model: "Admin",
-          select: "-password",
-        },
-        {
-          path: "items.variant",
-          model: "Variant",
-        },
-        {
-          path: "items.product",
-          model: "Product",
-          select: "name slug sku thumbnail category",
-        },
-      ])
-      .exec();
+  async getPurchaseById(id: string): Promise<any | null> {
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return null;
+    }
 
-    return result;
+    const pipeline: any[] = [];
+
+    // 🧩 Step 1: Match purchase by ObjectId
+    pipeline.push({
+      $match: {
+        _id: new mongoose.Types.ObjectId(id),
+      },
+    });
+
+    // 🧩 Step 2: Unwind items
+    pipeline.push({ $unwind: "$items" });
+
+    // 🧩 Step 3: Regroup to rebuild structure
+    pipeline.push({
+      $group: {
+        _id: "$_id",
+        purchase_number: { $first: "$purchase_number" },
+        purchase_date: { $first: "$purchase_date" },
+        created_by: { $first: "$created_by" },
+        received_by: { $first: "$received_by" },
+        received_at: { $first: "$received_at" },
+        location: { $first: "$location" },
+        supplier: { $first: "$supplier" },
+        total_cost: { $first: "$total_cost" },
+        expenses_applied: { $first: "$expenses_applied" },
+        attachments: { $first: "$attachments" },
+        additional_note: { $first: "$additional_note" },
+        status: { $first: "$status" },
+        items: { $push: "$items" },
+      },
+    });
+
+    // 🧩 Step 4: Populate location, supplier, created_by, received_by
+    const lookups = [
+      { from: "locations", localField: "location", as: "location" },
+      { from: "suppliers", localField: "supplier", as: "supplier" },
+      { from: "admins", localField: "created_by", as: "created_by" },
+      { from: "admins", localField: "received_by", as: "received_by" },
+    ];
+
+    for (const l of lookups) {
+      pipeline.push(
+        {
+          $lookup: {
+            from: l.from,
+            localField: l.localField,
+            foreignField: "_id",
+            as: l.as,
+          },
+        },
+        { $unwind: { path: `$${l.as}`, preserveNullAndEmptyArrays: true } }
+      );
+    }
+
+    // 🧩 Step 5: Populate variant & product for items
+    pipeline.push({
+      $lookup: {
+        from: "variants",
+        localField: "items.variant",
+        foreignField: "_id",
+        as: "items_variant",
+      },
+    });
+
+    pipeline.push({
+      $lookup: {
+        from: "products",
+        localField: "items.product",
+        foreignField: "_id",
+        as: "items_product",
+      },
+    });
+
+    // 🧩 Step 6: Project all fields
+    pipeline.push({
+      $project: {
+        purchase_number: 1,
+        purchase_date: 1,
+        created_by: 1,
+        received_by: 1,
+        received_at: 1,
+        location: 1,
+        supplier: 1,
+        total_cost: 1,
+        expenses_applied: 1,
+        attachments: 1,
+        additional_note: 1,
+        status: 1,
+        items: 1,
+        items_variant: 1,
+        items_product: 1,
+      },
+    });
+
+    const result = await PurchaseModel.aggregate(pipeline);
+    const purchase = result[0] || null;
+
+    // 🧩 Step 7: Attach lot info (only 1 lot expected)
+    if (purchase) {
+      let qty_total_sum = 0;
+      let qty_available_sum = 0;
+      let total_sold_sum = 0;
+
+      const lots: any[] = [];
+      for (const item of purchase.items) {
+        const lot = await LotModel.findOne({
+          "source.ref_id": purchase._id,
+          "source.type": "purchase",
+          variant: item.variant,
+        })
+          .populate("variant")
+          .populate("product")
+          .lean();
+
+        if (lot) {
+          lots.push(lot);
+          qty_total_sum += lot.qty_total ?? 0;
+          qty_available_sum += lot.qty_available ?? 0;
+          total_sold_sum += (lot.qty_total ?? 0) - (lot.qty_available ?? 0);
+        }
+      }
+
+      // 🧩 attach lot data summary
+      purchase.qty_total = qty_total_sum;
+      purchase.qty_available = qty_available_sum;
+      purchase.total_sold = total_sold_sum;
+      purchase.lots = lots.length === 1 ? lots[0] : lots;
+    }
+
+    return purchase;
   }
 
   async updateStatus(

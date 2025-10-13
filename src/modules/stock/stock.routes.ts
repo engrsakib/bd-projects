@@ -8,37 +8,46 @@ const router = Router();
 
 router.post(
   "/transfer",
-  JwtInstance.authenticate([ROLES.ADMIN, ROLES.SUPER_ADMIN]),
+  JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.STOCK_TRANSFER),
   StockController.transferStocks
 );
 
 router.get(
   "/",
-  JwtInstance.authenticate([ROLES.ADMIN, ROLES.SUPER_ADMIN]),
+  JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.STOCK_VIEW),
-  StockController.getAllStocks
+  StockController.getFullStockReport
 );
+
+router.get(
+  "/low-stock",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.STOCK_VIEW),
+  StockController.getLowStockProducts
+);
+//   StockController.getAllStocks
+// );
 
 router.get("/:variant_id/:product_id", StockController.getStockById);
 
 router.get(
   "/product/:slug",
-  JwtInstance.authenticate([ROLES.ADMIN, ROLES.SUPER_ADMIN]),
+  JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.STOCK_VIEW),
   StockController.getStockByAProduct
 );
 
 router.patch(
   "/:id",
-  JwtInstance.authenticate([ROLES.ADMIN, ROLES.SUPER_ADMIN]),
+  JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.STOCK_UPDATE),
   StockController.updateStock
 );
 
 router.delete(
   "/:id",
-  JwtInstance.authenticate([ROLES.ADMIN, ROLES.SUPER_ADMIN]),
+  JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.STOCK_DELETE),
   StockController.deleteStock
 );
