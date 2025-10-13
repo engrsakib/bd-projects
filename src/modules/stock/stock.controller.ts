@@ -79,6 +79,21 @@ class Controller extends BaseController {
       data: deleted,
     });
   });
+
+  getFullStockReport = this.catchAsync(async (req: Request, res: Response) => {
+    const { sku, page, limit } = req.query;
+    const report = await StockService.getFullStockReport({
+      sku: sku as string,
+      page: page ? parseInt(page as string, 10) : undefined,
+      limit: limit ? parseInt(limit as string, 10) : undefined,
+    });
+    return this.sendResponse(res, {
+      statusCode: HttpStatusCode.OK,
+      success: true,
+      message: "Full stock report generated successfully",
+      data: report,
+    });
+  });
 }
 
 export const StockController = new Controller();
