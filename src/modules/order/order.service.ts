@@ -74,6 +74,7 @@ class Service {
         // console.log(consumedLots, "consumed lots `");
 
         stock.available_quantity -= item.quantity;
+        stock.total_sold = (stock.total_sold || 0) + item.quantity;
         await stock.save({ session });
       }
 
