@@ -3,6 +3,6 @@ import { WebhocksController } from "./webhocks.controller";
 
 const router = Router();
 
-router.post("/steadfast/:id", WebhocksController.steadfastWebhock);
+router.post("/steadfast", WebhocksController.steadfastWebhock);
 
 export const WebhocksRoutes = router;
