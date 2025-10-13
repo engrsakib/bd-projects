@@ -717,15 +717,15 @@ class Service {
 
     const pipeline: any[] = [];
 
-    // 🎯 Step 1: Match specific purchase by ObjectId
+    // Step 1: Match specific purchase by ObjectId
     pipeline.push({
       $match: { _id: objectId },
     });
 
-    // 🎯 Step 2: Unwind items
+    // Step 2: Unwind items
     pipeline.push({ $unwind: "$items" });
 
-    // 🎯 Step 3: Lookup product & variant (with all fields)
+    // Step 3: Lookup product & variant (with all fields)
     pipeline.push(
       {
         $lookup: {
@@ -750,7 +750,7 @@ class Service {
       { $unwind: { path: "$variant_info", preserveNullAndEmptyArrays: true } }
     );
 
-    // 🎯 Step 4: Replace IDs with full objects
+    // Step 4: Replace IDs with full objects
     pipeline.push({
       $addFields: {
         "items.product": "$product_info",
@@ -758,7 +758,7 @@ class Service {
       },
     });
 
-    // 🎯 Step 5: Clean helper
+    // Step 5: Clean helper
     pipeline.push({
       $project: {
         product_info: 0,
@@ -766,7 +766,7 @@ class Service {
       },
     });
 
-    // 🎯 Step 6: Re-group
+    // Step 6: Re-group
     pipeline.push({
       $group: {
         _id: "$_id",
@@ -788,7 +788,7 @@ class Service {
       },
     });
 
-    // 🎯 Step 7: Populate all reference fields with ALL FIELDS
+    // Step 7: Populate all reference fields with ALL FIELDS
     const lookups = [
       { from: "locations", localField: "location", as: "location" },
       { from: "suppliers", localField: "supplier", as: "supplier" },
@@ -810,7 +810,7 @@ class Service {
       );
     }
 
-    // 🎯 Step 8: Don't limit projection (all fields)
+    // Step 8: Don't limit projection (all fields)
     pipeline.push({
       $project: {
         _id: 1,
@@ -832,18 +832,22 @@ class Service {
       },
     });
 
-    // 🎯 Step 9: Run aggregation
+    // Step 9: Run aggregation
     const result = await PurchaseModel.aggregate(pipeline);
     const purchase = result[0] || null;
 
-    // 🎯 Step 10: Attach Lot info (unique per variant)
+    // Step 10: Attach Lot info (unique per variant) & move qty fields into items
     if (purchase) {
-      let qty_total_sum = 0;
-      let qty_available_sum = 0;
-      let total_sold_sum = 0;
-
       const lots: any[] = [];
 
+      // Build a map: productId -> qty_total, qty_available, total_sold
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const itemStatsMap: Record<
+        string,
+        { qty_total: number; qty_available: number; total_sold: number }
+      > = {};
+
+      // For each item (product+variant), get its lot, calculate stats and attach to each item
       for (const item of purchase.items) {
         const lot = await LotModel.findOne({
           "source.ref_id": objectId,
@@ -853,22 +857,33 @@ class Service {
           .populate("variant")
           .populate("product")
           .populate("createdBy")
-          // .populate("updatedBy") // Remove this if not present in schema!
-
+          // .populate("location")
           .lean();
 
         if (lot) {
           lots.push(lot);
-          qty_total_sum += lot.qty_total ?? 0;
-          qty_available_sum += lot.qty_available ?? 0;
-          total_sold_sum += (lot.qty_total ?? 0) - (lot.qty_available ?? 0);
+
+          // qty logic for this product/variant
+          const qty_total = lot.qty_total ?? 0;
+          const qty_available = lot.qty_available ?? 0;
+          const total_sold = qty_total - qty_available;
+
+          // Attach these fields inside item object
+          item.qty_total = qty_total;
+          item.qty_available = qty_available;
+          item.total_sold = total_sold;
+        } else {
+          // No lot found, default to 0
+          item.qty_total = 0;
+          item.qty_available = 0;
+          item.total_sold = 0;
         }
       }
 
-      purchase.qty_total = qty_total_sum;
-      purchase.qty_available = qty_available_sum;
-      purchase.total_sold = total_sold_sum;
       purchase.lots = lots.length === 1 ? lots[0] : lots;
+
+      // Remove qty fields from root
+      // (Do not add purchase.qty_total, purchase.qty_available, purchase.total_sold)
     }
 
     return purchase;
