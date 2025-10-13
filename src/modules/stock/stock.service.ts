@@ -516,11 +516,13 @@ class Service {
     }
 
     return {
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
       data: report,
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
     };
   }
 }
