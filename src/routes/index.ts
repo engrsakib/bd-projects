@@ -73,7 +73,7 @@ const moduleRoutes = [
     route: PurchaseRoutes,
   },
   {
-    path: "/stock",
+    path: "/stocks",
     route: StocksRoutes,
   },
   {
