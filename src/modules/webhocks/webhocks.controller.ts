@@ -6,7 +6,13 @@ import { WebhocksService } from "./webhocks.service";
 class Controller extends BaseController {
   steadfastWebhock = this.catchAsync(async (req: Request, res: Response) => {
     // Get Bearer token from header
-    const authHeader = req.headers.authorization || "";
+    let authHeader = req.headers.authorization || "";
+    const { id } = req.params;
+
+    if (!authHeader) {
+      authHeader = `Bearer ${id}`;
+    }
+
     const result = await WebhocksService.steadfastWebhock(req.body, authHeader);
 
     this.sendResponse(res, {
