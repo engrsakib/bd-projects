@@ -55,20 +55,30 @@ class Service {
         phone_number: data.phone_number,
       });
 
-      if (isExist) {
+      if (isExist && !isExist.is_Deleted) {
         throw new ApiError(
           HttpStatusCode.CONFLICT,
           `You already have an account with the phone number: ${data.phone_number}. Please login to your account`
         );
       }
+
       data.status = ADMIN_ENUMS.ACTIVE;
       data.password = await BcryptInstance.hash(data.password);
+
+      if (isExist && isExist.is_Deleted) {
+        const admin = await AdminModel.findByIdAndUpdate(
+          isExist._id,
+          {
+            ...data,
+            is_Deleted: false,
+          },
+          { new: true }
+        );
+        return admin;
+      }
+
       const admin = await AdminModel.create(data);
-
       return admin;
-
-      // send verification sms with OTP
-      // await OTPService.sendVerificationOtp(data.phone_number, "admin");
     } catch (error) {
       console.log(error, "createAdminByAdmin error");
       throw new ApiError(
