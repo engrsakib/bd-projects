@@ -272,6 +272,13 @@ class Service {
       );
     }
 
+    if (user.is_Deleted) {
+      throw new ApiError(
+        HttpStatusCode.GONE,
+        "This account has been deleted. Please contact support"
+      );
+    }
+
     if (user.status === USER_STATUS.INACTIVE) {
       // send a verification otp
       await OTPService.sendVerificationOtp(data.phone_number, "user");
