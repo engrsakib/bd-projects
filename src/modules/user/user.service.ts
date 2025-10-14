@@ -23,48 +23,84 @@ class Service {
       phone_number: data.phone_number,
     });
 
-    if (isExist) {
+    if (isExist && !isExist.is_Deleted) {
       throw new ApiError(
         HttpStatusCode.CONFLICT,
         `You already have '${isExist?.role}' account with this phone number. Please use a different phone number to create account or login`
       );
     }
 
-    data.password = await BcryptInstance.hash(data.password);
+    // if user exists but marked deleted → reactivate with new data
+    if (isExist && isExist.is_Deleted) {
+      data.password = await BcryptInstance.hash(data.password);
 
+      const updatedUser = await UserModel.findByIdAndUpdate(
+        isExist._id,
+        { ...data, is_Deleted: false },
+        { new: true }
+      );
+
+      await OTPService.sendVerificationOtp(data.phone_number, "user");
+
+      if (data.role === ROLES.CUSTOMER && updatedUser) {
+        if (updatedUser) {
+          if (updatedUser) {
+            emitter.emit("user.registered", updatedUser._id);
+          }
+        }
+      }
+
+      return updatedUser;
+    }
+    data.status = USER_STATUS.INACTIVE; // set status to inactive by default
+    data.password = await BcryptInstance.hash(data.password);
     const result = await UserModel.create(data);
 
-    // send verification otp to SMS
     await OTPService.sendVerificationOtp(data.phone_number, "user");
 
-    // fire event to create cart if role === "customer"
     if (data.role === ROLES.CUSTOMER) {
       emitter.emit("user.registered", result._id);
     }
+
+    return result;
   }
+
   async createByAdmin(data: IUser) {
     const isExist = await UserModel.findOne({
       phone_number: data.phone_number,
     });
 
-    if (isExist) {
+    if (isExist && !isExist.is_Deleted) {
       throw new ApiError(
         HttpStatusCode.CONFLICT,
         `You already have '${isExist?.role}' account with this phone number. Please use a different phone number to create account or login`
       );
     }
-    data.status = await USER_STATUS.ACTIVE;
+
+    data.status = USER_STATUS.ACTIVE;
     data.password = await BcryptInstance.hash(data.password);
+
+    if (isExist && isExist.is_Deleted) {
+      const updatedUser = await UserModel.findByIdAndUpdate(
+        isExist._id,
+        {
+          ...data,
+          is_Deleted: false,
+        },
+        { new: true }
+      );
+      if (data.role === ROLES.CUSTOMER) {
+        emitter.emit("user.registered", updatedUser?._id);
+      }
+      return updatedUser;
+    }
 
     const result = await UserModel.create(data);
 
-    // send verification otp to SMS
-    // await OTPService.sendVerificationOtp(data.phone_number, "user");
-
-    // fire event to create cart if role === "customer"
     if (data.role === ROLES.CUSTOMER) {
       emitter.emit("user.registered", result._id);
     }
+    return result;
   }
 
   async verifyAccount(data: IOtpVerify): Promise<{
@@ -269,6 +305,13 @@ class Service {
       throw new ApiError(
         HttpStatusCode.NOT_FOUND,
         "The account you are trying to login is not exist our system. Please create account first"
+      );
+    }
+
+    if (user.is_Deleted) {
+      throw new ApiError(
+        HttpStatusCode.GONE,
+        "This account has been deleted. Please contact support"
       );
     }
 

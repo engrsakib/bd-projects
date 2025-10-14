@@ -23,7 +23,7 @@ const update = z.object({
       image: z.any().optional(),
       phone_number: z.string().optional(),
       role: z.string().optional(),
-      password: z.string().min(6).optional(),
+      password: z.string().optional(),
       designation: z.string().optional(),
       bio: z.string().optional(),
     })
