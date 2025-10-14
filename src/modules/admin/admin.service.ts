@@ -23,7 +23,7 @@ class Service {
       phone_number: data.phone_number,
     });
 
-    if (isExist) {
+    if (isExist && !isExist.is_Deleted) {
       throw new ApiError(
         HttpStatusCode.CONFLICT,
         `You already have an account with the phone number: ${data.phone_number}. Please login to your account`
@@ -31,9 +31,21 @@ class Service {
     }
 
     data.password = await BcryptInstance.hash(data.password);
-    await AdminModel.create(data);
 
-    // send verification sms with OTP
+    if (isExist && isExist.is_Deleted) {
+      await AdminModel.findByIdAndUpdate(
+        isExist._id,
+        {
+          ...data,
+          is_Deleted: false,
+        },
+        { new: true }
+      );
+      await OTPService.sendVerificationOtp(data.phone_number, "admin");
+      return;
+    }
+
+    await AdminModel.create(data);
     await OTPService.sendVerificationOtp(data.phone_number, "admin");
   }
 
