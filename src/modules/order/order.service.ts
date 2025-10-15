@@ -544,6 +544,8 @@ class Service {
         payment_status: PAYMENT_STATUS.PAID,
         order_at: new Date(),
         order_status: ORDER_STATUS.EXCHANGE_REQUESTED,
+
+        previousOrderId: prevOrder._id,
       };
 
       if (data?.tax && data?.tax > 0) {
@@ -563,7 +565,7 @@ class Service {
         payload.is_delivery_charge_paid = true;
       }
 
-      payload.payment_status = PAYMENT_STATUS.PENDING;
+      payload.payment_status = PAYMENT_STATUS.PAID;
       payload.payable_amount = payload.total_amount;
       if (data?.discounts && data?.discounts > 0) {
         data.discounts = Number(data?.discounts.toFixed());
@@ -574,7 +576,7 @@ class Service {
         payload.payable_amount -= data.paid_amount;
       }
 
-      payload.order_status = ORDER_STATUS.PLACED;
+      payload.order_status = ORDER_STATUS.EXCHANGE_REQUESTED;
 
       payload.total_amount = Number(payload.total_amount.toFixed());
 
