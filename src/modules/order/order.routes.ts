@@ -35,6 +35,14 @@ router.post(
   JwtInstance.hasPermissions(PermissionEnum.ORDER_CREATE),
   OrderController.placeOrderAdmin
 );
+
+router.post(
+  "/admin/exchange",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.ORDER_UPDATE),
+  OrderController.placeExchangeOrReturnOrder
+);
+
 router.get(
   "/orders/:id",
   JwtInstance.authenticate(Object.values(ROLES)),

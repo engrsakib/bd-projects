@@ -122,7 +122,7 @@ class Service {
         payment_type: data.payment_type,
         payment_status: PAYMENT_STATUS.PENDING,
         order_at: new Date(),
-        order_status: ORDER_STATUS.PENDING,
+        order_status: ORDER_STATUS.PLACED,
       };
 
       if (data?.tax && data?.tax > 0) {
@@ -353,7 +353,7 @@ class Service {
         payment_type: data.payment_type,
         payment_status: PAYMENT_STATUS.PENDING,
         order_at: new Date(),
-        order_status: ORDER_STATUS.PENDING,
+        order_status: ORDER_STATUS.PLACED,
       };
 
       if (data?.tax && data?.tax > 0) {
@@ -513,12 +513,21 @@ class Service {
 
       const order_by: IOrderBy = role ? role : "guest";
 
+      const prevOrder = await OrderModel.findById(
+        data.previousOrderId as string | Types.ObjectId
+      );
+      if (!prevOrder) {
+        throw new ApiError(
+          HttpStatusCode.BAD_REQUEST,
+          "Previous order not found for exchange/return"
+        );
+      }
+
       const payload: IOrder = {
-        user: data.user_id as Types.ObjectId,
-        customer_name: data.customer_name,
-        customer_number: data.customer_number,
-        customer_secondary_number: data.customer_secondary_number,
-        customer_email: data.customer_email,
+        customer_name: prevOrder.customer_name,
+        customer_number: prevOrder.customer_number,
+        customer_secondary_number: prevOrder.customer_secondary_number,
+        customer_email: prevOrder.customer_email,
         orders_by: order_by,
 
         items,
@@ -526,15 +535,15 @@ class Service {
         total_price,
         total_amount: total_price,
         payable_amount: 0,
-        delivery_address: data.delivery_address,
+        delivery_address: prevOrder.delivery_address,
         paid_amount: data.paid_amount || 0,
         discounts: data.discounts || 0,
         invoice_number,
         order_id,
         payment_type: data.payment_type,
-        payment_status: PAYMENT_STATUS.PENDING,
+        payment_status: PAYMENT_STATUS.PAID,
         order_at: new Date(),
-        order_status: ORDER_STATUS.PENDING,
+        order_status: ORDER_STATUS.EXCHANGE_REQUESTED,
       };
 
       if (data?.tax && data?.tax > 0) {
@@ -632,7 +641,7 @@ class Service {
         );
       }
 
-      // === STOCK ROLLBACK LOGIC ===
+      // rollback previous stock
       for (const prevItem of order.items ?? []) {
         const stock = await StockModel.findOne({
           product: prevItem.product,
@@ -645,76 +654,67 @@ class Service {
             { session }
           );
         }
-        const lots = await LotModel.find({
-          product: prevItem.product,
-          variant: prevItem.variant,
-          status: "active",
-        })
-          .sort({ received_at: 1 })
-          .session(session);
-        let remaining = prevItem.quantity;
-        for (const lot of lots) {
-          if (remaining <= 0) break;
-          const restoreQty = Math.min(
-            remaining,
-            lot.qty_total - lot.qty_available
-          );
-          await LotModel.findByIdAndUpdate(
-            lot._id,
-            {
-              $inc: { qty_available: restoreQty },
-              ...(lot.qty_available + restoreQty > 0
-                ? { status: "active" }
-                : {}),
-            },
-            { session }
-          );
-          remaining -= restoreQty;
-        }
       }
 
-      // === STOCK ALLOCATION LOGIC ===
+      // allocate stock for new items
+      let total_price = 0;
       for (const item of enrichedOrder.products) {
         const stock = await StockModel.findOne(
-          {
-            product: item.product,
-            variant: item.variant,
-          },
+          { product: item.product, variant: item.variant },
           null,
           { session }
         );
         if (!stock || stock.available_quantity < item.quantity) {
           throw new ApiError(
             HttpStatusCode.BAD_REQUEST,
-            `Product ${item.product.name} is out of stock or does not have enough quantity`
+            `Product ${item.product.name} is out of stock`
           );
         }
+
         const consumedLots = await this.consumeLotsFIFO(
           item.product,
           item.variant,
           item.quantity,
           session
         );
+
         item.lots = consumedLots;
+        item.subtotal = item.price * item.quantity;
+        total_price += item.subtotal;
         stock.available_quantity -= item.quantity;
         await stock.save({ session });
       }
 
-      // ... (rest of your logic unchanged)
+      order.items = enrichedOrder.products;
+      order.total_items = enrichedOrder.products.length;
+      order.total_price = total_price;
+      order.total_amount = total_price;
+      order.payable_amount = total_price;
+
+      // update general order fields
+      if (payload.customer_name) order.customer_name = payload.customer_name;
+      if (payload.customer_number)
+        order.customer_number = payload.customer_number;
+      if (payload.customer_secondary_number)
+        order.customer_secondary_number = payload.customer_secondary_number;
+      if (payload.customer_email) order.customer_email = payload.customer_email;
+      if (payload.delivery_address)
+        order.delivery_address = payload.delivery_address;
+      if (payload.payment_type) order.payment_type = payload.payment_type;
+      if (payload.orders_by) order.orders_by = payload.orders_by;
+      if (payload.paid_amount) order.paid_amount = payload.paid_amount;
+      if (payload.delivery_charge)
+        order.delivery_charge = payload.delivery_charge;
 
       await order.save({ session });
-
       await CartService.clearCartAfterCheckout(
         order.user as Types.ObjectId,
         session
       );
-
       await session.commitTransaction();
       session.endSession();
 
-      const populatedOrders = await OrderModel.find({
-        _id: order._id,
-      })
+      const populatedOrder = await OrderModel.findById(order._id)
         .populate({
           path: "items.product",
           select: "name slug sku thumbnail description",
@@ -725,7 +725,7 @@ class Service {
             "attributes attribute_values regular_price sale_price sku barcode image",
         });
 
-      return { order: populatedOrders, payment_url: "" };
+      return { order: populatedOrder, payment_url: "" };
     } catch (err) {
       await session.abortTransaction();
       session.endSession();

@@ -87,6 +87,7 @@ export type IOrder = {
 
 export type IOrderPlace = {
   user_id: string | Types.ObjectId;
+  previousOrderId?: string | Types.ObjectId;
   customer_name?: string;
   customer_number: string;
   customer_secondary_number?: string;
