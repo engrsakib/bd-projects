@@ -67,6 +67,7 @@ export type IOrder = {
   invoice_number: string;
   delivery_address: IAddress;
   payment_type: "bkash" | "cod";
+  order_type?: "regular" | "exchange" | "return";
   transaction_id?: string;
   payment_id?: string;
   payment_status?: "pending" | "paid" | "failed" | "refunded";

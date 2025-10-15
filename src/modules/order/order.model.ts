@@ -1,13 +1,13 @@
 import { model, Schema } from "mongoose";
 import { IOrder, IOrderItem } from "./order.interface";
 import { schemaOptions } from "@/utils/schemaOptions";
+import { addressSchema } from "@/common/models/address.model";
 import {
   ORDER_BY,
   ORDER_STATUS,
   PAYMENT_METHOD,
   PAYMENT_STATUS,
 } from "./order.enums";
-import { addressSchema } from "@/common/models/address.model";
 
 const orderItemSchema = new Schema<IOrderItem>({
   product: { type: Schema.Types.ObjectId, ref: "Product", required: true },
@@ -45,7 +45,12 @@ const orderSchema = new Schema<IOrder>(
       enum: Object.values(ORDER_BY),
       required: false,
     },
-
+    order_type: {
+      type: String,
+      enum: ["regular", "exchange", "return"],
+      required: false,
+      default: "regular",
+    },
     items: { type: [orderItemSchema], required: true },
 
     products: { type: [orderItemSchema], required: true },
