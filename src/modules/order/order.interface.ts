@@ -44,7 +44,7 @@ export type IOrderLog = {
 
 export type IOrder = {
   user?: Types.ObjectId;
-  orderId?: Types.ObjectId | string;
+  previousOrderId?: Types.ObjectId | string;
   customer_name?: string;
   customer_number: string;
   customer_email?: string;

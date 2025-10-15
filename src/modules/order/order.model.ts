@@ -35,7 +35,6 @@ const orderItemSchema = new Schema<IOrderItem>({
 const orderSchema = new Schema<IOrder>(
   {
     user: { type: Schema.Types.ObjectId, ref: "User", required: false },
-
     customer_name: { type: String, default: "" },
     customer_number: { type: String, required: true },
     customer_email: { type: String, default: "" },
@@ -97,6 +96,13 @@ const orderSchema = new Schema<IOrder>(
     system_message: { type: String, default: "" },
     order_note: { type: String, default: "" },
     notes: { type: String, default: "" },
+
+    previousOrderId: {
+      type: Schema.Types.ObjectId,
+      ref: "Order",
+      default: null,
+      required: false,
+    },
 
     logs: [
       {
