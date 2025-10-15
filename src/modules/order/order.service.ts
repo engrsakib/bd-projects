@@ -431,6 +431,187 @@ class Service {
     }
   }
 
+  // exchange and return order
+  async placeExchangeOrReturnOrder(
+    data: IOrderPlace
+  ): Promise<{ order: IOrder[]; payment_url: string }> {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      // retrieve user cart
+      const enrichedOrder = await this.enrichProducts(data);
+      // enrichedOrder
+      // console.log(JSON.stringify(enrichedOrder, null, 2), "enriched order");
+
+      // const cartItems = await CartService.getCartByUser(
+      //   data.user_id as Types.ObjectId
+      // );
+      if (enrichedOrder?.length <= 0) {
+        throw new ApiError(
+          HttpStatusCode.BAD_REQUEST,
+          "Your cart is empty, cannot place order"
+        );
+      }
+
+      // console.log(cartItems, "cart items");
+
+      // check stock availability [most important]
+      for (const item of enrichedOrder.products) {
+        // console.log(item.variant, "for stock");
+
+        const stock = await StockModel.findOne(
+          {
+            product: item.product,
+            variant: item.variant,
+          },
+          null,
+          { session }
+        );
+
+        if (!stock || stock.available_quantity < item.quantity) {
+          // await session.abortTransaction();
+
+          throw new ApiError(
+            HttpStatusCode.BAD_REQUEST,
+            `Product ${item.product.name} is out of stock or does not have enough quantity`
+          );
+        }
+
+        // lot consumption (FIFO)
+        const consumedLots = await this.consumeLotsFIFO(
+          item.product,
+          item.variant,
+          item.quantity,
+          session
+        );
+        item.lots = consumedLots;
+
+        stock.available_quantity -= item.quantity;
+        stock.total_sold = (stock.total_sold || 0) + item.quantity;
+        item.total_sold = (item.total_sold || 0) + item.quantity;
+        await stock.save({ session });
+      }
+
+      const { total_price, items, total_items } =
+        await this.calculateCart(enrichedOrder);
+
+      // 3. Generate invoice and order id
+      const order_id = await this.generateOrderId(session);
+      const invoice_number = await InvoiceService.generateInvoiceNumber(
+        order_id,
+        session
+      );
+
+      let role: IOrderBy = data.orders_by;
+      if (data.user_id) {
+        const user = await UserModel.findById(data.user_id);
+        if (user) {
+          role = user.role as IOrderBy;
+        }
+      }
+
+      const order_by: IOrderBy = role ? role : "guest";
+
+      const payload: IOrder = {
+        user: data.user_id as Types.ObjectId,
+        customer_name: data.customer_name,
+        customer_number: data.customer_number,
+        customer_secondary_number: data.customer_secondary_number,
+        customer_email: data.customer_email,
+        orders_by: order_by,
+
+        items,
+        total_items,
+        total_price,
+        total_amount: total_price,
+        payable_amount: 0,
+        delivery_address: data.delivery_address,
+        paid_amount: data.paid_amount || 0,
+        discounts: data.discounts || 0,
+        invoice_number,
+        order_id,
+        payment_type: data.payment_type,
+        payment_status: PAYMENT_STATUS.PENDING,
+        order_at: new Date(),
+        order_status: ORDER_STATUS.PENDING,
+      };
+
+      if (data?.tax && data?.tax > 0) {
+        data.tax = Number(data?.tax.toFixed());
+        payload.total_amount += data.tax;
+      }
+
+      // console.log(data.delivery_charge, "delivery address");
+
+      // data.delivery_charge = Number(data?.delivery_charge.toFixed());
+
+      // dakha 70TK OUT SIDE DELIVERY CHARGE 120 TK
+      if (data?.delivery_charge && data?.delivery_charge > 0) {
+        data.delivery_charge = Number(data?.delivery_charge.toFixed());
+        payload.total_amount += data.delivery_charge;
+        payload.delivery_charge = data.delivery_charge;
+        payload.is_delivery_charge_paid = true;
+      }
+
+      payload.payment_status = PAYMENT_STATUS.PENDING;
+      payload.payable_amount = payload.total_amount;
+      if (data?.discounts && data?.discounts > 0) {
+        data.discounts = Number(data?.discounts.toFixed());
+        payload.payable_amount -= data.discounts;
+      }
+      if (data?.paid_amount && data?.paid_amount > 0) {
+        data.paid_amount = Number(data?.paid_amount.toFixed());
+        payload.payable_amount -= data.paid_amount;
+      }
+
+      payload.order_status = ORDER_STATUS.PLACED;
+
+      payload.total_amount = Number(payload.total_amount.toFixed());
+
+      // 5. Create order (with session)
+      const createdOrders = await OrderModel.create([payload], { session });
+
+      if (!createdOrders || createdOrders.length <= 0) {
+        throw new ApiError(
+          HttpStatusCode.INTERNAL_SERVER_ERROR,
+          "Failed to create order"
+        );
+      }
+      // const createdOrder = createdOrders[0];
+      // console.log(createdOrder);
+
+      // 6. Clear cart (with session)
+      await CartService.clearCartAfterCheckout(
+        data.user_id as Types.ObjectId,
+        session
+      );
+
+      // 7. Commit transaction
+      await session.commitTransaction();
+      session.endSession();
+
+      const populatedOrders = await OrderModel.find({
+        _id: { $in: createdOrders.map((order) => order._id) },
+      })
+        .populate({
+          path: "items.product",
+          select: "name slug sku thumbnail description",
+        })
+        .populate({
+          path: "items.variant",
+          select:
+            "attributes attribute_values regular_price sale_price sku barcode image",
+        });
+
+      return { order: populatedOrders, payment_url: "" };
+    } catch (err) {
+      await session.abortTransaction();
+      session.endSession();
+      throw err;
+    }
+  }
+
   // edit order
   async editOrder(orderId: string, payload: Partial<IOrder>) {
     const session = await mongoose.startSession();
