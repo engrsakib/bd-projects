@@ -44,7 +44,7 @@ export type IOrderLog = {
 
 export type IOrder = {
   user?: Types.ObjectId;
-
+  previousOrderId?: Types.ObjectId | string;
   customer_name?: string;
   customer_number: string;
   customer_email?: string;
@@ -67,6 +67,7 @@ export type IOrder = {
   invoice_number: string;
   delivery_address: IAddress;
   payment_type: "bkash" | "cod";
+  order_type?: "regular" | "exchange" | "return";
   transaction_id?: string;
   payment_id?: string;
   payment_status?: "pending" | "paid" | "failed" | "refunded";
@@ -86,6 +87,7 @@ export type IOrder = {
 
 export type IOrderPlace = {
   user_id: string | Types.ObjectId;
+  previousOrderId?: string | Types.ObjectId;
   customer_name?: string;
   customer_number: string;
   customer_secondary_number?: string;

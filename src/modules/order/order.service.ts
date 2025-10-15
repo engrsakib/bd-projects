@@ -122,7 +122,7 @@ class Service {
         payment_type: data.payment_type,
         payment_status: PAYMENT_STATUS.PENDING,
         order_at: new Date(),
-        order_status: ORDER_STATUS.PENDING,
+        order_status: ORDER_STATUS.PLACED,
       };
 
       if (data?.tax && data?.tax > 0) {
@@ -353,7 +353,7 @@ class Service {
         payment_type: data.payment_type,
         payment_status: PAYMENT_STATUS.PENDING,
         order_at: new Date(),
-        order_status: ORDER_STATUS.PENDING,
+        order_status: ORDER_STATUS.PLACED,
       };
 
       if (data?.tax && data?.tax > 0) {
@@ -431,6 +431,198 @@ class Service {
     }
   }
 
+  // exchange and return order
+  async placeExchangeOrReturnOrder(
+    data: IOrderPlace
+  ): Promise<{ order: IOrder[]; payment_url: string }> {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      // retrieve user cart
+      const enrichedOrder = await this.enrichProducts(data);
+      // enrichedOrder
+      // console.log(JSON.stringify(enrichedOrder, null, 2), "enriched order");
+
+      // const cartItems = await CartService.getCartByUser(
+      //   data.user_id as Types.ObjectId
+      // );
+      if (enrichedOrder?.length <= 0) {
+        throw new ApiError(
+          HttpStatusCode.BAD_REQUEST,
+          "Your cart is empty, cannot place order"
+        );
+      }
+
+      // console.log(cartItems, "cart items");
+
+      // check stock availability [most important]
+      for (const item of enrichedOrder.products) {
+        // console.log(item.variant, "for stock");
+
+        const stock = await StockModel.findOne(
+          {
+            product: item.product,
+            variant: item.variant,
+          },
+          null,
+          { session }
+        );
+
+        if (!stock || stock.available_quantity < item.quantity) {
+          // await session.abortTransaction();
+
+          throw new ApiError(
+            HttpStatusCode.BAD_REQUEST,
+            `Product ${item.product.name} is out of stock or does not have enough quantity`
+          );
+        }
+
+        // lot consumption (FIFO)
+        const consumedLots = await this.consumeLotsFIFO(
+          item.product,
+          item.variant,
+          item.quantity,
+          session
+        );
+        item.lots = consumedLots;
+
+        stock.available_quantity -= item.quantity;
+        stock.total_sold = (stock.total_sold || 0) + item.quantity;
+        item.total_sold = (item.total_sold || 0) + item.quantity;
+        await stock.save({ session });
+      }
+
+      const { total_price, items, total_items } =
+        await this.calculateCart(enrichedOrder);
+
+      // 3. Generate invoice and order id
+      const order_id = await this.generateOrderId(session);
+      const invoice_number = await InvoiceService.generateInvoiceNumber(
+        order_id,
+        session
+      );
+
+      let role: IOrderBy = data.orders_by;
+      if (data.user_id) {
+        const user = await UserModel.findById(data.user_id);
+        if (user) {
+          role = user.role as IOrderBy;
+        }
+      }
+
+      const order_by: IOrderBy = role ? role : "guest";
+
+      const prevOrder = await OrderModel.findById(
+        data.previousOrderId as string | Types.ObjectId
+      );
+      if (!prevOrder) {
+        throw new ApiError(
+          HttpStatusCode.BAD_REQUEST,
+          "Previous order not found for exchange/return"
+        );
+      }
+
+      const payload: IOrder = {
+        customer_name: prevOrder.customer_name,
+        customer_number: prevOrder.customer_number,
+        customer_secondary_number: prevOrder.customer_secondary_number,
+        customer_email: prevOrder.customer_email,
+        orders_by: order_by,
+
+        items,
+        total_items,
+        total_price,
+        total_amount: total_price,
+        payable_amount: 0,
+        delivery_address: prevOrder.delivery_address,
+        paid_amount: data.paid_amount || 0,
+        discounts: data.discounts || 0,
+        invoice_number,
+        order_id,
+        payment_type: data.payment_type,
+        payment_status: PAYMENT_STATUS.PAID,
+        order_at: new Date(),
+        order_status: ORDER_STATUS.EXCHANGE_REQUESTED,
+
+        previousOrderId: prevOrder._id,
+      };
+
+      if (data?.tax && data?.tax > 0) {
+        data.tax = Number(data?.tax.toFixed());
+        payload.total_amount += data.tax;
+      }
+
+      // console.log(data.delivery_charge, "delivery address");
+
+      // data.delivery_charge = Number(data?.delivery_charge.toFixed());
+
+      // dakha 70TK OUT SIDE DELIVERY CHARGE 120 TK
+      if (data?.delivery_charge && data?.delivery_charge > 0) {
+        data.delivery_charge = Number(data?.delivery_charge.toFixed());
+        payload.total_amount += data.delivery_charge;
+        payload.delivery_charge = data.delivery_charge;
+        payload.is_delivery_charge_paid = true;
+      }
+
+      payload.payment_status = PAYMENT_STATUS.PAID;
+      payload.payable_amount = payload.total_amount;
+      if (data?.discounts && data?.discounts > 0) {
+        data.discounts = Number(data?.discounts.toFixed());
+        payload.payable_amount -= data.discounts;
+      }
+      if (data?.paid_amount && data?.paid_amount > 0) {
+        data.paid_amount = Number(data?.paid_amount.toFixed());
+        payload.payable_amount -= data.paid_amount;
+      }
+
+      payload.order_status = ORDER_STATUS.EXCHANGE_REQUESTED;
+
+      payload.total_amount = Number(payload.total_amount.toFixed());
+
+      // 5. Create order (with session)
+      const createdOrders = await OrderModel.create([payload], { session });
+
+      if (!createdOrders || createdOrders.length <= 0) {
+        throw new ApiError(
+          HttpStatusCode.INTERNAL_SERVER_ERROR,
+          "Failed to create order"
+        );
+      }
+      // const createdOrder = createdOrders[0];
+      // console.log(createdOrder);
+
+      // 6. Clear cart (with session)
+      await CartService.clearCartAfterCheckout(
+        data.user_id as Types.ObjectId,
+        session
+      );
+
+      // 7. Commit transaction
+      await session.commitTransaction();
+      session.endSession();
+
+      const populatedOrders = await OrderModel.find({
+        _id: { $in: createdOrders.map((order) => order._id) },
+      })
+        .populate({
+          path: "items.product",
+          select: "name slug sku thumbnail description",
+        })
+        .populate({
+          path: "items.variant",
+          select:
+            "attributes attribute_values regular_price sale_price sku barcode image",
+        });
+
+      return { order: populatedOrders, payment_url: "" };
+    } catch (err) {
+      await session.abortTransaction();
+      session.endSession();
+      throw err;
+    }
+  }
+
   // edit order
   async editOrder(orderId: string, payload: Partial<IOrder>) {
     const session = await mongoose.startSession();
@@ -451,7 +643,7 @@ class Service {
         );
       }
 
-      // === STOCK ROLLBACK LOGIC ===
+      // rollback previous stock
       for (const prevItem of order.items ?? []) {
         const stock = await StockModel.findOne({
           product: prevItem.product,
@@ -464,76 +656,67 @@ class Service {
             { session }
           );
         }
-        const lots = await LotModel.find({
-          product: prevItem.product,
-          variant: prevItem.variant,
-          status: "active",
-        })
-          .sort({ received_at: 1 })
-          .session(session);
-        let remaining = prevItem.quantity;
-        for (const lot of lots) {
-          if (remaining <= 0) break;
-          const restoreQty = Math.min(
-            remaining,
-            lot.qty_total - lot.qty_available
-          );
-          await LotModel.findByIdAndUpdate(
-            lot._id,
-            {
-              $inc: { qty_available: restoreQty },
-              ...(lot.qty_available + restoreQty > 0
-                ? { status: "active" }
-                : {}),
-            },
-            { session }
-          );
-          remaining -= restoreQty;
-        }
       }
 
-      // === STOCK ALLOCATION LOGIC ===
+      // allocate stock for new items
+      let total_price = 0;
       for (const item of enrichedOrder.products) {
         const stock = await StockModel.findOne(
-          {
-            product: item.product,
-            variant: item.variant,
-          },
+          { product: item.product, variant: item.variant },
           null,
           { session }
         );
         if (!stock || stock.available_quantity < item.quantity) {
           throw new ApiError(
             HttpStatusCode.BAD_REQUEST,
-            `Product ${item.product.name} is out of stock or does not have enough quantity`
+            `Product ${item.product.name} is out of stock`
           );
         }
+
         const consumedLots = await this.consumeLotsFIFO(
           item.product,
           item.variant,
           item.quantity,
           session
         );
+
         item.lots = consumedLots;
+        item.subtotal = item.price * item.quantity;
+        total_price += item.subtotal;
         stock.available_quantity -= item.quantity;
         await stock.save({ session });
       }
 
-      // ... (rest of your logic unchanged)
+      order.items = enrichedOrder.products;
+      order.total_items = enrichedOrder.products.length;
+      order.total_price = total_price;
+      order.total_amount = total_price;
+      order.payable_amount = total_price;
+
+      // update general order fields
+      if (payload.customer_name) order.customer_name = payload.customer_name;
+      if (payload.customer_number)
+        order.customer_number = payload.customer_number;
+      if (payload.customer_secondary_number)
+        order.customer_secondary_number = payload.customer_secondary_number;
+      if (payload.customer_email) order.customer_email = payload.customer_email;
+      if (payload.delivery_address)
+        order.delivery_address = payload.delivery_address;
+      if (payload.payment_type) order.payment_type = payload.payment_type;
+      if (payload.orders_by) order.orders_by = payload.orders_by;
+      if (payload.paid_amount) order.paid_amount = payload.paid_amount;
+      if (payload.delivery_charge)
+        order.delivery_charge = payload.delivery_charge;
 
       await order.save({ session });
-
       await CartService.clearCartAfterCheckout(
         order.user as Types.ObjectId,
         session
       );
-
       await session.commitTransaction();
       session.endSession();
 
-      const populatedOrders = await OrderModel.find({
-        _id: order._id,
-      })
+      const populatedOrder = await OrderModel.findById(order._id)
         .populate({
           path: "items.product",
           select: "name slug sku thumbnail description",
@@ -544,7 +727,7 @@ class Service {
             "attributes attribute_values regular_price sale_price sku barcode image",
         });
 
-      return { order: populatedOrders, payment_url: "" };
+      return { order: populatedOrder, payment_url: "" };
     } catch (err) {
       await session.abortTransaction();
       session.endSession();
