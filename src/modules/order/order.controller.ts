@@ -33,6 +33,23 @@ class Controller extends BaseController {
     });
   });
 
+  placeExchangeOrReturnOrder = this.catchAsync(
+    async (req: Request, res: Response) => {
+      console.log(req.body, "admin order");
+
+      const data = await OrderService.placeExchangeOrReturnOrder({
+        ...req.body,
+        user_id: req.body?.user_id || req.user?.id,
+      });
+      this.sendResponse(res, {
+        statusCode: HttpStatusCode.CREATED,
+        success: true,
+        message: "Your order has been placed successfully",
+        data,
+      });
+    }
+  );
+
   editOrder = this.catchAsync(async (req: Request, res: Response) => {
     const orderId = req.params.id as string;
     const data = await OrderService.editOrder(orderId, req.body);

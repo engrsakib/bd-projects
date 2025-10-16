@@ -521,6 +521,7 @@ class Service {
 
     pipeline.push({ $unwind: "$items" });
 
+    // SKU থাকলে case-insensitive match করবে
     if (sku) {
       pipeline.push(
         {
@@ -534,7 +535,7 @@ class Service {
         { $unwind: "$item_variant_doc" },
         {
           $match: {
-            "item_variant_doc.sku": sku,
+            "item_variant_doc.sku": { $regex: `^${sku}$`, $options: "i" }, // case-insensitive exact match
           },
         }
       );
@@ -639,7 +640,6 @@ class Service {
         attachments: 1,
         additional_note: 1,
         status: 1,
-        // items: 1, <-- we'll manually assign after populating
         items_variant_full: 1,
         items_product_full: 1,
         items: 1,
