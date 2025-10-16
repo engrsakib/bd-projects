@@ -1,11 +1,12 @@
 import mongoose, { Types } from "mongoose";
 import { CartService } from "../cart/cart.service";
 import {
-  IAllStocksCounted,
   IOrder,
   IOrderBy,
   IOrderItem,
   IOrderPlace,
+  IOrderStatus,
+  Istatus_count,
 } from "./order.interface";
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { ICartItem } from "../cart/cart.interface";
@@ -912,7 +913,7 @@ class Service {
 
   async getOrders(query: OrderQuery): Promise<{
     meta: { page: number; limit: number; total: number };
-    all_Stocks_Counted: IAllStocksCounted;
+    status_count: Istatus_count;
     data: IOrder[];
   }> {
     const {
@@ -929,6 +930,7 @@ class Service {
     const pipeline: any[] = [];
     const matchStage: any = {};
 
+    // ---- Filter Setup for orders only ----
     if (start_date || end_date) {
       matchStage.order_at = {};
       if (start_date) matchStage.order_at.$gte = new Date(start_date);
@@ -938,14 +940,12 @@ class Service {
     if (status) {
       if (Array.isArray(status)) {
         matchStage.order_status = { $in: status };
+      } else if (typeof status === "string" && status.includes(",")) {
+        matchStage.order_status = {
+          $in: status.split(",").map((s) => s.trim()),
+        };
       } else {
-        if (typeof status === "string" && status.includes(",")) {
-          matchStage.order_status = {
-            $in: status.split(",").map((s) => s.trim()),
-          };
-        } else {
-          matchStage.order_status = status;
-        }
+        matchStage.order_status = status;
       }
     }
 
@@ -972,7 +972,6 @@ class Service {
       pipeline.push({ $sort: { order_at: -1 } });
     }
 
-    // (populate + map logic kept same as your original)
     pipeline.push({
       $lookup: {
         from: "products",
@@ -981,7 +980,6 @@ class Service {
         as: "productsDocs",
       },
     });
-
     pipeline.push({
       $lookup: {
         from: "variants",
@@ -990,7 +988,6 @@ class Service {
         as: "variantsDocs",
       },
     });
-
     pipeline.push({
       $lookup: {
         from: "couriers",
@@ -1005,7 +1002,6 @@ class Service {
         preserveNullAndEmptyArrays: true,
       },
     });
-
     const lookupCollection = orders_by === "admin" ? "admins" : "users";
     pipeline.push({
       $lookup: {
@@ -1084,18 +1080,18 @@ class Service {
       },
     });
 
+    // ---- Pagination ----
     const _page = Math.max(Number(page), 1);
     const _limit = Math.max(Number(limit), 1);
     pipeline.push({ $skip: (_page - 1) * _limit });
     pipeline.push({ $limit: _limit });
 
+    // ---- Fetch filtered data ----
     const orders = await OrderModel.aggregate(pipeline);
     const total = await OrderModel.countDocuments(matchStage);
 
-    // --- Robust status counts aggregation ---
-    // ensure missing/null statuses are counted under 'unknown'
+    // ---- Status Aggregation (Full DB, no filter!) ----
     const statusCountsAgg = await OrderModel.aggregate([
-      { $match: matchStage },
       {
         $group: {
           _id: { $ifNull: ["$order_status", "unknown"] },
@@ -1104,32 +1100,42 @@ class Service {
       },
     ]);
 
-    // get all enum values and ensure 'unknown' included
-    const orderStatusList: string[] = [...Object.values(ORDER_STATUS)];
-    if (!orderStatusList.includes("unknown")) orderStatusList.push("unknown");
+    const orderStatusList: IOrderStatus[] = [
+      "failed",
+      "pending",
+      "placed",
+      "accepted",
+      "rts",
+      "handed_over_to_courier",
+      "in_transit",
+      "delivered",
+      "pending_return",
+      "returned",
+      "cancelled",
+      "exchange_requested",
+      "exchanged",
+      "incomplete",
+      "partial",
+      "unknown",
+      "lost",
+    ];
 
-    const all_Stocks_Counted: IAllStocksCounted = orderStatusList.reduce(
-      (obj, s) => {
-        obj[s as ORDER_STATUS] = 0;
-        return obj;
-      },
-      {} as IAllStocksCounted
-    );
-
-    // Fill counts (allow numeric keys etc.)
+    // Build status_count object at root level
+    const status_count: Istatus_count = {} as Istatus_count;
+    orderStatusList.forEach((status) => {
+      status_count[status] = 0;
+    });
     statusCountsAgg.forEach((row) => {
-      const key = String(row._id);
-      if (Object.prototype.hasOwnProperty.call(all_Stocks_Counted, key)) {
-        (all_Stocks_Counted as any)[key] = row.count;
-      } else {
-        // if DB has unexpected status strings, include them dynamically
-        (all_Stocks_Counted as any)[key] = row.count;
+      const key =
+        typeof row._id === "string" ? row._id.trim() : String(row._id);
+      if (orderStatusList.includes(key as IOrderStatus)) {
+        status_count[key as IOrderStatus] = row.count;
       }
     });
 
     return {
       meta: { page: _page, limit: _limit, total },
-      all_Stocks_Counted,
+      status_count, // <-- only the object, not array
       data: orders,
     };
   }

@@ -44,7 +44,7 @@ export type IOrderLog = {
   action: string;
 };
 
-export type IAllStocksCounted = Record<IOrderStatus, number>;
+export type Istatus_count = Record<IOrderStatus, number>;
 
 export type IOrder = {
   user?: Types.ObjectId;
