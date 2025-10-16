@@ -391,7 +391,7 @@ class Service {
     let total = 0;
 
     if (sku) {
-      // Aggregation pipeline for SKU filtering
+      // Aggregation pipeline for SKU filtering, partial and case-insensitive
       const pipeline: any[] = [
         { $match: queries },
         {
@@ -402,10 +402,10 @@ class Service {
             as: "variants_docs",
           },
         },
-        // Match any items.variant with requested sku
+        // Match any items.variant with requested sku (partial, case-insensitive)
         {
           $match: {
-            "variants_docs.sku": sku,
+            "variants_docs.sku": { $regex: sku, $options: "i" },
           },
         },
         // Usual populates
