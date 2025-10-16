@@ -913,7 +913,7 @@ class Service {
 
   async getOrders(query: OrderQuery): Promise<{
     meta: { page: number; limit: number; total: number };
-    status_count: Istatus_count;
+    status_count: Istatus_count & { all: number };
     data: IOrder[];
   }> {
     const {
@@ -1120,8 +1120,9 @@ class Service {
       "lost",
     ];
 
-    // Build status_count object at root level
-    const status_count: Istatus_count = {} as Istatus_count;
+    // Build status_count object at root level + all property
+    const status_count: Istatus_count & { all: number } =
+      {} as Istatus_count & { all: number };
     orderStatusList.forEach((status) => {
       status_count[status] = 0;
     });
@@ -1133,9 +1134,15 @@ class Service {
       }
     });
 
+    // Calculate sum of all statuses
+    status_count.all = orderStatusList.reduce(
+      (sum, s) => sum + (status_count[s] || 0),
+      0
+    );
+
     return {
       meta: { page: _page, limit: _limit, total },
-      status_count, // <-- only the object, not array
+      status_count,
       data: orders,
     };
   }
