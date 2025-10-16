@@ -1,6 +1,13 @@
 import mongoose, { Types } from "mongoose";
 import { CartService } from "../cart/cart.service";
-import { IOrder, IOrderBy, IOrderItem, IOrderPlace } from "./order.interface";
+import {
+  IOrder,
+  IOrderBy,
+  IOrderItem,
+  IOrderPlace,
+  IOrderStatus,
+  Istatus_count,
+} from "./order.interface";
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { ICartItem } from "../cart/cart.interface";
 import { InvoiceService } from "@/lib/invoice";
@@ -906,11 +913,12 @@ class Service {
 
   async getOrders(query: OrderQuery): Promise<{
     meta: { page: number; limit: number; total: number };
+    status_count: Istatus_count & { all: number };
     data: IOrder[];
   }> {
     const {
       page = "1",
-      limit = "10",
+      limit = "100",
       start_date,
       end_date,
       status,
@@ -922,24 +930,22 @@ class Service {
     const pipeline: any[] = [];
     const matchStage: any = {};
 
+    // ---- Filter Setup for orders only ----
     if (start_date || end_date) {
       matchStage.order_at = {};
       if (start_date) matchStage.order_at.$gte = new Date(start_date);
       if (end_date) matchStage.order_at.$lte = new Date(end_date);
     }
 
-    // status as array support
     if (status) {
       if (Array.isArray(status)) {
         matchStage.order_status = { $in: status };
+      } else if (typeof status === "string" && status.includes(",")) {
+        matchStage.order_status = {
+          $in: status.split(",").map((s) => s.trim()),
+        };
       } else {
-        if (typeof status === "string" && status.includes(",")) {
-          matchStage.order_status = {
-            $in: status.split(",").map((s) => s.trim()),
-          };
-        } else {
-          matchStage.order_status = status;
-        }
+        matchStage.order_status = status;
       }
     }
 
@@ -966,7 +972,6 @@ class Service {
       pipeline.push({ $sort: { order_at: -1 } });
     }
 
-    // ---------- Populate items.product ----------
     pipeline.push({
       $lookup: {
         from: "products",
@@ -975,8 +980,6 @@ class Service {
         as: "productsDocs",
       },
     });
-
-    // ---------- Populate items.variant ----------
     pipeline.push({
       $lookup: {
         from: "variants",
@@ -985,8 +988,6 @@ class Service {
         as: "variantsDocs",
       },
     });
-
-    // ---------- Populate courier ----------
     pipeline.push({
       $lookup: {
         from: "couriers",
@@ -1001,10 +1002,7 @@ class Service {
         preserveNullAndEmptyArrays: true,
       },
     });
-
-    // ---------- Populate user OR admin ----------
     const lookupCollection = orders_by === "admin" ? "admins" : "users";
-
     pipeline.push({
       $lookup: {
         from: lookupCollection,
@@ -1013,7 +1011,6 @@ class Service {
         as: "userDocs",
       },
     });
-
     pipeline.push({
       $unwind: {
         path: "$userDocs",
@@ -1021,7 +1018,6 @@ class Service {
       },
     });
 
-    // ---------- Merge populated product/variant/user/courier ----------
     pipeline.push({
       $addFields: {
         items: {
@@ -1071,7 +1067,7 @@ class Service {
           createdAt: "$userDocs.createdAt",
           updatedAt: "$userDocs.updatedAt",
         },
-        courier: "$courierDocs", // courier object inject
+        courier: "$courierDocs",
       },
     });
 
@@ -1080,23 +1076,77 @@ class Service {
         productsDocs: 0,
         variantsDocs: 0,
         userDocs: 0,
-        courierDocs: 0, // hide raw courierDocs
+        courierDocs: 0,
       },
     });
 
+    // ---- Pagination ----
     const _page = Math.max(Number(page), 1);
     const _limit = Math.max(Number(limit), 1);
     pipeline.push({ $skip: (_page - 1) * _limit });
     pipeline.push({ $limit: _limit });
 
+    // ---- Fetch filtered data ----
     const orders = await OrderModel.aggregate(pipeline);
     const total = await OrderModel.countDocuments(matchStage);
 
+    // ---- Status Aggregation (Full DB, no filter!) ----
+    const statusCountsAgg = await OrderModel.aggregate([
+      {
+        $group: {
+          _id: { $ifNull: ["$order_status", "unknown"] },
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const orderStatusList: IOrderStatus[] = [
+      "failed",
+      "pending",
+      "placed",
+      "accepted",
+      "rts",
+      "handed_over_to_courier",
+      "in_transit",
+      "delivered",
+      "pending_return",
+      "returned",
+      "cancelled",
+      "exchange_requested",
+      "exchanged",
+      "incomplete",
+      "partial",
+      "unknown",
+      "lost",
+    ];
+
+    // Build status_count object at root level + all property
+    const status_count: Istatus_count & { all: number } =
+      {} as Istatus_count & { all: number };
+    orderStatusList.forEach((status) => {
+      status_count[status] = 0;
+    });
+    statusCountsAgg.forEach((row) => {
+      const key =
+        typeof row._id === "string" ? row._id.trim() : String(row._id);
+      if (orderStatusList.includes(key as IOrderStatus)) {
+        status_count[key as IOrderStatus] = row.count;
+      }
+    });
+
+    // Calculate sum of all statuses
+    status_count.all = orderStatusList.reduce(
+      (sum, s) => sum + (status_count[s] || 0),
+      0
+    );
+
     return {
       meta: { page: _page, limit: _limit, total },
+      status_count,
       data: orders,
     };
   }
+
   // delete order by id
   async deleteOrder(id: string): Promise<void> {
     const order = await OrderModel.findById(id);
