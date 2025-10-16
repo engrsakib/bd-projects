@@ -1,6 +1,12 @@
 import mongoose, { Types } from "mongoose";
 import { CartService } from "../cart/cart.service";
-import { IOrder, IOrderBy, IOrderItem, IOrderPlace } from "./order.interface";
+import {
+  IAllStocksCounted,
+  IOrder,
+  IOrderBy,
+  IOrderItem,
+  IOrderPlace,
+} from "./order.interface";
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { ICartItem } from "../cart/cart.interface";
 import { InvoiceService } from "@/lib/invoice";
@@ -906,11 +912,12 @@ class Service {
 
   async getOrders(query: OrderQuery): Promise<{
     meta: { page: number; limit: number; total: number };
+    all_Stocks_Counted: IAllStocksCounted;
     data: IOrder[];
   }> {
     const {
       page = "1",
-      limit = "10",
+      limit = "100",
       start_date,
       end_date,
       status,
@@ -928,7 +935,6 @@ class Service {
       if (end_date) matchStage.order_at.$lte = new Date(end_date);
     }
 
-    // status as array support
     if (status) {
       if (Array.isArray(status)) {
         matchStage.order_status = { $in: status };
@@ -966,7 +972,7 @@ class Service {
       pipeline.push({ $sort: { order_at: -1 } });
     }
 
-    // ---------- Populate items.product ----------
+    // (populate + map logic kept same as your original)
     pipeline.push({
       $lookup: {
         from: "products",
@@ -976,7 +982,6 @@ class Service {
       },
     });
 
-    // ---------- Populate items.variant ----------
     pipeline.push({
       $lookup: {
         from: "variants",
@@ -986,7 +991,6 @@ class Service {
       },
     });
 
-    // ---------- Populate courier ----------
     pipeline.push({
       $lookup: {
         from: "couriers",
@@ -1002,9 +1006,7 @@ class Service {
       },
     });
 
-    // ---------- Populate user OR admin ----------
     const lookupCollection = orders_by === "admin" ? "admins" : "users";
-
     pipeline.push({
       $lookup: {
         from: lookupCollection,
@@ -1013,7 +1015,6 @@ class Service {
         as: "userDocs",
       },
     });
-
     pipeline.push({
       $unwind: {
         path: "$userDocs",
@@ -1021,7 +1022,6 @@ class Service {
       },
     });
 
-    // ---------- Merge populated product/variant/user/courier ----------
     pipeline.push({
       $addFields: {
         items: {
@@ -1071,7 +1071,7 @@ class Service {
           createdAt: "$userDocs.createdAt",
           updatedAt: "$userDocs.updatedAt",
         },
-        courier: "$courierDocs", // courier object inject
+        courier: "$courierDocs",
       },
     });
 
@@ -1080,7 +1080,7 @@ class Service {
         productsDocs: 0,
         variantsDocs: 0,
         userDocs: 0,
-        courierDocs: 0, // hide raw courierDocs
+        courierDocs: 0,
       },
     });
 
@@ -1092,11 +1092,48 @@ class Service {
     const orders = await OrderModel.aggregate(pipeline);
     const total = await OrderModel.countDocuments(matchStage);
 
+    // --- Robust status counts aggregation ---
+    // ensure missing/null statuses are counted under 'unknown'
+    const statusCountsAgg = await OrderModel.aggregate([
+      { $match: matchStage },
+      {
+        $group: {
+          _id: { $ifNull: ["$order_status", "unknown"] },
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    // get all enum values and ensure 'unknown' included
+    const orderStatusList: string[] = [...Object.values(ORDER_STATUS)];
+    if (!orderStatusList.includes("unknown")) orderStatusList.push("unknown");
+
+    const all_Stocks_Counted: IAllStocksCounted = orderStatusList.reduce(
+      (obj, s) => {
+        obj[s as ORDER_STATUS] = 0;
+        return obj;
+      },
+      {} as IAllStocksCounted
+    );
+
+    // Fill counts (allow numeric keys etc.)
+    statusCountsAgg.forEach((row) => {
+      const key = String(row._id);
+      if (Object.prototype.hasOwnProperty.call(all_Stocks_Counted, key)) {
+        (all_Stocks_Counted as any)[key] = row.count;
+      } else {
+        // if DB has unexpected status strings, include them dynamically
+        (all_Stocks_Counted as any)[key] = row.count;
+      }
+    });
+
     return {
       meta: { page: _page, limit: _limit, total },
+      all_Stocks_Counted,
       data: orders,
     };
   }
+
   // delete order by id
   async deleteOrder(id: string): Promise<void> {
     const order = await OrderModel.findById(id);

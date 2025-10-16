@@ -15,6 +15,8 @@ export type IOrderStatus =
   | "exchange_requested"
   | "exchanged"
   | "incomplete"
+  | "handed_over_to_courier"
+  | "unknown"
   | "partial"
   | "lost";
 
@@ -41,6 +43,8 @@ export type IOrderLog = {
   time: Date;
   action: string;
 };
+
+export type IAllStocksCounted = Record<IOrderStatus, number>;
 
 export type IOrder = {
   user?: Types.ObjectId;
