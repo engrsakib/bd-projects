@@ -547,6 +547,7 @@ class Service {
         discounts: data.discounts || 0,
         invoice_number,
         order_id,
+        order_type: data.order_type,
         payment_type: data.payment_type,
         payment_status: PAYMENT_STATUS.PAID,
         order_at: new Date(),
@@ -933,8 +934,12 @@ class Service {
     // ---- Filter Setup for orders only ----
     if (start_date || end_date) {
       matchStage.order_at = {};
-      if (start_date) matchStage.order_at.$gte = new Date(start_date);
-      if (end_date) matchStage.order_at.$lte = new Date(end_date);
+      if (start_date) {
+        matchStage.order_at.$gte = new Date(start_date);
+      }
+      if (end_date) {
+        matchStage.order_at.$lte = new Date(end_date);
+      }
     }
 
     if (status) {

@@ -97,6 +97,7 @@ export type IOrderPlace = {
   customer_secondary_number?: string;
   customer_email?: string;
   delivery_charge?: number;
+  order_type?: "regular" | "exchange" | "return";
   tax?: number;
   paid_amount?: number;
   discounts?: number;
