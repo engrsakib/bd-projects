@@ -498,13 +498,19 @@ class Service {
       total = await PurchaseModel.countDocuments(queries);
     }
 
+    // ---- Always return in the exact format you requested ----
     return {
-      meta: {
-        page,
-        limit,
-        total,
+      statusCode: 200,
+      success: true,
+      message: "Purchases retrieved successfully",
+      data: {
+        meta: {
+          page,
+          limit,
+          total,
+        },
+        data: purchases,
       },
-      data: purchases,
     };
   }
 
