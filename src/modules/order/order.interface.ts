@@ -35,6 +35,7 @@ export type IOrderItem = {
   ];
   quantity: number;
   price: number;
+  price_adjustment?: number;
   subtotal: number;
   status?: IOrderStatus;
 };
@@ -49,7 +50,7 @@ export type Istatus_count = Record<IOrderStatus, number>;
 
 export type IOrder = {
   user?: Types.ObjectId;
-  previousOrderId?: Types.ObjectId | string;
+  previous_order?: Types.ObjectId | string;
   customer_name?: string;
   customer_number: string;
   customer_email?: string;
@@ -92,7 +93,7 @@ export type IOrder = {
 
 export type IOrderPlace = {
   user_id: string | Types.ObjectId;
-  previousOrderId?: string | Types.ObjectId;
+  previous_order?: string | Types.ObjectId;
   customer_name?: string;
   customer_number: string;
   customer_secondary_number?: string;

@@ -444,7 +444,7 @@ class Service {
   ): Promise<{ order: IOrder[]; payment_url: string }> {
     const session = await mongoose.startSession();
     session.startTransaction();
-
+    console.log("exchanges data");
     try {
       // retrieve user cart
       const enrichedOrder = await this.enrichProducts(data);
@@ -521,7 +521,7 @@ class Service {
       const order_by: IOrderBy = role ? role : "guest";
 
       const prevOrder = await OrderModel.findById(
-        data.previousOrderId as string | Types.ObjectId
+        data.previous_order as string | Types.ObjectId
       );
       if (!prevOrder) {
         throw new ApiError(
@@ -547,13 +547,13 @@ class Service {
         discounts: data.discounts || 0,
         invoice_number,
         order_id,
-        order_type: data.order_type,
+        order_type: "exchange",
         payment_type: data.payment_type,
         payment_status: PAYMENT_STATUS.PAID,
         order_at: new Date(),
         order_status: ORDER_STATUS.EXCHANGE_REQUESTED,
 
-        previousOrderId: prevOrder._id,
+        previous_order: prevOrder._id,
       };
 
       if (data?.tax && data?.tax > 0) {
