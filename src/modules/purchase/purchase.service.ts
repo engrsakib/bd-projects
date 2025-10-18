@@ -340,14 +340,12 @@ class Service {
       received_at_start_date,
     } = filters;
 
-    // Build main query
     const queries: any = {};
 
     if (supplier) queries.supplier = supplier;
     if (location) queries.location = location;
     if (status) queries.status = status;
 
-    // Received date filter
     if (received_at_start_date || received_at_end_date) {
       queries.received_at = {};
       const receivedAtStartRange = parseDateRange(
@@ -360,7 +358,6 @@ class Service {
         queries.received_at.$lte = receivedAtEndRange?.end;
     }
 
-    // Created date filter
     const startCreateAtDateRange = parseDateRange(
       created_at_start_date as string
     );
@@ -371,7 +368,6 @@ class Service {
     if (created_at_end_date)
       queries.created_at.$lte = endCreateAtDateRange?.end;
 
-    // Purchase date filter
     const startPurchaseDateRange = parseDateRange(
       purchase_date_start as string
     );
@@ -382,16 +378,14 @@ class Service {
     if (purchase_date_end)
       queries.purchase_date.$lte = endPurchaseDateRange?.end;
 
-    // Purchase number filter
     if (purchase_number)
       queries.purchase_number = parseInt(purchase_number as string, 10);
 
-    // Efficient SKU filter inside items.variant.sku using aggregation
     let purchases: any[] = [];
     let total = 0;
 
     if (sku) {
-      // Aggregation pipeline for SKU filtering, partial and case-insensitive
+      // 🔍 Case-insensitive SKU filter
       const pipeline: any[] = [
         { $match: queries },
         {
@@ -402,13 +396,11 @@ class Service {
             as: "variants_docs",
           },
         },
-        // Match any items.variant with requested sku (partial, case-insensitive)
         {
           $match: {
-            "variants_docs.sku": { $regex: sku, $options: "i" },
+            "variants_docs.sku": { $regex: new RegExp(`^${sku}$`, "i") },
           },
         },
-        // Usual populates
         {
           $lookup: {
             from: "locations",
@@ -461,13 +453,12 @@ class Service {
             as: "items_product",
           },
         },
-        // Sorting, skipping, limiting
         { $sort: { [sortBy]: sortOrder === "asc" ? 1 : -1 } },
         { $skip: skip },
         { $limit: limit },
       ];
+
       purchases = await PurchaseModel.aggregate(pipeline);
-      // Count total with matching pipeline (without pagination)
       const totalPipeline = pipeline.filter(
         (stage) =>
           !("$skip" in stage) && !("$limit" in stage) && !("$sort" in stage)
@@ -477,7 +468,6 @@ class Service {
           await PurchaseModel.aggregate([...totalPipeline, { $count: "count" }])
         )[0]?.count || 0;
     } else {
-      // If no SKU, use normal query + populate (faster for non-SKU queries)
       purchases = await PurchaseModel.find(queries)
         .populate([
           { path: "location", model: "Location" },
@@ -495,22 +485,17 @@ class Service {
         .skip(skip)
         .limit(limit)
         .exec();
+
       total = await PurchaseModel.countDocuments(queries);
     }
 
-    // ---- Always return in the exact format you requested ----
     return {
-      statusCode: 200,
-      success: true,
-      message: "Purchases retrieved successfully",
-      data: {
-        meta: {
-          page,
-          limit,
-          total,
-        },
-        data: purchases,
+      meta: {
+        page,
+        limit,
+        total,
       },
+      data: purchases,
     };
   }
 
