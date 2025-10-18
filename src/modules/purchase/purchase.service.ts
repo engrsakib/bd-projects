@@ -463,10 +463,8 @@ class Service {
       { $limit: limit },
     ];
 
-    // Aggregate always
     let purchases = await PurchaseModel.aggregate(pipeline);
 
-    // Count total (without skip/limit/sort)
     const totalPipeline = pipeline.filter(
       (stage) =>
         !("$skip" in stage) && !("$limit" in stage) && !("$sort" in stage)
@@ -476,20 +474,17 @@ class Service {
         await PurchaseModel.aggregate([...totalPipeline, { $count: "count" }])
       )[0]?.count || 0;
 
-    // === Force items[].variant & items[].product as object always ===
     purchases = purchases.map((purchase: any) => {
-      // Map variantId => variantObject
       const variantMap: Record<string, any> = {};
       (purchase.items_variant || []).forEach((v: any) => {
         variantMap[(v._id || v.id).toString()] = v;
       });
-      // Map productId => productObject
+
       const productMap: Record<string, any> = {};
       (purchase.items_product || []).forEach((p: any) => {
         productMap[(p._id || p.id).toString()] = p;
       });
 
-      // variants_docs কখনো response এ যাবে না
       if ("variants_docs" in purchase) {
         delete purchase.variants_docs;
       }
@@ -505,17 +500,12 @@ class Service {
     });
 
     return {
-      statusCode: 200,
-      success: true,
-      message: "Purchases retrieved successfully",
-      data: {
-        meta: {
-          page,
-          limit,
-          total,
-        },
-        data: purchases,
+      meta: {
+        page,
+        limit,
+        total,
       },
+      data: purchases,
     };
   }
 
