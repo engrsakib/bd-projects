@@ -29,7 +29,7 @@ const orderItemSchema = new Schema<IOrderItem>({
     default: [],
   },
   price: { type: Number, required: true },
-  price_adjustment: { type: Number, default: 0, required: false },
+  new_cod: { type: Number, default: 0, required: false },
   subtotal: { type: Number, required: true },
   status: {
     type: String,

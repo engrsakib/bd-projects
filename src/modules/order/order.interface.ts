@@ -35,7 +35,7 @@ export type IOrderItem = {
   ];
   quantity: number;
   price: number;
-  price_adjustment?: number;
+  new_cod?: number;
   subtotal: number;
   status?: IOrderStatus;
 };
@@ -65,6 +65,7 @@ export type IOrder = {
   total_amount: number;
   paid_amount?: number;
   payable_amount?: number;
+  new_cod?: number;
   discounts?: number;
   order_status?: IOrderStatus;
   transfer_to_courier?: boolean;
@@ -103,6 +104,7 @@ export type IOrderPlace = {
   tax?: number;
   paid_amount?: number;
   discounts?: number;
+  new_cod?: number;
   delivery_address: IAddress;
   products: IOrderItem[];
   payment_type: "bkash" | "cod";
