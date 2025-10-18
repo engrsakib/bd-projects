@@ -444,7 +444,7 @@ class Service {
   ): Promise<{ order: IOrder[]; payment_url: string }> {
     const session = await mongoose.startSession();
     session.startTransaction();
-
+    // console.log("exchanges data");
     try {
       // retrieve user cart
       const enrichedOrder = await this.enrichProducts(data);
@@ -521,7 +521,7 @@ class Service {
       const order_by: IOrderBy = role ? role : "guest";
 
       const prevOrder = await OrderModel.findById(
-        data.previousOrderId as string | Types.ObjectId
+        data.previous_order as string | Types.ObjectId
       );
       if (!prevOrder) {
         throw new ApiError(
@@ -542,18 +542,19 @@ class Service {
         total_price,
         total_amount: total_price,
         payable_amount: 0,
+        new_cod: data.new_cod || 0,
         delivery_address: prevOrder.delivery_address,
         paid_amount: data.paid_amount || 0,
         discounts: data.discounts || 0,
         invoice_number,
         order_id,
-        order_type: data.order_type,
+        order_type: "exchange",
         payment_type: data.payment_type,
         payment_status: PAYMENT_STATUS.PAID,
         order_at: new Date(),
         order_status: ORDER_STATUS.EXCHANGE_REQUESTED,
 
-        previousOrderId: prevOrder._id,
+        previous_order: prevOrder._id,
       };
 
       if (data?.tax && data?.tax > 0) {
@@ -573,8 +574,10 @@ class Service {
         payload.is_delivery_charge_paid = true;
       }
 
+      console.log(payload, "data payload");
+
       payload.payment_status = PAYMENT_STATUS.PAID;
-      payload.payable_amount = payload.total_amount;
+      payload.payable_amount = payload.new_cod || 0;
       if (data?.discounts && data?.discounts > 0) {
         data.discounts = Number(data?.discounts.toFixed());
         payload.payable_amount -= data.discounts;
@@ -1377,6 +1380,7 @@ class Service {
           product: cartItem.product,
           variant: cartItem.variant,
           attributes: cartItem.attributes,
+          previous_variant: cartItem.previous_variant,
           quantity: cartItem.quantity,
           lots: cartItem.lots,
           price: variant?.sale_price || 0,
