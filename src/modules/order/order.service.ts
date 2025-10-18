@@ -927,9 +927,12 @@ class Service {
       end_date,
       status,
       phone,
+
       order_id,
       orders_by,
     } = query;
+
+    console.log(query);
 
     const pipeline: any[] = [];
     const matchStage: any = {};
@@ -958,7 +961,7 @@ class Service {
     }
 
     if (phone) {
-      matchStage["delivery_address.phone_number"] = phone;
+      matchStage["customer_number"] = phone;
     }
 
     if (order_id) {

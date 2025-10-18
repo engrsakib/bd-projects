@@ -313,6 +313,7 @@ class Service {
       session.endSession();
     }
   }
+
   async getAllPurchases(
     options: IPaginationOptions,
     filters: IPurchaseFilters
@@ -388,17 +389,34 @@ class Service {
     // ==== Aggregate pipeline always ====
     const pipeline: any[] = [
       { $match: queries },
+      // Products & variants needed for mapping items
       {
         $lookup: {
           from: "variants",
           localField: "items.variant",
           foreignField: "_id",
-          as: "variants_docs",
+          as: "items_variant",
         },
       },
-      // SKU থাকলে, এখানে $match stage add করবে, না থাকলে skip করবে
+      {
+        $lookup: {
+          from: "products",
+          localField: "items.product",
+          foreignField: "_id",
+          as: "items_product",
+        },
+      },
+      // SKU থাকলে, সার্চ করবে, না থাকলে করবে না
       ...(sku
         ? [
+            {
+              $lookup: {
+                from: "variants",
+                localField: "items.variant",
+                foreignField: "_id",
+                as: "variants_docs",
+              },
+            },
             {
               $match: {
                 "variants_docs.sku": { $regex: sku, $options: "i" },
@@ -442,29 +460,13 @@ class Service {
         },
       },
       { $unwind: { path: "$received_by", preserveNullAndEmptyArrays: true } },
-      {
-        $lookup: {
-          from: "variants",
-          localField: "items.variant",
-          foreignField: "_id",
-          as: "items_variant",
-        },
-      },
-      {
-        $lookup: {
-          from: "products",
-          localField: "items.product",
-          foreignField: "_id",
-          as: "items_product",
-        },
-      },
       { $sort: { [sortBy]: sortOrder === "asc" ? 1 : -1 } },
       { $skip: skip },
       { $limit: limit },
     ];
 
     // Aggregate always
-    const purchases = await PurchaseModel.aggregate(pipeline);
+    let purchases = await PurchaseModel.aggregate(pipeline);
 
     // Count total (without skip/limit/sort)
     const totalPipeline = pipeline.filter(
@@ -476,7 +478,29 @@ class Service {
         await PurchaseModel.aggregate([...totalPipeline, { $count: "count" }])
       )[0]?.count || 0;
 
-    // ---- Return in required format ----
+    // === Force items[].variant & items[].product as object always ===
+    purchases = purchases.map((purchase: any) => {
+      // Map variantId => variantObject
+      const variantMap: Record<string, any> = {};
+      (purchase.items_variant || []).forEach((v: any) => {
+        variantMap[(v._id || v.id).toString()] = v;
+      });
+      // Map productId => productObject
+      const productMap: Record<string, any> = {};
+      (purchase.items_product || []).forEach((p: any) => {
+        productMap[(p._id || p.id).toString()] = p;
+      });
+
+      return {
+        ...purchase,
+        items: (purchase.items || []).map((item: any) => ({
+          ...item,
+          variant: variantMap[item.variant?.toString()] || item.variant,
+          product: productMap[item.product?.toString()] || item.product,
+        })),
+      };
+    });
+
     return {
       statusCode: 200,
       success: true,
