@@ -386,125 +386,136 @@ class Service {
     if (purchase_number)
       queries.purchase_number = parseInt(purchase_number as string, 10);
 
-    // Efficient SKU filter inside items.variant.sku using aggregation
-    let purchases: any[] = [];
-    let total = 0;
+    // Aggregate pipeline always
+    const pipeline: any[] = [
+      { $match: queries },
+      {
+        $lookup: {
+          from: "variants",
+          localField: "items.variant",
+          foreignField: "_id",
+          as: "items_variant",
+        },
+      },
+      {
+        $lookup: {
+          from: "products",
+          localField: "items.product",
+          foreignField: "_id",
+          as: "items_product",
+        },
+      },
+      ...(sku
+        ? [
+            {
+              $lookup: {
+                from: "variants",
+                localField: "items.variant",
+                foreignField: "_id",
+                as: "variants_docs",
+              },
+            },
+            {
+              $match: {
+                "variants_docs.sku": { $regex: sku, $options: "i" },
+              },
+            },
+          ]
+        : []),
+      {
+        $lookup: {
+          from: "locations",
+          localField: "location",
+          foreignField: "_id",
+          as: "location",
+        },
+      },
+      { $unwind: { path: "$location", preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: "suppliers",
+          localField: "supplier",
+          foreignField: "_id",
+          as: "supplier",
+        },
+      },
+      { $unwind: { path: "$supplier", preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: "admins",
+          localField: "created_by",
+          foreignField: "_id",
+          as: "created_by",
+        },
+      },
+      { $unwind: { path: "$created_by", preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: "admins",
+          localField: "received_by",
+          foreignField: "_id",
+          as: "received_by",
+        },
+      },
+      { $unwind: { path: "$received_by", preserveNullAndEmptyArrays: true } },
+      { $sort: { [sortBy]: sortOrder === "asc" ? 1 : -1 } },
+      { $skip: skip },
+      { $limit: limit },
+    ];
 
-    if (sku) {
-      // Aggregation pipeline for SKU filtering, partial and case-insensitive
-      const pipeline: any[] = [
-        { $match: queries },
-        {
-          $lookup: {
-            from: "variants",
-            localField: "items.variant",
-            foreignField: "_id",
-            as: "variants_docs",
-          },
-        },
-        // Match any items.variant with requested sku (partial, case-insensitive)
-        {
-          $match: {
-            "variants_docs.sku": { $regex: sku, $options: "i" },
-          },
-        },
-        // Usual populates
-        {
-          $lookup: {
-            from: "locations",
-            localField: "location",
-            foreignField: "_id",
-            as: "location",
-          },
-        },
-        { $unwind: { path: "$location", preserveNullAndEmptyArrays: true } },
-        {
-          $lookup: {
-            from: "suppliers",
-            localField: "supplier",
-            foreignField: "_id",
-            as: "supplier",
-          },
-        },
-        { $unwind: { path: "$supplier", preserveNullAndEmptyArrays: true } },
-        {
-          $lookup: {
-            from: "admins",
-            localField: "created_by",
-            foreignField: "_id",
-            as: "created_by",
-          },
-        },
-        { $unwind: { path: "$created_by", preserveNullAndEmptyArrays: true } },
-        {
-          $lookup: {
-            from: "admins",
-            localField: "received_by",
-            foreignField: "_id",
-            as: "received_by",
-          },
-        },
-        { $unwind: { path: "$received_by", preserveNullAndEmptyArrays: true } },
-        {
-          $lookup: {
-            from: "variants",
-            localField: "items.variant",
-            foreignField: "_id",
-            as: "items_variant",
-          },
-        },
-        {
-          $lookup: {
-            from: "products",
-            localField: "items.product",
-            foreignField: "_id",
-            as: "items_product",
-          },
-        },
-        // Sorting, skipping, limiting
-        { $sort: { [sortBy]: sortOrder === "asc" ? 1 : -1 } },
-        { $skip: skip },
-        { $limit: limit },
-      ];
-      purchases = await PurchaseModel.aggregate(pipeline);
-      // Count total with matching pipeline (without pagination)
-      const totalPipeline = pipeline.filter(
-        (stage) =>
-          !("$skip" in stage) && !("$limit" in stage) && !("$sort" in stage)
-      );
-      total =
-        (
-          await PurchaseModel.aggregate([...totalPipeline, { $count: "count" }])
-        )[0]?.count || 0;
-    } else {
-      // If no SKU, use normal query + populate (faster for non-SKU queries)
-      purchases = await PurchaseModel.find(queries)
-        .populate([
-          { path: "location", model: "Location" },
-          { path: "supplier", model: "Supplier" },
-          { path: "created_by", model: "Admin", select: "-password" },
-          { path: "received_by", model: "Admin", select: "-password" },
-          { path: "items.variant", model: "Variant" },
-          {
-            path: "items.product",
-            model: "Product",
-            select: "name slug sku thumbnail category",
-          },
-        ])
-        .sort({ [sortBy]: sortOrder === "asc" ? 1 : -1 })
-        .skip(skip)
-        .limit(limit)
-        .exec();
-      total = await PurchaseModel.countDocuments(queries);
-    }
+    // Aggregate always
+    let purchases = await PurchaseModel.aggregate(pipeline);
+
+    // Count total (without skip/limit/sort)
+    const totalPipeline = pipeline.filter(
+      (stage) =>
+        !("$skip" in stage) && !("$limit" in stage) && !("$sort" in stage)
+    );
+    const total =
+      (
+        await PurchaseModel.aggregate([...totalPipeline, { $count: "count" }])
+      )[0]?.count || 0;
+
+    // === Force items[].variant & items[].product as object always ===
+    purchases = purchases.map((purchase: any) => {
+      // Map variantId => variantObject
+      const variantMap: Record<string, any> = {};
+      (purchase.items_variant || []).forEach((v: any) => {
+        variantMap[(v._id || v.id).toString()] = v;
+      });
+      // Map productId => productObject
+      const productMap: Record<string, any> = {};
+      (purchase.items_product || []).forEach((p: any) => {
+        productMap[(p._id || p.id).toString()] = p;
+      });
+
+      // variants_docs কখনো response এ যাবে না
+      if ("variants_docs" in purchase) {
+        delete purchase.variants_docs;
+      }
+
+      return {
+        ...purchase,
+        items: (purchase.items || []).map((item: any) => ({
+          ...item,
+          variant: variantMap[item.variant?.toString()] || item.variant,
+          product: productMap[item.product?.toString()] || item.product,
+        })),
+      };
+    });
 
     return {
-      meta: {
-        page,
-        limit,
-        total,
+      statusCode: 200,
+      success: true,
+      message: "Purchases retrieved successfully",
+      data: {
+        meta: {
+          page,
+          limit,
+          total,
+        },
+        data: purchases,
       },
-      data: purchases,
     };
   }
 
