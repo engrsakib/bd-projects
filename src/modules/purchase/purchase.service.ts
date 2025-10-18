@@ -386,10 +386,9 @@ class Service {
     if (purchase_number)
       queries.purchase_number = parseInt(purchase_number as string, 10);
 
-    // ==== Aggregate pipeline always ====
+    // Aggregate pipeline always
     const pipeline: any[] = [
       { $match: queries },
-      // Products & variants needed for mapping items
       {
         $lookup: {
           from: "variants",
@@ -406,7 +405,6 @@ class Service {
           as: "items_product",
         },
       },
-      // SKU থাকলে, সার্চ করবে, না থাকলে করবে না
       ...(sku
         ? [
             {
@@ -490,6 +488,11 @@ class Service {
       (purchase.items_product || []).forEach((p: any) => {
         productMap[(p._id || p.id).toString()] = p;
       });
+
+      // variants_docs কখনো response এ যাবে না
+      if ("variants_docs" in purchase) {
+        delete purchase.variants_docs;
+      }
 
       return {
         ...purchase,
