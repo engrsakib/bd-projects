@@ -47,5 +47,7 @@ export interface OrderQuery {
   status?: string;
   phone?: string;
   orders_by?: string;
+  sku?: string;
   order_id?: string;
+  parcel_id?: number;
 }
