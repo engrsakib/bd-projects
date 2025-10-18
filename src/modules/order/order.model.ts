@@ -12,6 +12,11 @@ import {
 const orderItemSchema = new Schema<IOrderItem>({
   product: { type: Schema.Types.ObjectId, ref: "Product", required: true },
   variant: { type: Schema.Types.ObjectId, ref: "Variant", required: true },
+  previous_variant: {
+    type: Schema.Types.ObjectId,
+    ref: "Variant",
+    required: false,
+  },
   attributes: { type: Map, of: String },
   quantity: { type: Number, required: true, min: 1 },
   lots: {

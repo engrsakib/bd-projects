@@ -25,6 +25,7 @@ export type IOrderBy = "admin" | "user" | "guest" | "reseller";
 export type IOrderItem = {
   product: Types.ObjectId;
   variant: Types.ObjectId;
+  previous_variant?: Types.ObjectId;
   attributes: { [key: string]: string };
   lots: [
     {
