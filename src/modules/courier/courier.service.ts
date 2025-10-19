@@ -591,24 +591,23 @@ class Service {
           case "picked":
             customStatus = ORDER_STATUS.IN_TRANSIT;
             break;
-          case "delivered_approval_pending":
+
           case "partial_delivered_approval_pending":
-            customStatus = ORDER_STATUS.DELIVERED;
-            break;
           case "partial_delivered":
             customStatus = ORDER_STATUS.PENDING_RETURN;
             break;
+          case "delivered_approval_pending":
           case "delivered":
             customStatus = ORDER_STATUS.DELIVERED;
             break;
 
           case "cancelled":
           case "cancelled_approval_pending":
-            customStatus = ORDER_STATUS.UNKNOWN;
+            customStatus = ORDER_STATUS.CANCELLED;
             break;
           case "unknown":
           case "unknown_approval_pending":
-            customStatus = ORDER_STATUS.CANCELLED;
+            customStatus = ORDER_STATUS.UNKNOWN;
             break;
           default:
             throw new ApiError(400, "Unknown delivery status received");
