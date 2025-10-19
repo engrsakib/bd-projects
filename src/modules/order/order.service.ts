@@ -444,7 +444,7 @@ class Service {
   ): Promise<{ order: IOrder[]; payment_url: string }> {
     const session = await mongoose.startSession();
     session.startTransaction();
-
+    // console.log("exchanges data");
     try {
       // retrieve user cart
       const enrichedOrder = await this.enrichProducts(data);
@@ -521,7 +521,7 @@ class Service {
       const order_by: IOrderBy = role ? role : "guest";
 
       const prevOrder = await OrderModel.findById(
-        data.previousOrderId as string | Types.ObjectId
+        data.previous_order as string | Types.ObjectId
       );
       if (!prevOrder) {
         throw new ApiError(
@@ -542,17 +542,19 @@ class Service {
         total_price,
         total_amount: total_price,
         payable_amount: 0,
+        new_cod: data.new_cod || 0,
         delivery_address: prevOrder.delivery_address,
         paid_amount: data.paid_amount || 0,
         discounts: data.discounts || 0,
         invoice_number,
         order_id,
+        order_type: "exchange",
         payment_type: data.payment_type,
         payment_status: PAYMENT_STATUS.PAID,
         order_at: new Date(),
         order_status: ORDER_STATUS.EXCHANGE_REQUESTED,
 
-        previousOrderId: prevOrder._id,
+        previous_order: prevOrder._id,
       };
 
       if (data?.tax && data?.tax > 0) {
@@ -572,8 +574,10 @@ class Service {
         payload.is_delivery_charge_paid = true;
       }
 
+      console.log(payload, "data payload");
+
       payload.payment_status = PAYMENT_STATUS.PAID;
-      payload.payable_amount = payload.total_amount;
+      payload.payable_amount = payload.new_cod || 0;
       if (data?.discounts && data?.discounts > 0) {
         data.discounts = Number(data?.discounts.toFixed());
         payload.payable_amount -= data.discounts;
@@ -923,6 +927,7 @@ class Service {
       end_date,
       status,
       phone,
+      sku,
       order_id,
       orders_by,
     } = query;
@@ -930,13 +935,18 @@ class Service {
     const pipeline: any[] = [];
     const matchStage: any = {};
 
-    // ---- Filter Setup for orders only ----
+    // Date filter
     if (start_date || end_date) {
       matchStage.order_at = {};
-      if (start_date) matchStage.order_at.$gte = new Date(start_date);
-      if (end_date) matchStage.order_at.$lte = new Date(end_date);
+      if (start_date) {
+        matchStage.order_at.$gte = new Date(start_date);
+      }
+      if (end_date) {
+        matchStage.order_at.$lte = new Date(end_date);
+      }
     }
 
+    // Status filter
     if (status) {
       if (Array.isArray(status)) {
         matchStage.order_status = { $in: status };
@@ -949,10 +959,19 @@ class Service {
       }
     }
 
+    // Partial phone filter
     if (phone) {
-      matchStage["delivery_address.phone_number"] = phone;
+      matchStage["customer_number"] = { $regex: phone, $options: "i" };
     }
 
+    // SKU filter - works if items[].variant is populated as object!
+    if (sku) {
+      // IMPORTANT: This filter must be applied after $lookup + $addFields!
+      // So we store it for later and apply after population stages
+      matchStage["_skuFilter"] = { $regex: sku, $options: "i" };
+    }
+
+    // Order ID filter
     if (order_id) {
       if (!isNaN(Number(order_id))) {
         matchStage.order_id = Number(order_id);
@@ -961,10 +980,14 @@ class Service {
       }
     }
 
-    if (Object.keys(matchStage).length) {
-      pipeline.push({ $match: matchStage });
+    // Initial $match for all filters except SKU
+    const preMatchStage = { ...matchStage };
+    if (preMatchStage["_skuFilter"]) delete preMatchStage["_skuFilter"];
+    if (Object.keys(preMatchStage).length) {
+      pipeline.push({ $match: preMatchStage });
     }
 
+    // Sorting
     if (orders_by) {
       const [field, direction = "desc"] = orders_by.split(":");
       pipeline.push({ $sort: { [field]: direction === "asc" ? 1 : -1 } });
@@ -972,6 +995,7 @@ class Service {
       pipeline.push({ $sort: { order_at: -1 } });
     }
 
+    // Populate product, variant, courier, user
     pipeline.push({
       $lookup: {
         from: "products",
@@ -1018,6 +1042,7 @@ class Service {
       },
     });
 
+    // Inject product/variant objects into items array
     pipeline.push({
       $addFields: {
         items: {
@@ -1080,7 +1105,16 @@ class Service {
       },
     });
 
-    // ---- Pagination ----
+    // SKU filter applied after $addFields (on populated items[].variant.sku)
+    if (sku) {
+      pipeline.push({
+        $match: {
+          "items.variant.sku": matchStage["_skuFilter"],
+        },
+      });
+    }
+
+    // Pagination
     const _page = Math.max(Number(page), 1);
     const _limit = Math.max(Number(limit), 1);
     pipeline.push({ $skip: (_page - 1) * _limit });
@@ -1088,7 +1122,23 @@ class Service {
 
     // ---- Fetch filtered data ----
     const orders = await OrderModel.aggregate(pipeline);
-    const total = await OrderModel.countDocuments(matchStage);
+
+    // For total, run same preMatchStage filter (without SKU),
+    // then filter items.variant.sku in JS (because pipeline count with $addFields is tough)
+    let total = await OrderModel.countDocuments(preMatchStage);
+
+    if (sku) {
+      // When SKU filter, count only those matching items.variant.sku
+      // Since MongoDB aggregate pipeline can't count after $addFields easily,
+      // we do a separate aggregate for counting
+      const countPipeline = [...pipeline];
+      countPipeline.splice(countPipeline.length - 2, 2); // remove skip/limit
+      countPipeline.push({
+        $count: "total",
+      });
+      const countRes = await OrderModel.aggregate(countPipeline);
+      total = countRes[0]?.total || 0;
+    }
 
     // ---- Status Aggregation (Full DB, no filter!) ----
     const statusCountsAgg = await OrderModel.aggregate([
@@ -1372,6 +1422,7 @@ class Service {
           product: cartItem.product,
           variant: cartItem.variant,
           attributes: cartItem.attributes,
+          previous_variant: cartItem.previous_variant,
           quantity: cartItem.quantity,
           lots: cartItem.lots,
           price: variant?.sale_price || 0,

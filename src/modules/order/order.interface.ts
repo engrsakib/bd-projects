@@ -25,6 +25,7 @@ export type IOrderBy = "admin" | "user" | "guest" | "reseller";
 export type IOrderItem = {
   product: Types.ObjectId;
   variant: Types.ObjectId;
+  previous_variant?: Types.ObjectId;
   attributes: { [key: string]: string };
   lots: [
     {
@@ -34,6 +35,7 @@ export type IOrderItem = {
   ];
   quantity: number;
   price: number;
+  new_cod?: number;
   subtotal: number;
   status?: IOrderStatus;
 };
@@ -48,7 +50,7 @@ export type Istatus_count = Record<IOrderStatus, number>;
 
 export type IOrder = {
   user?: Types.ObjectId;
-  previousOrderId?: Types.ObjectId | string;
+  previous_order?: Types.ObjectId | string;
   customer_name?: string;
   customer_number: string;
   customer_email?: string;
@@ -63,6 +65,7 @@ export type IOrder = {
   total_amount: number;
   paid_amount?: number;
   payable_amount?: number;
+  new_cod?: number;
   discounts?: number;
   order_status?: IOrderStatus;
   transfer_to_courier?: boolean;
@@ -91,15 +94,17 @@ export type IOrder = {
 
 export type IOrderPlace = {
   user_id: string | Types.ObjectId;
-  previousOrderId?: string | Types.ObjectId;
+  previous_order?: string | Types.ObjectId;
   customer_name?: string;
   customer_number: string;
   customer_secondary_number?: string;
   customer_email?: string;
   delivery_charge?: number;
+  order_type?: "regular" | "exchange" | "return";
   tax?: number;
   paid_amount?: number;
   discounts?: number;
+  new_cod?: number;
   delivery_address: IAddress;
   products: IOrderItem[];
   payment_type: "bkash" | "cod";
