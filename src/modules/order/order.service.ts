@@ -927,18 +927,15 @@ class Service {
       end_date,
       status,
       phone,
-
       sku,
       order_id,
       orders_by,
     } = query;
 
-    console.log(query);
-
     const pipeline: any[] = [];
     const matchStage: any = {};
 
-    // ---- Filter Setup for orders only ----
+    // Date filter
     if (start_date || end_date) {
       matchStage.order_at = {};
       if (start_date) {
@@ -949,6 +946,7 @@ class Service {
       }
     }
 
+    // Status filter
     if (status) {
       if (Array.isArray(status)) {
         matchStage.order_status = { $in: status };
@@ -961,62 +959,19 @@ class Service {
       }
     }
 
+    // Partial phone filter
     if (phone) {
       matchStage["customer_number"] = { $regex: phone, $options: "i" };
     }
 
-    // SKU filter
+    // SKU filter - works if items[].variant is populated as object!
     if (sku) {
-      // Step 1: unwind items array
-      pipeline.push({ $unwind: "$items" });
-
-      // Step 2: lookup variant for each item
-      pipeline.push({
-        $lookup: {
-          from: "variants",
-          localField: "items.variant",
-          foreignField: "_id",
-          as: "item_variant",
-        },
-      });
-
-      // Step 3: unwind item_variant array to get object
-      pipeline.push({
-        $unwind: { path: "$item_variant", preserveNullAndEmptyArrays: true },
-      });
-
-      // Step 4: match SKU
-      pipeline.push({
-        $match: { "item_variant.sku": { $regex: sku, $options: "i" } },
-      });
-
-      // Step 5: inject full variant object in items.variant, reconstruct document
-      pipeline.push({
-        $addFields: {
-          "items.variant": "$item_variant",
-        },
-      });
-
-      // Step 6: group back by _id (reconstruct original order)
-      pipeline.push({
-        $group: {
-          _id: "$_id",
-          created_by: { $first: "$created_by" },
-          received_by: { $first: "$received_by" },
-          location: { $first: "$location" },
-          supplier: { $first: "$supplier" },
-          courier: { $first: "$courier" },
-          order_id: { $first: "$order_id" },
-          order_status: { $first: "$order_status" },
-          order_at: { $first: "$order_at" },
-          customer_number: { $first: "$customer_number" },
-          // ...other fields
-          items: { $push: "$items" },
-          // ...add all necessary fields for your IOrder model
-        },
-      });
+      // IMPORTANT: This filter must be applied after $lookup + $addFields!
+      // So we store it for later and apply after population stages
+      matchStage["_skuFilter"] = { $regex: sku, $options: "i" };
     }
 
+    // Order ID filter
     if (order_id) {
       if (!isNaN(Number(order_id))) {
         matchStage.order_id = Number(order_id);
@@ -1025,10 +980,14 @@ class Service {
       }
     }
 
-    if (Object.keys(matchStage).length) {
-      pipeline.push({ $match: matchStage });
+    // Initial $match for all filters except SKU
+    const preMatchStage = { ...matchStage };
+    if (preMatchStage["_skuFilter"]) delete preMatchStage["_skuFilter"];
+    if (Object.keys(preMatchStage).length) {
+      pipeline.push({ $match: preMatchStage });
     }
 
+    // Sorting
     if (orders_by) {
       const [field, direction = "desc"] = orders_by.split(":");
       pipeline.push({ $sort: { [field]: direction === "asc" ? 1 : -1 } });
@@ -1036,6 +995,7 @@ class Service {
       pipeline.push({ $sort: { order_at: -1 } });
     }
 
+    // Populate product, variant, courier, user
     pipeline.push({
       $lookup: {
         from: "products",
@@ -1082,6 +1042,7 @@ class Service {
       },
     });
 
+    // Inject product/variant objects into items array
     pipeline.push({
       $addFields: {
         items: {
@@ -1144,7 +1105,16 @@ class Service {
       },
     });
 
-    // ---- Pagination ----
+    // SKU filter applied after $addFields (on populated items[].variant.sku)
+    if (sku) {
+      pipeline.push({
+        $match: {
+          "items.variant.sku": matchStage["_skuFilter"],
+        },
+      });
+    }
+
+    // Pagination
     const _page = Math.max(Number(page), 1);
     const _limit = Math.max(Number(limit), 1);
     pipeline.push({ $skip: (_page - 1) * _limit });
@@ -1152,7 +1122,23 @@ class Service {
 
     // ---- Fetch filtered data ----
     const orders = await OrderModel.aggregate(pipeline);
-    const total = await OrderModel.countDocuments(matchStage);
+
+    // For total, run same preMatchStage filter (without SKU),
+    // then filter items.variant.sku in JS (because pipeline count with $addFields is tough)
+    let total = await OrderModel.countDocuments(preMatchStage);
+
+    if (sku) {
+      // When SKU filter, count only those matching items.variant.sku
+      // Since MongoDB aggregate pipeline can't count after $addFields easily,
+      // we do a separate aggregate for counting
+      const countPipeline = [...pipeline];
+      countPipeline.splice(countPipeline.length - 2, 2); // remove skip/limit
+      countPipeline.push({
+        $count: "total",
+      });
+      const countRes = await OrderModel.aggregate(countPipeline);
+      total = countRes[0]?.total || 0;
+    }
 
     // ---- Status Aggregation (Full DB, no filter!) ----
     const statusCountsAgg = await OrderModel.aggregate([
