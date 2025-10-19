@@ -16,14 +16,19 @@ const app = express();
 // middlewares
 app.use(cors(corsOptions));
 app.use(cookieParser());
+// app.use(
+//   "/webhooks/steadfast",
+//   cors({ origin: "*" }),
+//   express.raw(),
+//   // eslint-disable-next-line @typescript-eslint/no-unused-vars
+//   (req, res, next) => {
+//     res.status(200).json({ success: true, message: "Webhook received!" });
+//   }
+// );
+
 app.use(
-  "/webhooks/steadfast",
-  cors({ origin: "*" }),
-  express.json(),
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  (req, res, next) => {
-    res.status(200).json({ success: true, message: "Webhook received!" });
-  }
+  "/api/v1/webhooks/steadfast",
+  express.raw({ type: "application/json" })
 );
 
 app.use(helmet());
