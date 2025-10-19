@@ -927,6 +927,7 @@ class Service {
       end_date,
       status,
       phone,
+      parcel_id,
       sku,
       order_id,
       orders_by,
@@ -964,10 +965,8 @@ class Service {
       matchStage["customer_number"] = { $regex: phone, $options: "i" };
     }
 
-    // SKU filter - works if items[].variant is populated as object!
+    // SKU filter - will apply after $addFields
     if (sku) {
-      // IMPORTANT: This filter must be applied after $lookup + $addFields!
-      // So we store it for later and apply after population stages
       matchStage["_skuFilter"] = { $regex: sku, $options: "i" };
     }
 
@@ -980,7 +979,7 @@ class Service {
       }
     }
 
-    // Initial $match for all filters except SKU
+    // Initial $match for all filters except SKU & parcel_id
     const preMatchStage = { ...matchStage };
     if (preMatchStage["_skuFilter"]) delete preMatchStage["_skuFilter"];
     if (Object.keys(preMatchStage).length) {
@@ -1026,6 +1025,16 @@ class Service {
         preserveNullAndEmptyArrays: true,
       },
     });
+
+    // === Parcel ID filter on courierDocs.consignment_id ===
+    if (parcel_id) {
+      pipeline.push({
+        $match: {
+          "courierDocs.consignment_id": { $regex: parcel_id, $options: "i" },
+        },
+      });
+    }
+
     const lookupCollection = orders_by === "admin" ? "admins" : "users";
     pipeline.push({
       $lookup: {
@@ -1123,14 +1132,12 @@ class Service {
     // ---- Fetch filtered data ----
     const orders = await OrderModel.aggregate(pipeline);
 
-    // For total, run same preMatchStage filter (without SKU),
+    // For total, run same preMatchStage filter (without SKU/parcel_id),
     // then filter items.variant.sku in JS (because pipeline count with $addFields is tough)
     let total = await OrderModel.countDocuments(preMatchStage);
 
-    if (sku) {
-      // When SKU filter, count only those matching items.variant.sku
-      // Since MongoDB aggregate pipeline can't count after $addFields easily,
-      // we do a separate aggregate for counting
+    if (sku || parcel_id) {
+      // When SKU or parcel_id filter, count only those matching after $addFields
       const countPipeline = [...pipeline];
       countPipeline.splice(countPipeline.length - 2, 2); // remove skip/limit
       countPipeline.push({
