@@ -961,7 +961,7 @@ class Service {
     }
 
     if (phone) {
-      matchStage["customer_number"] = phone;
+      matchStage["customer_number"] = { $regex: phone, $options: "i" };
     }
 
     if (order_id) {
