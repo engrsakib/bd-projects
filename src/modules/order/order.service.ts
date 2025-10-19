@@ -928,6 +928,7 @@ class Service {
       status,
       phone,
 
+      sku,
       order_id,
       orders_by,
     } = query;
@@ -961,7 +962,59 @@ class Service {
     }
 
     if (phone) {
-      matchStage["customer_number"] = phone;
+      matchStage["customer_number"] = { $regex: phone, $options: "i" };
+    }
+
+    // SKU filter
+    if (sku) {
+      // Step 1: unwind items array
+      pipeline.push({ $unwind: "$items" });
+
+      // Step 2: lookup variant for each item
+      pipeline.push({
+        $lookup: {
+          from: "variants",
+          localField: "items.variant",
+          foreignField: "_id",
+          as: "item_variant",
+        },
+      });
+
+      // Step 3: unwind item_variant array to get object
+      pipeline.push({
+        $unwind: { path: "$item_variant", preserveNullAndEmptyArrays: true },
+      });
+
+      // Step 4: match SKU
+      pipeline.push({
+        $match: { "item_variant.sku": { $regex: sku, $options: "i" } },
+      });
+
+      // Step 5: inject full variant object in items.variant, reconstruct document
+      pipeline.push({
+        $addFields: {
+          "items.variant": "$item_variant",
+        },
+      });
+
+      // Step 6: group back by _id (reconstruct original order)
+      pipeline.push({
+        $group: {
+          _id: "$_id",
+          created_by: { $first: "$created_by" },
+          received_by: { $first: "$received_by" },
+          location: { $first: "$location" },
+          supplier: { $first: "$supplier" },
+          courier: { $first: "$courier" },
+          order_id: { $first: "$order_id" },
+          order_status: { $first: "$order_status" },
+          order_at: { $first: "$order_at" },
+          customer_number: { $first: "$customer_number" },
+          // ...other fields
+          items: { $push: "$items" },
+          // ...add all necessary fields for your IOrder model
+        },
+      });
     }
 
     if (order_id) {
