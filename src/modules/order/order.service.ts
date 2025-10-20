@@ -640,13 +640,11 @@ class Service {
     session.startTransaction();
 
     try {
-      // ১. পুরাতন অর্ডার আনা
       const order = await OrderModel.findById(orderId).session(session);
       if (!order) {
         throw new ApiError(404, `Order with ID ${orderId} does not exist`);
       }
 
-      // ২. নতুন enriched products (validate & enrich)
       const enrichedOrder = await this.enrichProducts(payload);
 
       if (!enrichedOrder?.products || enrichedOrder.products.length <= 0) {
@@ -656,14 +654,7 @@ class Service {
         );
       }
 
-      // ৩. পুরাতন order.items কে Map-এ রাখুন (unique key: product+variant)
-      const oldItemsMap = new Map<string, any>();
-      for (const item of order.items ?? []) {
-        const key = `${item.product}_${item.variant}`;
-        oldItemsMap.set(key, item);
-      }
-
-      // ৪. আগের stock rollback করুন (সবগুলোয়, আগের লজিক মতো)
+      // rollback previous stock
       for (const prevItem of order.items ?? []) {
         const stock = await StockModel.findOne({
           product: prevItem.product,
@@ -678,59 +669,42 @@ class Service {
         }
       }
 
-      // ৫. নতুন/পরিবর্তিত item-এর জন্য stock check, others skip
+      // allocate stock for new items
       let total_price = 0;
       for (const item of enrichedOrder.products) {
-        const key = `${item.product}_${item.variant}`;
-        const prevItem = oldItemsMap.get(key);
-
-        // শুধু চেঞ্জ হলে (নতুন বা quantity/lot/price/etc. চেঞ্জ হলে) stock check করুন
-        if (
-          !prevItem ||
-          prevItem.quantity !== item.quantity ||
-          prevItem.price !== item.price
-          // চাইলে আরো ফিল্ড compare করতে পারেন
-        ) {
-          // স্টক চেক
-          const stock = await StockModel.findOne(
-            { product: item.product, variant: item.variant },
-            null,
-            { session }
+        const stock = await StockModel.findOne(
+          { product: item.product, variant: item.variant },
+          null,
+          { session }
+        );
+        if (!stock || stock.available_quantity < item.quantity) {
+          throw new ApiError(
+            HttpStatusCode.BAD_REQUEST,
+            `Product ${item.product.name} is out of stock`
           );
-          if (!stock || stock.available_quantity < item.quantity) {
-            throw new ApiError(
-              HttpStatusCode.BAD_REQUEST,
-              `Product ${item.product.name ?? item.product} is out of stock`
-            );
-          }
-
-          // FIFO lot allocation (নতুন allocation)
-          const consumedLots = await this.consumeLotsFIFO(
-            item.product,
-            item.variant,
-            item.quantity,
-            session
-          );
-          item.lots = consumedLots;
-          stock.available_quantity -= item.quantity;
-          await stock.save({ session });
-        } else {
-          // আগের মতোই আছে, একই lots/stock ধরে নিন
-          item.lots = prevItem.lots;
         }
 
+        const consumedLots = await this.consumeLotsFIFO(
+          item.product,
+          item.variant,
+          item.quantity,
+          session
+        );
+
+        item.lots = consumedLots;
         item.subtotal = item.price * item.quantity;
         total_price += item.subtotal;
+        stock.available_quantity -= item.quantity;
+        await stock.save({ session });
       }
 
-      // ৬. অর্ডার আপডেট করুন
       order.items = enrichedOrder.products;
       order.total_items = enrichedOrder.products.length;
       order.total_price = total_price;
       order.total_amount = total_price;
       order.payable_amount = total_price;
 
-      // অন্যান্য ফিল্ড আপডেট
+      // update general order fields
       if (payload.customer_name) order.customer_name = payload.customer_name;
       if (payload.customer_number)
         order.customer_number = payload.customer_number;
@@ -746,17 +720,13 @@ class Service {
         order.delivery_charge = payload.delivery_charge;
 
       await order.save({ session });
-
-      // Optional: Cart পরিষ্কার
       await CartService.clearCartAfterCheckout(
         order.user as Types.ObjectId,
         session
       );
-
       await session.commitTransaction();
       session.endSession();
 
-      // Populate করে নতুন order ফেরত দিন
       const populatedOrder = await OrderModel.findById(order._id)
         .populate({
           path: "items.product",
