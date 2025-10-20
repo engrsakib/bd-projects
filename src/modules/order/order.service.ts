@@ -82,6 +82,7 @@ class Service {
 
         stock.available_quantity -= item.quantity;
         stock.total_sold = (stock.total_sold || 0) + item.quantity;
+        item.total_sold = (item.total_sold || 0) + item.quantity;
         await stock.save({ session });
       }
 
@@ -640,11 +641,13 @@ class Service {
     session.startTransaction();
 
     try {
+      // ১. পুরাতন অর্ডার আনা
       const order = await OrderModel.findById(orderId).session(session);
       if (!order) {
         throw new ApiError(404, `Order with ID ${orderId} does not exist`);
       }
 
+      // ২. নতুন enriched products (validate & enrich)
       const enrichedOrder = await this.enrichProducts(payload);
 
       if (!enrichedOrder?.products || enrichedOrder.products.length <= 0) {
@@ -654,22 +657,28 @@ class Service {
         );
       }
 
-      // rollback previous stock
+      // ৩. পুরাতন order.items এর stock rollback + total_sold কমানো
       for (const prevItem of order.items ?? []) {
         const stock = await StockModel.findOne({
           product: prevItem.product,
           variant: prevItem.variant,
         }).session(session);
+
         if (stock) {
+          // স্টকে quantity ফেরত দিন
           await StockModel.findByIdAndUpdate(
             stock._id,
             { $inc: { available_quantity: prevItem.quantity } },
             { session }
           );
+          // total_sold কমান
+          stock.total_sold = (stock.total_sold || 0) - prevItem.quantity;
+          if (stock.total_sold < 0) stock.total_sold = 0; // নেগেটিভ হলে ০
+          await stock.save({ session });
         }
       }
 
-      // allocate stock for new items
+      // ৪. নতুন/পরিবর্তিত আইটেমের জন্য stock allocate + total_sold বাড়ানো
       let total_price = 0;
       for (const item of enrichedOrder.products) {
         const stock = await StockModel.findOne(
@@ -680,10 +689,11 @@ class Service {
         if (!stock || stock.available_quantity < item.quantity) {
           throw new ApiError(
             HttpStatusCode.BAD_REQUEST,
-            `Product ${item.product.name} is out of stock`
+            `Product ${item.product.name ?? item.product} is out of stock`
           );
         }
 
+        // FIFO lots থেকে কাটছে, lots ডিটেইল সেট হচ্ছে
         const consumedLots = await this.consumeLotsFIFO(
           item.product,
           item.variant,
@@ -694,17 +704,22 @@ class Service {
         item.lots = consumedLots;
         item.subtotal = item.price * item.quantity;
         total_price += item.subtotal;
+
+        // স্টক কমাও
         stock.available_quantity -= item.quantity;
+        // total_sold বাড়াও
+        stock.total_sold = (stock.total_sold || 0) + item.quantity;
         await stock.save({ session });
       }
 
+      // ৫. order ফিল্ড আপডেট
       order.items = enrichedOrder.products;
       order.total_items = enrichedOrder.products.length;
       order.total_price = total_price;
       order.total_amount = total_price;
       order.payable_amount = total_price;
 
-      // update general order fields
+      // ৬. সাধারণ ফিল্ড আপডেট
       if (payload.customer_name) order.customer_name = payload.customer_name;
       if (payload.customer_number)
         order.customer_number = payload.customer_number;
@@ -720,13 +735,17 @@ class Service {
         order.delivery_charge = payload.delivery_charge;
 
       await order.save({ session });
+
+      // ৭. cart ক্লিয়ার (যদি থাকে)
       await CartService.clearCartAfterCheckout(
         order.user as Types.ObjectId,
         session
       );
+
       await session.commitTransaction();
       session.endSession();
 
+      // ৮. populate করে অর্ডার ফেরত দিন
       const populatedOrder = await OrderModel.findById(order._id)
         .populate({
           path: "items.product",
@@ -1460,6 +1479,8 @@ class Service {
       null,
       { session }
     ).sort({ createdAt: 1 }); // FIFO
+
+    // console.log(lots, "lots data")
 
     let remaining = requiredQty;
     const consumption: { lotId: string; deducted: number }[] = [];
