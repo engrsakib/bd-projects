@@ -28,7 +28,7 @@ app.use(cookieParser());
 
 app.use(
   "/api/v1/webhooks/steadfast",
-  express.raw({ type: "application/json" })
+  express.json({ type: "application/json" })
 );
 
 app.use(helmet());
