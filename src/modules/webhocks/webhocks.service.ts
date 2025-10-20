@@ -30,6 +30,8 @@ class service extends BaseController {
       };
     }
 
+    // console.log(data, "consignment id")
+
     if (!data.consignment_id || typeof data.consignment_id !== "number") {
       return {
         status: "error",
