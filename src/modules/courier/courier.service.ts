@@ -513,6 +513,11 @@ class Service {
 
       for (const { product, variant, quantity, lot } of pairs) {
         // Stock check, deduct, or update operations
+
+        if (!product || !variant || !lot) {
+          throw new ApiError(400, "Invalid product, variant, or lot data");
+        }
+        console.log(lot, "lots data");
         const stock = await StockModel.findOne(
           {
             product: product,
@@ -526,12 +531,15 @@ class Service {
         }
         stock.available_quantity += quantity;
         // lot update
-        const lotRecord = await LotModel.findById(lot).session(session);
+        const lotRecord = await LotModel.findById(lot as string).session(
+          session
+        );
         if (!lotRecord) {
           throw new ApiError(404, "Lot record not found");
         }
         lotRecord.qty_available += quantity;
         await stock.save({ session });
+        await lotRecord.save({ session });
       }
       (await order.save()).$session();
       await session.commitTransaction();
@@ -591,24 +599,23 @@ class Service {
           case "picked":
             customStatus = ORDER_STATUS.IN_TRANSIT;
             break;
-          case "delivered_approval_pending":
+
           case "partial_delivered_approval_pending":
-            customStatus = ORDER_STATUS.DELIVERED;
-            break;
           case "partial_delivered":
             customStatus = ORDER_STATUS.PENDING_RETURN;
             break;
+          case "delivered_approval_pending":
           case "delivered":
             customStatus = ORDER_STATUS.DELIVERED;
             break;
 
           case "cancelled":
           case "cancelled_approval_pending":
-            customStatus = ORDER_STATUS.UNKNOWN;
+            customStatus = ORDER_STATUS.CANCELLED;
             break;
           case "unknown":
           case "unknown_approval_pending":
-            customStatus = ORDER_STATUS.CANCELLED;
+            customStatus = ORDER_STATUS.UNKNOWN;
             break;
           default:
             throw new ApiError(400, "Unknown delivery status received");
@@ -724,21 +731,42 @@ class Service {
   ): { product: string; variant: string; quantity: number; lot: string }[] {
     if (!orderData.items || !Array.isArray(orderData.items)) return [];
 
-    return orderData.items.map((item: any) => ({
-      product:
-        typeof item.product === "object" && item.product.$oid
-          ? item.product.$oid
-          : item.product,
-      variant:
-        typeof item.variant === "object" && item.variant.$oid
-          ? item.variant.$oid
-          : item.variant,
-      quantity:
-        typeof item.quantity === "object" && item.quantity.$numberInt
-          ? Number(item.quantity.$numberInt)
-          : item.quantity,
-      lot: item.lot._id ? item.lot._id : item.lot,
-    }));
+    return orderData.items.map((item: any) => {
+      let lotId = "";
+      if (Array.isArray(item.lots) && item.lots.length > 0) {
+        const latestLot = item.lots[item.lots.length - 1];
+
+        lotId =
+          latestLot && typeof latestLot === "object"
+            ? latestLot.lotId?.toString?.() ||
+              latestLot.$oid ||
+              latestLot.toString?.() ||
+              ""
+            : latestLot || "";
+      }
+
+      return {
+        product:
+          typeof item.product === "object" && item.product !== null
+            ? item.product._id?.toString?.() ||
+              item.product.$oid ||
+              item.product.toString?.() ||
+              ""
+            : item.product,
+        variant:
+          typeof item.variant === "object" && item.variant !== null
+            ? item.variant._id?.toString?.() ||
+              item.variant.$oid ||
+              item.variant.toString?.() ||
+              ""
+            : item.variant,
+        quantity:
+          typeof item.quantity === "object" && item.quantity !== null
+            ? Number(item.quantity.$numberInt ?? item.quantity.valueOf?.() ?? 0)
+            : Number(item.quantity),
+        lot: lotId,
+      };
+    });
   }
 
   private async extractItemStatusQuantityByVariantIds(

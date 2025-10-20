@@ -48,6 +48,8 @@ class Controller extends BaseController {
 
   scanToReturn = this.catchAsync(async (req: Request, res: Response) => {
     const { orderId } = req.params;
+
+    // console.log(orderId, "order id")
     if (!orderId) {
       return this.sendResponse(res, {
         statusCode: HttpStatus.BAD_REQUEST,
