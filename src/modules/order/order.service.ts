@@ -82,6 +82,7 @@ class Service {
 
         stock.available_quantity -= item.quantity;
         stock.total_sold = (stock.total_sold || 0) + item.quantity;
+        item.total_sold = (item.total_sold || 0) + item.quantity;
         await stock.save({ session });
       }
 
@@ -656,81 +657,69 @@ class Service {
         );
       }
 
-      // ৩. পুরাতন order.items কে Map-এ রাখুন (unique key: product+variant)
-      const oldItemsMap = new Map<string, any>();
-      for (const item of order.items ?? []) {
-        const key = `${item.product}_${item.variant}`;
-        oldItemsMap.set(key, item);
-      }
-
-      // ৪. আগের stock rollback করুন (সবগুলোয়, আগের লজিক মতো)
+      // ৩. পুরাতন order.items এর stock rollback + total_sold কমানো
       for (const prevItem of order.items ?? []) {
         const stock = await StockModel.findOne({
           product: prevItem.product,
           variant: prevItem.variant,
         }).session(session);
+
         if (stock) {
+          // স্টকে quantity ফেরত দিন
           await StockModel.findByIdAndUpdate(
             stock._id,
             { $inc: { available_quantity: prevItem.quantity } },
             { session }
           );
+          // total_sold কমান
+          stock.total_sold = (stock.total_sold || 0) - prevItem.quantity;
+          if (stock.total_sold < 0) stock.total_sold = 0; // নেগেটিভ হলে ০
+          await stock.save({ session });
         }
       }
 
-      // ৫. নতুন/পরিবর্তিত item-এর জন্য stock check, others skip
+      // ৪. নতুন/পরিবর্তিত আইটেমের জন্য stock allocate + total_sold বাড়ানো
       let total_price = 0;
       for (const item of enrichedOrder.products) {
-        const key = `${item.product}_${item.variant}`;
-        const prevItem = oldItemsMap.get(key);
-
-        // শুধু চেঞ্জ হলে (নতুন বা quantity/lot/price/etc. চেঞ্জ হলে) stock check করুন
-        if (
-          !prevItem ||
-          prevItem.quantity !== item.quantity ||
-          prevItem.price !== item.price
-          // চাইলে আরো ফিল্ড compare করতে পারেন
-        ) {
-          // স্টক চেক
-          const stock = await StockModel.findOne(
-            { product: item.product, variant: item.variant },
-            null,
-            { session }
+        const stock = await StockModel.findOne(
+          { product: item.product, variant: item.variant },
+          null,
+          { session }
+        );
+        if (!stock || stock.available_quantity < item.quantity) {
+          throw new ApiError(
+            HttpStatusCode.BAD_REQUEST,
+            `Product ${item.product.name ?? item.product} is out of stock`
           );
-          if (!stock || stock.available_quantity < item.quantity) {
-            throw new ApiError(
-              HttpStatusCode.BAD_REQUEST,
-              `Product ${item.product.name ?? item.product} is out of stock`
-            );
-          }
-
-          // FIFO lot allocation (নতুন allocation)
-          const consumedLots = await this.consumeLotsFIFO(
-            item.product,
-            item.variant,
-            item.quantity,
-            session
-          );
-          item.lots = consumedLots;
-          stock.available_quantity -= item.quantity;
-          await stock.save({ session });
-        } else {
-          // আগের মতোই আছে, একই lots/stock ধরে নিন
-          item.lots = prevItem.lots;
         }
 
+        // FIFO lots থেকে কাটছে, lots ডিটেইল সেট হচ্ছে
+        const consumedLots = await this.consumeLotsFIFO(
+          item.product,
+          item.variant,
+          item.quantity,
+          session
+        );
+
+        item.lots = consumedLots;
         item.subtotal = item.price * item.quantity;
         total_price += item.subtotal;
+
+        // স্টক কমাও
+        stock.available_quantity -= item.quantity;
+        // total_sold বাড়াও
+        stock.total_sold = (stock.total_sold || 0) + item.quantity;
+        await stock.save({ session });
       }
 
-      // ৬. অর্ডার আপডেট করুন
+      // ৫. order ফিল্ড আপডেট
       order.items = enrichedOrder.products;
       order.total_items = enrichedOrder.products.length;
       order.total_price = total_price;
       order.total_amount = total_price;
       order.payable_amount = total_price;
 
-      // অন্যান্য ফিল্ড আপডেট
+      // ৬. সাধারণ ফিল্ড আপডেট
       if (payload.customer_name) order.customer_name = payload.customer_name;
       if (payload.customer_number)
         order.customer_number = payload.customer_number;
@@ -747,7 +736,7 @@ class Service {
 
       await order.save({ session });
 
-      // Optional: Cart পরিষ্কার
+      // ৭. cart ক্লিয়ার (যদি থাকে)
       await CartService.clearCartAfterCheckout(
         order.user as Types.ObjectId,
         session
@@ -756,7 +745,7 @@ class Service {
       await session.commitTransaction();
       session.endSession();
 
-      // Populate করে নতুন order ফেরত দিন
+      // ৮. populate করে অর্ডার ফেরত দিন
       const populatedOrder = await OrderModel.findById(order._id)
         .populate({
           path: "items.product",
@@ -1490,6 +1479,8 @@ class Service {
       null,
       { session }
     ).sort({ createdAt: 1 }); // FIFO
+
+    // console.log(lots, "lots data")
 
     let remaining = requiredQty;
     const consumption: { lotId: string; deducted: number }[] = [];
