@@ -23,6 +23,8 @@ export interface IProduct extends Document {
   description: string;
   sku: string;
 
+  order_type: IOrderTypes;
+
   thumbnail: string;
   slider_images?: string[];
 
