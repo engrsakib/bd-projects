@@ -52,6 +52,7 @@ class Service {
         ) as Types.ObjectId[];
         product.variants = newVariantIds;
       }
+
       // save the product with variants ids
       await product.save({ session });
 
