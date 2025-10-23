@@ -1,5 +1,5 @@
 import { model, Schema } from "mongoose";
-import { IProduct, ISocialLink } from "./product.interface";
+import { IProduct, ISocialLink, OrderTypes } from "./product.interface";
 import { schemaOptions } from "@/utils/schemaOptions";
 
 // ===== Social Link Schema =====
@@ -34,6 +34,13 @@ const productSchema = new Schema<IProduct>(
 
     thumbnail: { type: String, required: true },
     slider_images: { type: [String], default: [] },
+
+    // ===== Order Type =====
+    order_type: {
+      type: String,
+      enum: OrderTypes,
+      default: OrderTypes.STANDARD,
+    },
 
     // ===== Category Info =====
     category: { type: Schema.Types.ObjectId, ref: "Category", required: true },
