@@ -10,7 +10,7 @@ router.get("/get-by-slug-title", ProductController.getBySlugAndTitle);
 
 router.post(
   "/",
-  JwtInstance.authenticate([ROLES.ADMIN]),
+  JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.PRODUCT_CREATE),
   ProductController.create
 );
@@ -19,7 +19,7 @@ router.get("/related/:category", ProductController.getRelatedOrders);
 
 router.get(
   "/",
-  JwtInstance.authenticate([ROLES.ADMIN]),
+  JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.PRODUCT_VIEW),
   ProductController.getAllProductsForAdmin
 );
@@ -36,21 +36,21 @@ router.get("/slug/:slug", ProductController.getBySlug);
 
 router.patch(
   "/:id",
-  JwtInstance.authenticate([ROLES.ADMIN]),
+  JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.PRODUCT_UPDATE),
   ProductController.update
 );
 
 router.patch(
   "/:id/toggle-visibility",
-  JwtInstance.authenticate([ROLES.ADMIN]),
+  JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.PRODUCT_UPDATE),
   ProductController.toggleVisibility
 );
 
 router.delete(
   "/:id",
-  JwtInstance.authenticate([ROLES.ADMIN]),
+  JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.PRODUCT_DELETE),
   ProductController.deleteProduct
 );
