@@ -788,10 +788,66 @@ class Service {
 
   // get order by id
   async getOrderById(id: string): Promise<IOrder | null> {
-    const order = await OrderModel.aggregate([
+    const orderArr = await OrderModel.aggregate([
       { $match: { _id: new Types.ObjectId(id) } },
 
-      // Product lookup
+      // Populate previous_order (only one level, light fields)
+      {
+        $lookup: {
+          from: "orders",
+          localField: "previous_order",
+          foreignField: "_id",
+          as: "previousOrderData",
+        },
+      },
+      {
+        $unwind: {
+          path: "$previousOrder",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+
+      // Populate previous_variant from previousOrderData.items.previous_variant
+      // {
+      //   $lookup: {
+      //     from: "variants",
+      //     let: { previousVariants: "$previousOrderData.items.previous_variant" },
+      //     pipeline: [
+      //       {
+      //         $match: {
+      //           $expr: { $in: ["$_id", { $ifNull: ["$$previousVariants", []] }] },
+      //         },
+      //       },
+      //     ],
+      //     as: "previousVariantsData",
+      //   },
+      // },
+
+      // Attach only select fields from previous_order & previous_variant
+      {
+        $addFields: {
+          previous_order: {
+            $cond: [
+              { $ifNull: ["$previousOrderData._id", false] },
+              {
+                _id: "$previousOrderData._id",
+                order_id: "$previousOrderData.order_id",
+                invoice_number: "$previousOrderData.invoice_number",
+                total_items: "$previousOrderData.total_items",
+                total_price: "$previousOrderData.total_price",
+                payable_amount: "$previousOrderData.payable_amount",
+                order_status: "$previousOrderData.order_status",
+                order_at: "$previousOrderData.order_at",
+                // Attach previous_variant array
+                previous_variant: "$previousVariantsData",
+              },
+              null,
+            ],
+          },
+        },
+      },
+
+      // Populate product, variant, courier, logs for main order
       {
         $lookup: {
           from: "products",
@@ -800,7 +856,6 @@ class Service {
           as: "productsData",
         },
       },
-      // Variant lookup
       {
         $lookup: {
           from: "variants",
@@ -809,8 +864,6 @@ class Service {
           as: "variantsData",
         },
       },
-
-      // Courier lookup
       {
         $lookup: {
           from: "couriers",
@@ -819,8 +872,6 @@ class Service {
           as: "courierData",
         },
       },
-
-      // Admins lookup for logs
       {
         $lookup: {
           from: "admins",
@@ -829,15 +880,11 @@ class Service {
           as: "logUsers",
         },
       },
-
-      // Enrich items.product and items.variant with populated data
       {
         $addFields: {
           items: {
             $map: {
-              input: {
-                $sortArray: { input: "$items", sortBy: { _id: 1 } },
-              },
+              input: { $sortArray: { input: "$items", sortBy: { _id: 1 } } },
               as: "item",
               in: {
                 $mergeObjects: [
@@ -867,26 +914,29 @@ class Service {
                         0,
                       ],
                     },
+                    previous_variant: {
+                      $arrayElemAt: [
+                        {
+                          $filter: {
+                            input: "$variantsData",
+                            as: "pv",
+                            cond: {
+                              $eq: ["$$pv._id", "$$item.previous_variant"],
+                            },
+                          },
+                        },
+                        0,
+                      ],
+                    },
                   },
                 ],
               },
             },
           },
-          // Inject courier object (single)
-          courier: {
-            $arrayElemAt: ["$courierData", 0],
-          },
-        },
-      },
-
-      // Enrich logs with admin data
-      {
-        $addFields: {
+          courier: { $arrayElemAt: ["$courierData", 0] },
           logs: {
             $map: {
-              input: {
-                $sortArray: { input: "$logs", sortBy: { time: -1 } },
-              },
+              input: { $sortArray: { input: "$logs", sortBy: { time: -1 } } },
               as: "log",
               in: {
                 _id: "$$log._id",
@@ -924,14 +974,15 @@ class Service {
       },
     ]);
 
-    if (!order || !order[0]) {
+    const order = orderArr[0];
+    if (!order) {
       throw new ApiError(
         HttpStatusCode.NOT_FOUND,
         `Order was not found with id: ${id}`
       );
     }
 
-    return order[0] as IOrder;
+    return order as IOrder;
   }
 
   async getOrders(query: OrderQuery): Promise<{
