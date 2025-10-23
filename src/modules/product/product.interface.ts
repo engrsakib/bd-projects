@@ -6,6 +6,17 @@ export type ISocialLink = {
   url: string;
 };
 
+export type IProductSaleChannels = {
+  pos: boolean;
+  website: boolean;
+};
+
+export type IOrderTypes = "standard" | "pre_order";
+export enum OrderTypes {
+  STANDARD = "standard",
+  PRE_ORDER = "pre_order",
+}
+
 export interface IProduct extends Document {
   name: string;
   slug: string;
