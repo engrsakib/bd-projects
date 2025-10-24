@@ -1319,6 +1319,18 @@ class Service {
 
       const previousStatus = order.order_status || "N/A";
 
+      if (
+        order.order_status === ORDER_STATUS.HANDED_OVER_TO_COURIER &&
+        [ORDER_STATUS.RTS, ORDER_STATUS.ACCEPTED, ORDER_STATUS.PLACED].includes(
+          status
+        )
+      ) {
+        throw new ApiError(
+          HttpStatusCode.BAD_REQUEST,
+          `Cannot change status from handed_over_to_courier to ${status}`
+        );
+      }
+
       const updatedOrder = await OrderModel.findOneAndUpdate(
         { _id: order_id },
         {
