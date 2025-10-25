@@ -8,14 +8,14 @@ const router = Router();
 
 router.post(
   "/",
-  JwtInstance.authenticate([ROLES.ADMIN]),
+  JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.SUPPLIER_CREATE),
   SupplierController.createSupplier
 );
 
 router.get(
   "/",
-  JwtInstance.authenticate([ROLES.ADMIN]),
+  JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.SUPPLIER_VIEW),
   SupplierController.getAllSupplier
 );
