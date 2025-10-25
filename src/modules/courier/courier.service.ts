@@ -622,7 +622,30 @@ class Service {
         }
 
         order.order_status = customStatus as IOrderStatus;
+
+        const consignment = trackingRes?.consignment;
+        if (consignment) {
+          if (
+            "cod_amount" in consignment &&
+            typeof consignment.cod_amount === "number"
+          ) {
+            order.paid_amount += consignment.cod_amount;
+          }
+          if (
+            "delivery_charge" in consignment &&
+            typeof consignment.delivery_charge === "number"
+          ) {
+            order.delivery_charge = consignment.delivery_charge;
+          }
+        }
+
+        courier!.order_status = customStatus as ORDER_STATUS;
+
         await order.save({ session });
+
+        if (courier) {
+          await courier.save({ session });
+        }
 
         // if (customStatus === ORDER_STATUS.DELIVERED && order?.user) {
         //   const totalCoins = order?.products?.reduce(
