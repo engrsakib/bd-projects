@@ -1,4 +1,6 @@
-export type PRE_ORDER_STATUS =
+import { Types } from "mongoose";
+
+export type IPreOrderStatus =
   | "incomplete"
   | "pending"
   | "pending_approval"
@@ -21,3 +23,21 @@ export type PRE_ORDER_STATUS =
   | "partial"
   | "unknown"
   | "lost";
+
+export type IPreOrderItem = {
+  product: Types.ObjectId;
+  variant: Types.ObjectId;
+  previous_variant?: Types.ObjectId;
+  attributes: { [key: string]: string };
+  lots: [
+    {
+      lotId: Types.ObjectId;
+      deducted: number;
+    },
+  ];
+  quantity: number;
+  price: number;
+  new_cod?: number;
+  subtotal: number;
+  status?: IPreOrderStatus;
+};
