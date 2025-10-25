@@ -22,7 +22,7 @@ class service extends BaseController {
    */
   async steadfastWebhock(data: any, authToken?: string) {
     const expectedToken = process.env.STEADFAST_WEBHOOK_TOKEN || "";
-    console.log(expectedToken, "token");
+    // console.log(expectedToken, "token");
     if (!authToken || authToken !== `Bearer ${expectedToken}`) {
       return {
         status: "error",

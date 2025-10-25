@@ -622,6 +622,23 @@ class Service {
         }
 
         order.order_status = customStatus as IOrderStatus;
+
+        const consignment = trackingRes?.consignment;
+        if (consignment) {
+          if (
+            "cod_amount" in consignment &&
+            typeof consignment.cod_amount === "number"
+          ) {
+            order.paid_amount += consignment.cod_amount;
+          }
+          if (
+            "delivery_charge" in consignment &&
+            typeof consignment.delivery_charge === "number"
+          ) {
+            order.delivery_charge = consignment.delivery_charge;
+          }
+        }
+
         await order.save({ session });
 
         // if (customStatus === ORDER_STATUS.DELIVERED && order?.user) {
