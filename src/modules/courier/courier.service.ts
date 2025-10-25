@@ -639,7 +639,13 @@ class Service {
           }
         }
 
+        courier!.order_status = customStatus as ORDER_STATUS;
+
         await order.save({ session });
+
+        if (courier) {
+          await courier.save({ session });
+        }
 
         // if (customStatus === ORDER_STATUS.DELIVERED && order?.user) {
         //   const totalCoins = order?.products?.reduce(
