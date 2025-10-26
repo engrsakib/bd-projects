@@ -1,5 +1,6 @@
 import { IAddress } from "@/interfaces/common.interface";
 import { Types } from "mongoose";
+import { IUser } from "../user/user.interface";
 
 export type IOrderStatus =
   | "failed"
@@ -21,6 +22,12 @@ export type IOrderStatus =
   | "lost";
 
 export type IOrderBy = "admin" | "user" | "guest" | "reseller";
+
+type IAdminNote = {
+  note: string;
+  added_at: Date;
+  added_by: IUser["_id"];
+};
 
 export type IOrderItem = {
   product: Types.ObjectId;
@@ -85,7 +92,7 @@ export type IOrder = {
 
   system_message?: string;
   order_note?: string;
-  admin_notes?: { [key: string]: string };
+  admin_notes?: IAdminNote[];
 
   notes?: string;
   id?: string | Types.ObjectId;

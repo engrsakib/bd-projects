@@ -1434,6 +1434,28 @@ class Service {
     };
   }
 
+  async addAdminNoteToOrder(orderId: string, note: string, userId: string) {
+    try {
+      const order = await OrderModel.findById(orderId);
+      if (!order) {
+        throw new ApiError(404, "Order not found");
+      }
+      order.admin_notes = order.admin_notes || [];
+      order.admin_notes.push({
+        note,
+        added_by: new Types.ObjectId(userId),
+        added_at: new Date(),
+      });
+      await order.save();
+      return order;
+    } catch (error: any) {
+      throw new ApiError(
+        error.statusCode || 500,
+        error?.message || "Error adding admin note to order"
+      );
+    }
+  }
+
   // enrich products with details
   private async enrichProducts(orderData: any) {
     const enrichedProducts = await Promise.all(
