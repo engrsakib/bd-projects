@@ -733,6 +733,9 @@ class Service {
       if (payload.paid_amount) order.paid_amount = payload.paid_amount;
       if (payload.delivery_charge)
         order.delivery_charge = payload.delivery_charge;
+      order.total_amount +=
+        payload.delivery_charge || order.delivery_charge || 0;
+      if (payload.discounts) order.discounts = payload.discounts;
 
       await order.save({ session });
 
