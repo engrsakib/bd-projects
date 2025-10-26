@@ -1096,6 +1096,72 @@ class Service {
       },
     });
 
+    pipeline.push(
+      // 1. make sure we have an array of added_by ids (empty if admin_notes absent)
+      {
+        $addFields: {
+          _admin_note_userIds: {
+            $map: {
+              input: { $ifNull: ["$admin_notes", []] },
+              as: "n",
+              in: "$$n.added_by",
+            },
+          },
+        },
+      },
+      // 2. lookup all users whose _id is in that list
+      {
+        $lookup: {
+          from: "users", // adjust collection name if needed
+          localField: "_admin_note_userIds",
+          foreignField: "_id",
+          as: "_admin_note_users",
+        },
+      },
+      // 3. replace each admin_notes element's added_by with the full user doc (or keep null if not found)
+      {
+        $addFields: {
+          admin_notes: {
+            $map: {
+              input: { $ifNull: ["$admin_notes", []] },
+              as: "n",
+              in: {
+                $mergeObjects: [
+                  "$$n",
+                  {
+                    added_by: {
+                      $arrayElemAt: [
+                        {
+                          $filter: {
+                            input: "$_admin_note_users",
+                            as: "u",
+                            cond: {
+                              $eq: [
+                                "$$u._id",
+                                { $toObjectId: "$$n.added_by" }, // এখানে fix করা হয়েছে
+                              ],
+                            },
+                          },
+                        },
+                        0,
+                      ],
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+      // 4. cleanup temp arrays
+      {
+        $project: {
+          _admin_note_userIds: 0,
+          _admin_note_users: 0,
+        },
+      }
+    );
+
     // === Parcel ID filter on courierDocs.consignment_id ===
     if (parcel_id) {
       pipeline.push({
