@@ -712,12 +712,10 @@ class Service {
         await stock.save({ session });
       }
 
-      // ৫. order ফিল্ড আপডেট
+      // ৫. আইটেমস, টোটাল প্রাইস আপডেট (items first, then amounts)
       order.items = enrichedOrder.products;
       order.total_items = enrichedOrder.products.length;
       order.total_price = total_price;
-      order.total_amount = total_price;
-      order.payable_amount = total_price;
 
       // ৬. সাধারণ ফিল্ড আপডেট
       if (payload.customer_name) order.customer_name = payload.customer_name;
@@ -730,9 +728,31 @@ class Service {
         order.delivery_address = payload.delivery_address;
       if (payload.payment_type) order.payment_type = payload.payment_type;
       if (payload.orders_by) order.orders_by = payload.orders_by;
-      if (payload.paid_amount) order.paid_amount = payload.paid_amount;
-      if (payload.delivery_charge)
-        order.delivery_charge = payload.delivery_charge;
+      if (payload.discounts) order.discounts = payload.discounts;
+
+      // Numeric fields: use !== undefined so 0 is accepted from payload
+      if (payload.paid_amount !== undefined) {
+        order.paid_amount = Number(payload.paid_amount);
+      }
+      if (payload.delivery_charge !== undefined) {
+        // if payload provides delivery_charge (even 0), use it
+        order.delivery_charge = Number(payload.delivery_charge);
+      } else {
+        // if payload doesn't provide delivery_charge, keep existing (or default to 0)
+        order.delivery_charge = order.delivery_charge ?? 0;
+      }
+
+      // Now compute totals with delivery_charge included
+      order.total_amount =
+        Number(order.total_price ?? 0) + Number(order.delivery_charge ?? 0);
+
+      // payable_amount typically = total_amount - paid_amount (adjust as per your business logic)
+      order.payable_amount =
+        Number(order.total_amount) - Number(order.paid_amount ?? 0);
+      if (order.payable_amount < 0) order.payable_amount = 0;
+
+      // save within session
+      await order.save({ session });
 
       await order.save({ session });
 
