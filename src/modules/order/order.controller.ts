@@ -3,6 +3,7 @@ import { Request, Response } from "express";
 import { OrderService } from "./order.service";
 import { HttpStatusCode } from "@/lib/httpStatus";
 import { OrderQuery } from "@/interfaces/common.interface";
+import ApiError from "@/middlewares/error";
 
 class Controller extends BaseController {
   placeOrder = this.catchAsync(async (req: Request, res: Response) => {
@@ -142,6 +143,30 @@ class Controller extends BaseController {
       success: true,
       message: "Order tracking information retrieved successfully",
       data,
+    });
+  });
+
+  addAdminNoteToOrder = this.catchAsync(async (req: Request, res: Response) => {
+    const orderId = req.params.id;
+    const { note } = req.body;
+    const userId = req?.user.id;
+    console.log("Adding admin note to order", { userId });
+    if (!note || note.trim() === "") {
+      throw new ApiError(
+        HttpStatusCode.BAD_REQUEST,
+        "Note content is required"
+      );
+    }
+    const result = await OrderService.addAdminNoteToOrder(
+      orderId,
+      note,
+      userId
+    );
+    return this.sendResponse(res, {
+      statusCode: HttpStatusCode.OK,
+      success: true,
+      message: "Admin note added to order successfully",
+      data: result,
     });
   });
 }

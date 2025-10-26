@@ -21,6 +21,13 @@ router.patch(
 );
 
 router.patch(
+  "/scan-to-rts/:orderId",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.COURIER_UPDATE),
+  CourierController.scanToRTS
+);
+
+router.patch(
   "/scan-to-return/:orderId",
   JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.COURIER_UPDATE),

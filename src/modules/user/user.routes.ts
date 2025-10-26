@@ -102,6 +102,14 @@ router.patch(
   UserController.changePassword
 );
 
+router.patch(
+  "/self",
+  validateRequest(UserValidations.update),
+  JwtInstance.authenticate(Object.values(ROLES)),
+  // JwtInstance.hasPermissions(PermissionEnum.USER_UPDATE),
+  UserController.updateSelf
+);
+
 router.delete("/logout", UserController.logout);
 
 export const UserRoutes = router;

@@ -14,6 +14,13 @@ router.post(
 );
 
 router.patch(
+  "/update-order-admin-notes/:id",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.ORDER_UPDATE),
+  OrderController.addAdminNoteToOrder
+);
+
+router.patch(
   "/update-order-status",
   JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.ORDER_UPDATE),

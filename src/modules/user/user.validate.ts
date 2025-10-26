@@ -38,9 +38,12 @@ const update = z.object({
         })
         .min(3, "Name must be at least 3 characters")
         .optional(),
-      phone_number: z.string({
-        required_error: "Phone number must be provided",
-      }),
+      image: z.string().optional(),
+      phone_number: z
+        .string({
+          required_error: "Phone number must be provided",
+        })
+        .optional(),
       email: z
         .string()
         .email({ message: "Please provide a valid email" })
