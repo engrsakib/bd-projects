@@ -103,6 +103,22 @@ const orderSchema = new Schema<IOrder>(
     order_note: { type: String, default: "" },
     notes: { type: String, default: "" },
 
+    admin_notes: [
+      {
+        note: {
+          type: String,
+        },
+        added_at: {
+          type: Date,
+          default: () => new Date(),
+        },
+        added_by: {
+          type: Schema.Types.ObjectId,
+          ref: "User",
+        },
+      },
+    ],
+
     previous_order: {
       type: Schema.Types.ObjectId,
       ref: "Order",

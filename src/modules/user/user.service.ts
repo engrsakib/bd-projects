@@ -344,6 +344,8 @@ class Service {
   async getLoggedInUser(id: string) {
     const user = await UserModel.findById(id).select({ password: 0 });
 
+    // console.log(user)
+
     if (!user) {
       throw new ApiError(HttpStatusCode.NOT_FOUND, "User was not found!");
     }

@@ -85,6 +85,7 @@ export type IOrder = {
 
   system_message?: string;
   order_note?: string;
+  admin_notes?: { [key: string]: string };
 
   notes?: string;
   id?: string | Types.ObjectId;
