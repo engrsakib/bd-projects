@@ -108,6 +108,7 @@ class Controller extends BaseController {
   });
 
   getLoggedInUser = this.catchAsync(async (req: Request, res: Response) => {
+    console.log(req.user.id);
     const user = await UserService.getLoggedInUser(req?.user?.id);
     this.sendResponse(res, {
       statusCode: HttpStatusCode.OK,
