@@ -19,6 +19,8 @@ export const ROLES = {
   SUBSCRIBER: "subscriber",
   WHOLESALE_BUYER: "wholesale_buyer",
   CUSTOMER: "customer",
+
+  USER: "user",
 };
 
 export type IRoles = (typeof ROLES)[keyof typeof ROLES];

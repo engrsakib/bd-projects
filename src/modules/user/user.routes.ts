@@ -20,6 +20,12 @@ router.post(
   UserController.create
 );
 
+router.get(
+  "/auth",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  UserController.getLoggedInUser
+);
+
 router.patch(
   "/:id",
   validateRequest(UserValidations.update),
@@ -81,12 +87,6 @@ router.post(
   validateRequest(loginValidation),
   loggerMiddleware,
   UserController.login
-);
-
-router.get(
-  "/auth",
-  JwtInstance.authenticate(Object.values(ROLES)),
-  UserController.getLoggedInUser
 );
 
 router.patch(
