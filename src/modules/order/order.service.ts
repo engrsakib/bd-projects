@@ -1435,10 +1435,11 @@ class Service {
   }
 
   async addAdminNoteToOrder(orderId: string, note: string, userId: string) {
+    console.log(orderId, "user id and data");
     try {
       const order = await OrderModel.findById(orderId);
       if (!order) {
-        throw new ApiError(404, "Order not found");
+        throw new ApiError(404, "Order not found for notes");
       }
       order.admin_notes = order.admin_notes || [];
       order.admin_notes.push({
