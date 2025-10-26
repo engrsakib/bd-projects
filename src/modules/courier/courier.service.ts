@@ -249,6 +249,39 @@ class Service {
     }
   }
 
+  async scanToRTS(id: string) {
+    const session = await OrderModel.startSession();
+    session.startTransaction();
+    try {
+      const order = await OrderModel.findOne({
+        order_id: id,
+      })
+        .populate("user")
+        .session(session);
+      if (!order) {
+        throw new ApiError(HttpStatusCode.NOT_FOUND, "Order not found");
+      }
+      if (order.order_status === ORDER_STATUS.RTS) {
+        throw new ApiError(400, `Order is Already in RTS status`);
+      } else if (
+        order.order_status !== ORDER_STATUS.ACCEPTED &&
+        order.order_status !== ORDER_STATUS.PLACED
+      ) {
+        throw new ApiError(
+          400,
+          `Only accepted or placed orders can be marked as RTS`
+        );
+      }
+      order.order_status = ORDER_STATUS.RTS;
+      await order.save({ session });
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
+  }
+
   async scanToShipping(
     id: string,
     note: string = "Order transferred to courier",
