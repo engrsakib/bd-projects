@@ -24,6 +24,25 @@ class Controller extends BaseController {
     });
   });
 
+  scanToRTS = this.catchAsync(async (req: Request, res: Response) => {
+    const { orderId } = req.params;
+    if (!orderId) {
+      return this.sendResponse(res, {
+        statusCode: HttpStatus.BAD_REQUEST,
+        success: false,
+        message: "Order ID is required",
+      });
+    }
+
+    const result = await CourierService.scanToRTS(orderId);
+    return this.sendResponse(res, {
+      statusCode: HttpStatus.OK,
+      success: true,
+      message: "Order marked as RTS successfully",
+      data: result,
+    });
+  });
+
   scanToShipping = this.catchAsync(async (req: Request, res: Response) => {
     const { note, marchant } = req.body;
     const { orderId } = req.params;

@@ -108,6 +108,7 @@ class Controller extends BaseController {
   });
 
   getLoggedInUser = this.catchAsync(async (req: Request, res: Response) => {
+    console.log(req.user.id);
     const user = await UserService.getLoggedInUser(req?.user?.id);
     this.sendResponse(res, {
       statusCode: HttpStatusCode.OK,
@@ -141,6 +142,17 @@ class Controller extends BaseController {
 
   updateUser = this.catchAsync(async (req: Request, res: Response) => {
     const id = req.params.id;
+    const data = await UserService.updateUser(id, req.body);
+    this.sendResponse(res, {
+      statusCode: 200,
+      success: true,
+      message: "User updated successfully",
+      data: data,
+    });
+  });
+
+  updateSelf = this.catchAsync(async (req: Request, res: Response) => {
+    const id = req.user.id;
     const data = await UserService.updateUser(id, req.body);
     this.sendResponse(res, {
       statusCode: 200,

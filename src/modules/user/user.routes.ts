@@ -20,6 +20,12 @@ router.post(
   UserController.create
 );
 
+router.get(
+  "/auth",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  UserController.getLoggedInUser
+);
+
 router.patch(
   "/:id",
   validateRequest(UserValidations.update),
@@ -83,12 +89,6 @@ router.post(
   UserController.login
 );
 
-router.get(
-  "/auth",
-  JwtInstance.authenticate(Object.values(ROLES)),
-  UserController.getLoggedInUser
-);
-
 router.patch(
   "/reset-password",
   validateRequest(resetPasswordValidation),
@@ -100,6 +100,14 @@ router.patch(
   JwtInstance.authenticate(Object.values(ROLES)),
   validateRequest(changePasswordValidation),
   UserController.changePassword
+);
+
+router.patch(
+  "/self",
+  validateRequest(UserValidations.update),
+  JwtInstance.authenticate(Object.values(ROLES)),
+  // JwtInstance.hasPermissions(PermissionEnum.USER_UPDATE),
+  UserController.updateSelf
 );
 
 router.delete("/logout", UserController.logout);
