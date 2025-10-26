@@ -731,10 +731,11 @@ class Service {
       if (payload.payment_type) order.payment_type = payload.payment_type;
       if (payload.orders_by) order.orders_by = payload.orders_by;
       if (payload.paid_amount) order.paid_amount = payload.paid_amount;
-      if (payload.delivery_charge)
+      if (payload.delivery_charge) {
         order.delivery_charge = payload.delivery_charge;
-      order.total_amount +=
-        payload.delivery_charge || order.delivery_charge || 0;
+        order.total_amount +=
+          payload.delivery_charge || order.delivery_charge || 0;
+      }
       if (payload.discounts) order.discounts = payload.discounts;
 
       await order.save({ session });
