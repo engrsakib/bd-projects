@@ -114,7 +114,7 @@ const orderSchema = new Schema<IOrder>(
         },
         added_by: {
           type: Schema.Types.ObjectId,
-          ref: "User",
+          ref: "Admin",
         },
       },
     ],

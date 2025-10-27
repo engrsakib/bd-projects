@@ -1174,28 +1174,28 @@ class Service {
     });
 
     pipeline.push(
-      // 1. make sure we have an array of added_by ids (empty if admin_notes absent)
+      // 1️⃣ collect all added_by ids from admin_notes
       {
         $addFields: {
           _admin_note_userIds: {
             $map: {
               input: { $ifNull: ["$admin_notes", []] },
               as: "n",
-              in: "$$n.added_by",
+              in: { $toObjectId: "$$n.added_by" },
             },
           },
         },
       },
-      // 2. lookup all users whose _id is in that list
+      // 2️⃣ lookup Admin collection (ref: "Admin" → collection name: "admins")
       {
         $lookup: {
-          from: "users", // adjust collection name if needed
+          from: "admins",
           localField: "_admin_note_userIds",
           foreignField: "_id",
           as: "_admin_note_users",
         },
       },
-      // 3. replace each admin_notes element's added_by with the full user doc (or keep null if not found)
+      // 3️⃣ replace each admin_notes.added_by with matched user doc
       {
         $addFields: {
           admin_notes: {
@@ -1207,21 +1207,33 @@ class Service {
                   "$$n",
                   {
                     added_by: {
-                      $arrayElemAt: [
-                        {
-                          $filter: {
-                            input: "$_admin_note_users",
-                            as: "u",
-                            cond: {
-                              $eq: [
-                                "$$u._id",
-                                { $toObjectId: "$$n.added_by" }, // এখানে fix করা হয়েছে
-                              ],
-                            },
+                      $let: {
+                        vars: {
+                          matched: {
+                            $arrayElemAt: [
+                              {
+                                $filter: {
+                                  input: "$_admin_note_users",
+                                  as: "u",
+                                  cond: {
+                                    $eq: [
+                                      "$$u._id",
+                                      { $toObjectId: "$$n.added_by" },
+                                    ],
+                                  },
+                                },
+                              },
+                              0,
+                            ],
                           },
                         },
-                        0,
-                      ],
+                        in: {
+                          _id: "$$matched._id",
+                          name: "$$matched.name",
+                          phone_number: "$$matched.phone_number",
+                          role: "$$matched.role",
+                        },
+                      },
                     },
                   },
                 ],
@@ -1230,7 +1242,7 @@ class Service {
           },
         },
       },
-      // 4. cleanup temp arrays
+      // 4️⃣ remove temporary fields
       {
         $project: {
           _admin_note_userIds: 0,
