@@ -20,6 +20,14 @@ router.post(
   UserController.create
 );
 
+router.patch(
+  "/self",
+  validateRequest(UserValidations.update),
+  JwtInstance.authenticate(Object.values(ROLES)),
+  // JwtInstance.hasPermissions(PermissionEnum.USER_UPDATE),
+  UserController.updateSelf
+);
+
 router.get(
   "/auth",
   JwtInstance.authenticate(Object.values(ROLES)),
@@ -100,14 +108,6 @@ router.patch(
   JwtInstance.authenticate(Object.values(ROLES)),
   validateRequest(changePasswordValidation),
   UserController.changePassword
-);
-
-router.patch(
-  "/self",
-  validateRequest(UserValidations.update),
-  JwtInstance.authenticate(Object.values(ROLES)),
-  // JwtInstance.hasPermissions(PermissionEnum.USER_UPDATE),
-  UserController.updateSelf
 );
 
 router.delete("/logout", UserController.logout);

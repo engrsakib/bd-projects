@@ -13,6 +13,12 @@ router.post(
   OrderController.placeOrder
 );
 
+router.get(
+  "/user",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  OrderController.loginUserOrder
+);
+
 router.patch(
   "/update-order-admin-notes/:id",
   JwtInstance.authenticate(Object.values(ROLES)),

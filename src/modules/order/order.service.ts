@@ -664,6 +664,16 @@ class Service {
           variant: prevItem.variant,
         }).session(session);
 
+        const lots = await LotModel.findOne({
+          variant: prevItem.variant,
+        }).session(session);
+
+        if (lots) {
+          // পূর্বে কাটাকাটা lot গুলো ফিরিয়ে দিন
+          lots.qty_available += prevItem.quantity;
+          await lots.save({ session });
+        }
+
         if (stock) {
           // স্টকে quantity ফেরত দিন
           await StockModel.findByIdAndUpdate(
@@ -785,6 +795,63 @@ class Service {
     }
   }
 
+  async loginUserOrder(
+    userId?: string,
+    phone_number?: string
+  ): Promise<IOrder[] | null> {
+    try {
+      // build $or conditions only for provided values
+      const orConditions: Record<string, any>[] = [];
+
+      if (userId) {
+        // guard: only push valid ObjectId
+        try {
+          orConditions.push({ user: new Types.ObjectId(userId) });
+        } catch (e) {
+          // invalid object id string -> ignore user condition (or you may choose to throw)
+        }
+      }
+
+      if (phone_number) {
+        orConditions.push({ customer_number: phone_number });
+      }
+
+      if (orConditions.length === 0) {
+        // nothing to search for
+        return null;
+      }
+
+      // find the most recent order matching either condition
+      const order = await OrderModel.find({ $or: orConditions })
+        .sort({ order_at: -1 })
+        // populate item product & variant (adjust selects as needed)
+        .populate({
+          path: "items.product",
+          select: "name slug sku thumbnail description price", // change fields as needed
+        })
+        .populate({
+          path: "items.variant",
+          select:
+            "attributes attribute_values regular_price sale_price sku barcode image",
+        })
+        // populate order owner
+        .populate({ path: "user", select: "name email phone" })
+        // populate admin_notes.added_by if you have admin_notes subdocs
+        .populate({ path: "admin_notes.added_by", select: "name email role" })
+        // populate courier (if present)
+        .populate({ path: "courier", select: "name phone tracking_url" })
+        .exec();
+
+      return order as IOrder[];
+    } catch (error) {
+      // log error if you want: console.error(error);
+      throw new ApiError(
+        HttpStatusCode.INTERNAL_SERVER_ERROR,
+        "Failed to retrieve order"
+      );
+    }
+  }
+
   async updatePaymentStatus(
     payment_id: string,
     transaction_id: string,
@@ -824,6 +891,76 @@ class Service {
         $unwind: {
           path: "$previousOrder",
           preserveNullAndEmptyArrays: true,
+        },
+      },
+
+      // --- Admin Notes Populate ---
+      {
+        $addFields: {
+          _admin_note_userIds: {
+            $map: {
+              input: { $ifNull: ["$admin_notes", []] },
+              as: "note",
+              in: "$$note.added_by",
+            },
+          },
+        },
+      },
+      {
+        $lookup: {
+          from: "admins",
+          let: { adminUserIds: "$_admin_note_userIds" },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $in: ["$_id", { $ifNull: ["$$adminUserIds", []] }] },
+              },
+            },
+            {
+              $project: {
+                _id: 1,
+                name: 1,
+                phone_number: 1,
+                role: 1,
+              },
+            },
+          ],
+          as: "_admin_note_users",
+        },
+      },
+      {
+        $addFields: {
+          admin_notes: {
+            $map: {
+              input: { $ifNull: ["$admin_notes", []] },
+              as: "note",
+              in: {
+                $mergeObjects: [
+                  "$$note",
+                  {
+                    added_by: {
+                      $arrayElemAt: [
+                        {
+                          $filter: {
+                            input: "$_admin_note_users",
+                            as: "u",
+                            cond: { $eq: ["$$u._id", "$$note.added_by"] },
+                          },
+                        },
+                        0,
+                      ],
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+      {
+        $project: {
+          _admin_note_userIds: 0,
+          _admin_note_users: 0,
         },
       },
 
@@ -1117,28 +1254,28 @@ class Service {
     });
 
     pipeline.push(
-      // 1. make sure we have an array of added_by ids (empty if admin_notes absent)
+      // 1️⃣ collect all added_by ids from admin_notes
       {
         $addFields: {
           _admin_note_userIds: {
             $map: {
               input: { $ifNull: ["$admin_notes", []] },
               as: "n",
-              in: "$$n.added_by",
+              in: { $toObjectId: "$$n.added_by" },
             },
           },
         },
       },
-      // 2. lookup all users whose _id is in that list
+      // 2️⃣ lookup Admin collection (ref: "Admin" → collection name: "admins")
       {
         $lookup: {
-          from: "users", // adjust collection name if needed
+          from: "admins",
           localField: "_admin_note_userIds",
           foreignField: "_id",
           as: "_admin_note_users",
         },
       },
-      // 3. replace each admin_notes element's added_by with the full user doc (or keep null if not found)
+      // 3️⃣ replace each admin_notes.added_by with matched user doc
       {
         $addFields: {
           admin_notes: {
@@ -1150,21 +1287,33 @@ class Service {
                   "$$n",
                   {
                     added_by: {
-                      $arrayElemAt: [
-                        {
-                          $filter: {
-                            input: "$_admin_note_users",
-                            as: "u",
-                            cond: {
-                              $eq: [
-                                "$$u._id",
-                                { $toObjectId: "$$n.added_by" }, // এখানে fix করা হয়েছে
-                              ],
-                            },
+                      $let: {
+                        vars: {
+                          matched: {
+                            $arrayElemAt: [
+                              {
+                                $filter: {
+                                  input: "$_admin_note_users",
+                                  as: "u",
+                                  cond: {
+                                    $eq: [
+                                      "$$u._id",
+                                      { $toObjectId: "$$n.added_by" },
+                                    ],
+                                  },
+                                },
+                              },
+                              0,
+                            ],
                           },
                         },
-                        0,
-                      ],
+                        in: {
+                          _id: "$$matched._id",
+                          name: "$$matched.name",
+                          phone_number: "$$matched.phone_number",
+                          role: "$$matched.role",
+                        },
+                      },
                     },
                   },
                 ],
@@ -1173,7 +1322,7 @@ class Service {
           },
         },
       },
-      // 4. cleanup temp arrays
+      // 4️⃣ remove temporary fields
       {
         $project: {
           _admin_note_userIds: 0,
@@ -1460,22 +1609,36 @@ class Service {
             await stock.save({ session });
           }
 
-          // restore lots
-          for (const lotUsage of item.lots) {
-            const lot = await LotModel.findById(lotUsage.lotId).session(
-              session
-            );
-            if (!lot) {
-              throw new ApiError(
-                HttpStatusCode.NOT_FOUND,
-                `Lot not found with id: ${lotUsage.lotId}`
-              );
-            }
-            if (lot) {
-              lot.qty_available += lotUsage.deducted;
-              await lot.save({ session });
-            }
+          const lots = await LotModel.findOne(
+            {
+              variant: item.variant,
+            },
+            null,
+            { session }
+          );
+
+          if (lots) {
+            // পূর্বে কাটাকাটা lot গুলো ফিরিয়ে দিন
+            lots.qty_available += item.quantity;
+            await lots.save({ session });
           }
+
+          // restore lots
+          // for (const lotUsage of item.lots) {
+          //   const lot = await LotModel.findById(lotUsage.lotId).session(
+          //     session
+          //   );
+          //   if (!lot) {
+          //     throw new ApiError(
+          //       HttpStatusCode.NOT_FOUND,
+          //       `Lot not found with id: ${lotUsage.lotId}`
+          //     );
+          //   }
+          //   if (lot) {
+          //     lot.qty_available += lotUsage.deducted;
+          //     await lot.save({ session });
+          //   }
+          // }
         }
       }
 
