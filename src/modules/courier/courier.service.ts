@@ -263,7 +263,8 @@ class Service {
       }
       if (order.order_status === ORDER_STATUS.RTS) {
         throw new ApiError(400, `Order is Already in RTS status`);
-      } else if (
+      }
+      if (
         order.order_status !== ORDER_STATUS.ACCEPTED &&
         order.order_status !== ORDER_STATUS.PLACED
       ) {

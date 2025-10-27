@@ -884,6 +884,76 @@ class Service {
         },
       },
 
+      // --- Admin Notes Populate ---
+      {
+        $addFields: {
+          _admin_note_userIds: {
+            $map: {
+              input: { $ifNull: ["$admin_notes", []] },
+              as: "note",
+              in: "$$note.added_by",
+            },
+          },
+        },
+      },
+      {
+        $lookup: {
+          from: "admins",
+          let: { adminUserIds: "$_admin_note_userIds" },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $in: ["$_id", { $ifNull: ["$$adminUserIds", []] }] },
+              },
+            },
+            {
+              $project: {
+                _id: 1,
+                name: 1,
+                phone_number: 1,
+                role: 1,
+              },
+            },
+          ],
+          as: "_admin_note_users",
+        },
+      },
+      {
+        $addFields: {
+          admin_notes: {
+            $map: {
+              input: { $ifNull: ["$admin_notes", []] },
+              as: "note",
+              in: {
+                $mergeObjects: [
+                  "$$note",
+                  {
+                    added_by: {
+                      $arrayElemAt: [
+                        {
+                          $filter: {
+                            input: "$_admin_note_users",
+                            as: "u",
+                            cond: { $eq: ["$$u._id", "$$note.added_by"] },
+                          },
+                        },
+                        0,
+                      ],
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+      {
+        $project: {
+          _admin_note_userIds: 0,
+          _admin_note_users: 0,
+        },
+      },
+
       // Populate previous_variant from previousOrderData.items.previous_variant
       // {
       //   $lookup: {
