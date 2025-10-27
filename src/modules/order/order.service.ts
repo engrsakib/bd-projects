@@ -664,6 +664,16 @@ class Service {
           variant: prevItem.variant,
         }).session(session);
 
+        const lots = await LotModel.findOne({
+          variant: prevItem.variant,
+        }).session(session);
+
+        if (lots) {
+          // পূর্বে কাটাকাটা lot গুলো ফিরিয়ে দিন
+          lots.qty_available += prevItem.quantity;
+          await lots.save({ session });
+        }
+
         if (stock) {
           // স্টকে quantity ফেরত দিন
           await StockModel.findByIdAndUpdate(
