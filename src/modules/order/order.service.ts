@@ -1609,22 +1609,36 @@ class Service {
             await stock.save({ session });
           }
 
-          // restore lots
-          for (const lotUsage of item.lots) {
-            const lot = await LotModel.findById(lotUsage.lotId).session(
-              session
-            );
-            if (!lot) {
-              throw new ApiError(
-                HttpStatusCode.NOT_FOUND,
-                `Lot not found with id: ${lotUsage.lotId}`
-              );
-            }
-            if (lot) {
-              lot.qty_available += lotUsage.deducted;
-              await lot.save({ session });
-            }
+          const lots = await LotModel.findOne(
+            {
+              variant: item.variant,
+            },
+            null,
+            { session }
+          );
+
+          if (lots) {
+            // পূর্বে কাটাকাটা lot গুলো ফিরিয়ে দিন
+            lots.qty_available += item.quantity;
+            await lots.save({ session });
           }
+
+          // restore lots
+          // for (const lotUsage of item.lots) {
+          //   const lot = await LotModel.findById(lotUsage.lotId).session(
+          //     session
+          //   );
+          //   if (!lot) {
+          //     throw new ApiError(
+          //       HttpStatusCode.NOT_FOUND,
+          //       `Lot not found with id: ${lotUsage.lotId}`
+          //     );
+          //   }
+          //   if (lot) {
+          //     lot.qty_available += lotUsage.deducted;
+          //     await lot.save({ session });
+          //   }
+          // }
         }
       }
 
