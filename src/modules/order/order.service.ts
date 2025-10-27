@@ -785,6 +785,63 @@ class Service {
     }
   }
 
+  async loginUserOrder(
+    userId?: string,
+    phone_number?: string
+  ): Promise<IOrder[] | null> {
+    try {
+      // build $or conditions only for provided values
+      const orConditions: Record<string, any>[] = [];
+
+      if (userId) {
+        // guard: only push valid ObjectId
+        try {
+          orConditions.push({ user: new Types.ObjectId(userId) });
+        } catch (e) {
+          // invalid object id string -> ignore user condition (or you may choose to throw)
+        }
+      }
+
+      if (phone_number) {
+        orConditions.push({ customer_number: phone_number });
+      }
+
+      if (orConditions.length === 0) {
+        // nothing to search for
+        return null;
+      }
+
+      // find the most recent order matching either condition
+      const order = await OrderModel.find({ $or: orConditions })
+        .sort({ order_at: -1 })
+        // populate item product & variant (adjust selects as needed)
+        .populate({
+          path: "items.product",
+          select: "name slug sku thumbnail description price", // change fields as needed
+        })
+        .populate({
+          path: "items.variant",
+          select:
+            "attributes attribute_values regular_price sale_price sku barcode image",
+        })
+        // populate order owner
+        .populate({ path: "user", select: "name email phone" })
+        // populate admin_notes.added_by if you have admin_notes subdocs
+        .populate({ path: "admin_notes.added_by", select: "name email role" })
+        // populate courier (if present)
+        .populate({ path: "courier", select: "name phone tracking_url" })
+        .exec();
+
+      return order as IOrder[];
+    } catch (error) {
+      // log error if you want: console.error(error);
+      throw new ApiError(
+        HttpStatusCode.INTERNAL_SERVER_ERROR,
+        "Failed to retrieve order"
+      );
+    }
+  }
+
   async updatePaymentStatus(
     payment_id: string,
     transaction_id: string,
