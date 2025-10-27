@@ -249,37 +249,54 @@ class Service {
     }
   }
 
+  // Atomic variant: safer under concurrency
   async scanToRTS(id: string) {
     const session = await OrderModel.startSession();
     session.startTransaction();
     try {
-      const order = await OrderModel.findOne({
-        order_id: id,
-      })
+      // Only update when current status is ACCEPTED or PLACED (atomic)
+      const updated = await OrderModel.findOneAndUpdate(
+        {
+          order_id: id,
+          order_status: { $in: [ORDER_STATUS.ACCEPTED, ORDER_STATUS.PLACED] },
+        },
+        {
+          $set: { order_status: ORDER_STATUS.RTS },
+        },
+        {
+          new: true, // return the updated document
+          session,
+        }
+      )
         .populate("user")
-        .session(session);
-      if (!order) {
-        throw new ApiError(HttpStatusCode.NOT_FOUND, "Order not found");
-      }
-      if (order.order_status === ORDER_STATUS.RTS) {
-        throw new ApiError(400, `Order is Already in RTS status`);
-      }
-      if (
-        order.order_status !== ORDER_STATUS.ACCEPTED &&
-        order.order_status !== ORDER_STATUS.PLACED
-      ) {
+        .populate("items.product")
+        .populate("items.variant")
+        .populate("admin_notes.added_by");
+
+      if (!updated) {
+        // Could be: not found OR status was not acceptable OR already RTS
+        const existing = await OrderModel.findOne({ order_id: id }).session(
+          session
+        );
+        if (!existing) {
+          throw new ApiError(HttpStatusCode.NOT_FOUND, "Order not found");
+        }
+        if (existing.order_status === ORDER_STATUS.RTS) {
+          throw new ApiError(400, `Order is Already in RTS status`);
+        }
         throw new ApiError(
           400,
           `Only accepted or placed orders can be marked as RTS`
         );
       }
-      order.order_status = ORDER_STATUS.RTS;
-      await order.save({ session });
-    } catch (error) {
-      await session.abortTransaction();
-      throw error;
-    } finally {
+
+      await session.commitTransaction();
       session.endSession();
+      return updated;
+    } catch (err) {
+      await session.abortTransaction();
+      session.endSession();
+      throw err;
     }
   }
 
