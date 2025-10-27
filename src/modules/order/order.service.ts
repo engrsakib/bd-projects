@@ -636,7 +636,6 @@ class Service {
   }
 
   // edit order
-  // keep your original logic otherwise. Adjust Lot model name in populate if different.
   async editOrder(orderId: string, payload: Partial<IOrder>) {
     const session = await mongoose.startSession();
     session.startTransaction();
@@ -695,73 +694,21 @@ class Service {
         }
 
         // FIFO lots থেকে কাটছে, lots ডিটেইল সেট হচ্ছে
-        // consumeLotsFIFO should return an array of lot info objects.
-        // We normalize them to match Order schema: items[].lots = [{ lot: ObjectId, qty: Number, ... }]
-        const consumedLotsRaw = await this.consumeLotsFIFO(
+        const consumedLots = await this.consumeLotsFIFO(
           item.product,
           item.variant,
           item.quantity,
           session
         );
 
-        // Normalize consumed lots to ensure `lot` is an ObjectId (or undefined/null)
-        const consumedLots = (consumedLotsRaw || []).map((c: any) => {
-          // support multiple shapes:
-          // - { lot: ObjectId } OR { lot: { _id: ObjectId, ... } }
-          // - { _id: ObjectId } (if you returned lot doc itself)
-          // - { lot: "hexString" } (string id)
-          let lotVal: any = null;
-          if (c == null) {
-            lotVal = null;
-          } else if (c.lot) {
-            // c.lot might be ObjectId, string, or doc
-            if (c.lot._id) lotVal = c.lot._id;
-            else lotVal = c.lot;
-          } else if (c._id) {
-            // maybe the function returned the lot doc itself as root
-            lotVal = c._id;
-          } else if (c.lot_id) {
-            lotVal = c.lot_id;
-          }
-
-          // Normalize to ObjectId if it's a 24-char hex string
-          if (typeof lotVal === "string" && Types.ObjectId.isValid(lotVal)) {
-            lotVal = new Types.ObjectId(lotVal);
-          }
-          // If it's already ObjectId, keep as is.
-          // qty normalization
-          const qty = Number(c.qty ?? c.quantity ?? c.qty_consumed ?? 0);
-          const normalized: any = {
-            lot: lotVal ?? null,
-            qty: Number.isFinite(qty) ? qty : 0,
-          };
-          // carry forward any useful meta if present
-          if (c.consumed_at) normalized.consumed_at = c.consumed_at;
-          if (c.cost_per_unit !== undefined)
-            normalized.cost_per_unit = c.cost_per_unit;
-          if (c.batch_number) normalized.batch_number = c.batch_number;
-          return normalized;
-        });
-
-        // Assign normalized lots to the item so it is saved into order
         item.lots = consumedLots;
-
-        // compute subtotal safely
-        const price = Number(item.price ?? 0);
-        const qty = Number(item.quantity ?? 0);
-        if (!Number.isFinite(price) || !Number.isFinite(qty) || qty <= 0) {
-          throw new ApiError(
-            HttpStatusCode.BAD_REQUEST,
-            `Invalid price/quantity for product ${item.product ?? "unknown"}`
-          );
-        }
-
-        item.subtotal = price * qty;
+        item.subtotal = item.price * item.quantity;
         total_price += item.subtotal;
 
-        // স্টক আপডেট
-        stock.available_quantity -= qty;
-        stock.total_sold = (stock.total_sold || 0) + qty;
+        // স্টক কমাও
+        stock.available_quantity -= item.quantity;
+        // total_sold বাড়াও
+        stock.total_sold = (stock.total_sold || 0) + item.quantity;
         await stock.save({ session });
       }
 
@@ -804,7 +751,9 @@ class Service {
         Number(order.total_amount) - Number(order.paid_amount ?? 0);
       if (order.payable_amount < 0) order.payable_amount = 0;
 
-      // save within session (only once)
+      // save within session
+      await order.save({ session });
+
       await order.save({ session });
 
       // ৭. cart ক্লিয়ার (যদি থাকে)
@@ -813,11 +762,10 @@ class Service {
         session
       );
 
-      // commit transaction and close session
       await session.commitTransaction();
       session.endSession();
 
-      // ৮. populate করে অর্ডার ফেরত দিন (include lots.lot population)
+      // ৮. populate করে অর্ডার ফেরত দিন
       const populatedOrder = await OrderModel.findById(order._id)
         .populate({
           path: "items.product",
@@ -827,17 +775,6 @@ class Service {
           path: "items.variant",
           select:
             "attributes attribute_values regular_price sale_price sku barcode image",
-        })
-        // populate each lot reference inside items.lots -> adjust model name if your Lot model uses different name
-        .populate({
-          path: "items.lots.lot",
-          model: "Lot",
-          select:
-            "lot_number received_at qty_available expiry_date batch_number",
-        })
-        .populate({
-          path: "admin_notes.added_by",
-          select: "name email",
         });
 
       return { order: populatedOrder, payment_url: "" };
