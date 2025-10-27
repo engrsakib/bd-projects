@@ -146,11 +146,31 @@ class Controller extends BaseController {
     });
   });
 
+  loginUserOrder = this.catchAsync(async (req: Request, res: Response) => {
+    const userId = req.user?.id;
+    const phone_number = req.user?.phone_number;
+    if (!userId) {
+      return this.sendResponse(res, {
+        statusCode: HttpStatusCode.UNAUTHORIZED,
+        success: false,
+        message: "Unauthorized access",
+      });
+    }
+
+    const data = await OrderService.loginUserOrder(userId, phone_number);
+    this.sendResponse(res, {
+      statusCode: HttpStatusCode.OK,
+      success: true,
+      message: "User orders retrieved successfully",
+      data,
+    });
+  });
+
   addAdminNoteToOrder = this.catchAsync(async (req: Request, res: Response) => {
     const orderId = req.params.id;
     const { note } = req.body;
     const userId = req?.user.id;
-    console.log("Adding admin note to order", { userId });
+    // console.log("Adding admin note to order", { userId });
     if (!note || note.trim() === "") {
       throw new ApiError(
         HttpStatusCode.BAD_REQUEST,
