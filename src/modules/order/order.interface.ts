@@ -63,6 +63,8 @@ export type IOrder = {
   customer_email?: string;
   customer_secondary_number?: string;
 
+  user_or_admin_model?: "User" | "Admin";
+
   items?: IOrderItem[];
   orders_by: IOrderBy;
   products?: IOrderItem[];

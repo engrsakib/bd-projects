@@ -879,6 +879,41 @@ class Service {
       { $match: { _id: new Types.ObjectId(id) } },
 
       // Populate previous_order (only one level, light fields)
+      // --- User or Admin dynamic populate ---
+      {
+        $lookup: {
+          from: "users",
+          localField: "user",
+          foreignField: "_id",
+          as: "userFromUsers",
+        },
+      },
+      {
+        $lookup: {
+          from: "admins",
+          localField: "user",
+          foreignField: "_id",
+          as: "userFromAdmins",
+        },
+      },
+      {
+        $addFields: {
+          order_by: {
+            $cond: {
+              if: { $eq: ["$user_or_admin_model", "User"] },
+              then: "$userFromUsers",
+              else: "$userFromAdmins",
+            },
+          },
+        },
+      },
+      {
+        $project: {
+          userFromUsers: 0,
+          userFromAdmins: 0,
+        },
+      },
+
       {
         $lookup: {
           from: "orders",
