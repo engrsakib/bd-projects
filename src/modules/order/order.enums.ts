@@ -36,3 +36,23 @@ export enum ORDER_BY {
   GUEST = "guest",
   RESELLER = "reseller",
 }
+
+export const ORDER_STATUSES_REPORT = [
+  "failed",
+  "pending",
+  "placed",
+  "accepted",
+  "rts",
+  "in_transit",
+  "delivered",
+  "pending_return",
+  "returned",
+  "cancelled",
+  "exchange_requested",
+  "exchanged",
+  "incomplete",
+  "handed_over_to_courier",
+  "unknown",
+  "partial",
+  "lost",
+] as const;

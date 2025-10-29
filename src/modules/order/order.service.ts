@@ -7,6 +7,7 @@ import {
   IOrderPlace,
   IOrderStatus,
   Istatus_count,
+  ReportParams,
 } from "./order.interface";
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { ICartItem } from "../cart/cart.interface";
@@ -16,7 +17,11 @@ import { OrderModel } from "./order.model";
 import ApiError from "@/middlewares/error";
 import { HttpStatusCode } from "@/lib/httpStatus";
 import { BkashService } from "../bkash/bkash.service";
-import { ORDER_STATUS, PAYMENT_STATUS } from "./order.enums";
+import {
+  ORDER_STATUS,
+  ORDER_STATUSES_REPORT,
+  PAYMENT_STATUS,
+} from "./order.enums";
 import { ProductModel } from "../product/product.model";
 import { OrderQuery } from "@/interfaces/common.interface";
 import { StockModel } from "../stock/stock.model";
@@ -1569,6 +1574,213 @@ class Service {
         `Order was not found with id: ${id}`
       );
     }
+  }
+
+  // report day update
+  async generateOrderReport(params: ReportParams) {
+    const { start_date, end_date, user } = params || {};
+    const match: any = {};
+
+    if (start_date) {
+      const sd = new Date(start_date);
+      if (!isNaN(sd.getTime())) match.order_at = { $gte: sd };
+    }
+    if (end_date) {
+      const ed = new Date(end_date);
+      if (!isNaN(ed.getTime())) {
+        ed.setHours(23, 59, 59, 999);
+        match.order_at = match.order_at
+          ? { ...match.order_at, $lte: ed }
+          : { $lte: ed };
+      }
+    }
+    if (user) {
+      if (!Types.ObjectId.isValid(user)) {
+        throw new Error("Invalid user id");
+      }
+      match.user = new Types.ObjectId(user);
+    }
+
+    const pipeline: any[] = [];
+    if (Object.keys(match).length) pipeline.push({ $match: match });
+
+    // lookup admins & users, build actor field
+    pipeline.push(
+      {
+        $lookup: {
+          from: "admins",
+          localField: "user",
+          foreignField: "_id",
+          as: "userFromAdmins",
+        },
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "user",
+          foreignField: "_id",
+          as: "userFromUsers",
+        },
+      },
+      {
+        $addFields: {
+          actor: {
+            $cond: [
+              { $eq: ["$user_or_admin_model", "Admin"] },
+              { $arrayElemAt: ["$userFromAdmins", 0] },
+              { $arrayElemAt: ["$userFromUsers", 0] },
+            ],
+          },
+        },
+      },
+      {
+        $project: {
+          userFromAdmins: 0,
+          userFromUsers: 0,
+        },
+      }
+    );
+
+    // facet for multiple aggregations
+    pipeline.push({
+      $facet: {
+        totals: [
+          {
+            $group: {
+              _id: null,
+              total_orders: { $sum: 1 },
+              total_amount: { $sum: { $ifNull: ["$total_amount", 0] } },
+              total_paid: { $sum: { $ifNull: ["$paid_amount", 0] } },
+              avg_order_value: { $avg: { $ifNull: ["$total_amount", 0] } },
+            },
+          },
+          {
+            $project: {
+              _id: 0,
+              total_orders: 1,
+              total_amount: 1,
+              total_paid: 1,
+              avg_order_value: 1,
+            },
+          },
+        ],
+        byStatus: [
+          {
+            $group: {
+              _id: "$order_status",
+              count: { $sum: 1 },
+              total_amount: { $sum: { $ifNull: ["$total_amount", 0] } },
+            },
+          },
+          { $project: { _id: 0, status: "$_id", count: 1, total_amount: 1 } },
+        ],
+        byDay: [
+          {
+            $group: {
+              _id: { $dateToString: { format: "%Y-%m-%d", date: "$order_at" } },
+              count: { $sum: 1 },
+              total_amount: { $sum: { $ifNull: ["$total_amount", 0] } },
+            },
+          },
+          { $project: { _id: 0, date: "$_id", count: 1, total_amount: 1 } },
+          { $sort: { date: 1 } },
+        ],
+        actorsSummary: [
+          {
+            $group: {
+              _id: "$user",
+              orders_count: { $sum: 1 },
+              total_amount: { $sum: { $ifNull: ["$total_amount", 0] } },
+              sample_actor: { $first: "$actor" },
+            },
+          },
+          {
+            $project: {
+              _id: 0,
+              user_id: "$_id",
+              orders_count: 1,
+              total_amount: 1,
+              actor: "$sample_actor",
+            },
+          },
+        ],
+        sampleOrders: [
+          { $sort: { order_at: -1 } },
+          {
+            $project: {
+              _id: 1,
+              order_id: 1,
+              invoice_number: 1,
+              total_amount: 1,
+              paid_amount: 1,
+              order_status: 1,
+              order_at: 1,
+              actor: {
+                name: "$actor.name",
+                role: "$actor.role",
+                _id: "$actor._id",
+              },
+            },
+          },
+          { $limit: 20 },
+        ],
+      },
+    });
+
+    const [aggResult] = await OrderModel.aggregate(pipeline).exec();
+
+    const totals = (aggResult?.totals && aggResult.totals[0]) || {
+      total_orders: 0,
+      total_amount: 0,
+      total_paid: 0,
+      avg_order_value: 0,
+    };
+
+    const byStatus = aggResult?.byStatus || [];
+    const byDay = aggResult?.byDay || [];
+    const actorsSummary = aggResult?.actorsSummary || [];
+    const sampleOrders = aggResult?.sampleOrders || [];
+
+    // build statusCounts ensuring all known statuses exist (0 default)
+    const statusCounts: Record<
+      string,
+      { count: number; total_amount: number }
+    > = {};
+    for (const s of ORDER_STATUSES_REPORT) {
+      statusCounts[s] = { count: 0, total_amount: 0 };
+    }
+    for (const row of byStatus) {
+      const st = row.status ?? "unknown";
+      const cnt = Number(row.count ?? 0);
+      const tamt = Number(row.total_amount ?? 0);
+      statusCounts[st] = { count: cnt, total_amount: tamt };
+    }
+
+    // actor info and ordersForActor if user filter provided
+    let actorInfo: any = null;
+    let ordersForActor = 0;
+    if (user) {
+      const us = actorsSummary.find(
+        (a: any) => String(a.user_id) === String(user)
+      );
+      if (us) {
+        actorInfo = us.actor || null;
+        ordersForActor = us.orders_count || 0;
+      } else if (sampleOrders.length && sampleOrders[0].actor) {
+        actorInfo = sampleOrders[0].actor;
+      }
+    }
+
+    return {
+      totals,
+      statusCounts,
+      byStatus,
+      byDay,
+      actorsSummary,
+      sampleOrders,
+      actorInfo,
+      ordersForActor,
+    };
   }
 
   async updateOrderStatus(
