@@ -21,6 +21,12 @@ export type IOrderStatus =
   | "partial"
   | "lost";
 
+export type ReportParams = {
+  start_date?: string;
+  end_date?: string;
+  user?: string; // ObjectId string (optional)
+};
+
 export type IOrderBy = "admin" | "user" | "guest" | "reseller";
 
 type IAdminNote = {
@@ -62,6 +68,8 @@ export type IOrder = {
   customer_number: string;
   customer_email?: string;
   customer_secondary_number?: string;
+
+  user_or_admin_model?: "User" | "Admin";
 
   items?: IOrderItem[];
   orders_by: IOrderBy;

@@ -3,6 +3,7 @@ export enum PermissionEnum {
   ORDER_DELETE = "order.delete",
   ORDER_UPDATE = "order.update",
   ORDER_VIEW = "order.view",
+  ORDER_REPORT_VIEW = "order.report.view",
 
   PRODUCT_CREATE = "product.create",
   PRODUCT_DELETE = "product.delete",

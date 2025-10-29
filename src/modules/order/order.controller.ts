@@ -4,6 +4,7 @@ import { OrderService } from "./order.service";
 import { HttpStatusCode } from "@/lib/httpStatus";
 import { OrderQuery } from "@/interfaces/common.interface";
 import ApiError from "@/middlewares/error";
+import { ReportParams } from "./order.interface";
 
 class Controller extends BaseController {
   placeOrder = this.catchAsync(async (req: Request, res: Response) => {
@@ -58,6 +59,18 @@ class Controller extends BaseController {
       statusCode: HttpStatusCode.OK,
       success: true,
       message: "Order updated successfully",
+      data,
+    });
+  });
+
+  generateOrderReport = this.catchAsync(async (req: Request, res: Response) => {
+    const query: ReportParams = req.query;
+
+    const data = await OrderService.generateOrderReport(query);
+    this.sendResponse(res, {
+      statusCode: HttpStatusCode.OK,
+      success: true,
+      message: "Order report generated successfully",
       data,
     });
   });
