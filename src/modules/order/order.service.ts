@@ -345,6 +345,8 @@ class Service {
 
       const order_by: IOrderBy = role ? role : "guest";
 
+      console.log(data.user_id, "admin placing order for user");
+
       const payload: IOrder = {
         user: data.user_id as Types.ObjectId,
         customer_name: data.customer_name,
@@ -1577,10 +1579,11 @@ class Service {
   }
 
   // report day update
-  async generateOrderReport(params: ReportParams) {
-    const { start_date, end_date, user } = params || {};
+  async generateOrderReport(params: ReportParams = {}) {
+    const { start_date, end_date, user } = params;
     const match: any = {};
 
+    // sanitize and apply date filters
     if (start_date) {
       const sd = new Date(start_date);
       if (!isNaN(sd.getTime())) match.order_at = { $gte: sd };
@@ -1594,17 +1597,18 @@ class Service {
           : { $lte: ed };
       }
     }
-    if (user) {
-      if (!Types.ObjectId.isValid(user)) {
-        throw new Error("Invalid user id");
-      }
-      match.user = new Types.ObjectId(user);
+
+    // sanitize user param (allow numbers/objects converted to string)
+    if (user !== undefined && user !== null && String(user).trim() !== "") {
+      const uid = String(user).trim();
+      if (!Types.ObjectId.isValid(uid)) throw new Error("Invalid user id");
+      match.user = new Types.ObjectId(uid);
     }
 
     const pipeline: any[] = [];
     if (Object.keys(match).length) pipeline.push({ $match: match });
 
-    // lookup admins & users, build actor field
+    // keep lookups so we can attach Admin/User doc (arrays) for later per-user aggregation
     pipeline.push(
       {
         $lookup: {
@@ -1624,6 +1628,7 @@ class Service {
       },
       {
         $addFields: {
+          // actor is convenient for sample orders if needed (kept minimal)
           actor: {
             $cond: [
               { $eq: ["$user_or_admin_model", "Admin"] },
@@ -1632,16 +1637,11 @@ class Service {
             ],
           },
         },
-      },
-      {
-        $project: {
-          userFromAdmins: 0,
-          userFromUsers: 0,
-        },
       }
+      // DO NOT $project userFromAdmins/userFromUsers away here because by_order_by_admin uses them
     );
 
-    // facet for multiple aggregations
+    // Facet: compute totals, byStatus, and per-user aggregated admin-aware breakdown
     pipeline.push({
       $facet: {
         totals: [
@@ -1674,61 +1674,94 @@ class Service {
           },
           { $project: { _id: 0, status: "$_id", count: 1, total_amount: 1 } },
         ],
-        byDay: [
+        // Build per-user aggregation and attach admin actor if exists.
+        // This facet returns one entry per distinct user referenced in the matched orders.
+        byOrderByAdmin: [
           {
             $group: {
-              _id: { $dateToString: { format: "%Y-%m-%d", date: "$order_at" } },
+              _id: { user: "$user", status: "$order_status" },
               count: { $sum: 1 },
               total_amount: { $sum: { $ifNull: ["$total_amount", 0] } },
+              sample_userFromAdmins: { $first: "$userFromAdmins" },
+              sample_userFromUsers: { $first: "$userFromUsers" },
             },
           },
-          { $project: { _id: 0, date: "$_id", count: 1, total_amount: 1 } },
-          { $sort: { date: 1 } },
-        ],
-        actorsSummary: [
           {
             $group: {
-              _id: "$user",
-              orders_count: { $sum: 1 },
-              total_amount: { $sum: { $ifNull: ["$total_amount", 0] } },
-              sample_actor: { $first: "$actor" },
+              _id: "$_id.user",
+              orders_count: { $sum: "$count" },
+              total_amount: { $sum: "$total_amount" },
+              statuses: {
+                $push: {
+                  status: "$_id.status",
+                  count: "$count",
+                  total_amount: "$total_amount",
+                },
+              },
+              sample_admin_array: { $first: "$sample_userFromAdmins" },
+              sample_user_array: { $first: "$sample_userFromUsers" },
+            },
+          },
+          // remove null user ids (user_id: null)
+          { $match: { _id: { $ne: null } } },
+          {
+            // pick first admin/user doc (if any) into fields
+            $addFields: {
+              actor_from_admin: { $arrayElemAt: ["$sample_admin_array", 0] },
+              actor_from_user: { $arrayElemAt: ["$sample_user_array", 0] },
             },
           },
           {
+            // project only required actor fields (_id, name, phone_number, role)
             $project: {
               _id: 0,
               user_id: "$_id",
               orders_count: 1,
               total_amount: 1,
-              actor: "$sample_actor",
-            },
-          },
-        ],
-        sampleOrders: [
-          { $sort: { order_at: -1 } },
-          {
-            $project: {
-              _id: 1,
-              order_id: 1,
-              invoice_number: 1,
-              total_amount: 1,
-              paid_amount: 1,
-              order_status: 1,
-              order_at: 1,
-              actor: {
-                name: "$actor.name",
-                role: "$actor.role",
-                _id: "$actor._id",
+              statuses: 1,
+              admin_actor: {
+                $cond: [
+                  {
+                    $gt: [
+                      { $size: { $ifNull: ["$sample_admin_array", []] } },
+                      0,
+                    ],
+                  },
+                  {
+                    _id: "$actor_from_admin._id",
+                    name: "$actor_from_admin.name",
+                    phone_number: "$actor_from_admin.phone_number",
+                    role: "$actor_from_admin.role",
+                  },
+                  "$$REMOVE",
+                ],
+              },
+              user_actor: {
+                $cond: [
+                  {
+                    $gt: [
+                      { $size: { $ifNull: ["$sample_user_array", []] } },
+                      0,
+                    ],
+                  },
+                  {
+                    _id: "$actor_from_user._id",
+                    name: "$actor_from_user.name",
+                    phone_number: "$actor_from_user.phone_number",
+                    role: "$actor_from_user.role",
+                  },
+                  "$$REMOVE",
+                ],
               },
             },
           },
-          { $limit: 20 },
         ],
       },
     });
 
     const [aggResult] = await OrderModel.aggregate(pipeline).exec();
 
+    // totals (consistent shape)
     const totals = (aggResult?.totals && aggResult.totals[0]) || {
       total_orders: 0,
       total_amount: 0,
@@ -1736,50 +1769,78 @@ class Service {
       avg_order_value: 0,
     };
 
-    const byStatus = aggResult?.byStatus || [];
-    const byDay = aggResult?.byDay || [];
-    const actorsSummary = aggResult?.actorsSummary || [];
-    const sampleOrders = aggResult?.sampleOrders || [];
+    // by_status array (raw grouped array)
+    const by_status = aggResult?.byStatus || [];
 
-    // build statusCounts ensuring all known statuses exist (0 default)
-    const statusCounts: Record<
+    // Build overall status_counts ensuring all known statuses exist
+    const status_counts: Record<
       string,
       { count: number; total_amount: number }
     > = {};
-    for (const s of ORDER_STATUSES_REPORT) {
-      statusCounts[s] = { count: 0, total_amount: 0 };
-    }
-    for (const row of byStatus) {
+    for (const s of ORDER_STATUSES_REPORT)
+      status_counts[s] = { count: 0, total_amount: 0 };
+    for (const row of by_status) {
       const st = row.status ?? "unknown";
       const cnt = Number(row.count ?? 0);
       const tamt = Number(row.total_amount ?? 0);
-      statusCounts[st] = { count: cnt, total_amount: tamt };
+      status_counts[st] = { count: cnt, total_amount: tamt };
     }
 
-    // actor info and ordersForActor if user filter provided
-    let actorInfo: any = null;
-    let ordersForActor = 0;
-    if (user) {
-      const us = actorsSummary.find(
-        (a: any) => String(a.user_id) === String(user)
-      );
-      if (us) {
-        actorInfo = us.actor || null;
-        ordersForActor = us.orders_count || 0;
-      } else if (sampleOrders.length && sampleOrders[0].actor) {
-        actorInfo = sampleOrders[0].actor;
+    // Normalize by_order_by_admin : convert agg docs to desired shape,
+    // exclude any null user_id already filtered out in pipeline.
+    const rawAdmins = aggResult?.byOrderByAdmin || [];
+    const by_order_by_admin: Array<{
+      user_id: string;
+      actor?: {
+        _id: any;
+        name?: string;
+        phone_number?: string;
+        role?: string;
+      } | null;
+      orders_count: number;
+      total_amount: number;
+      status_counts: Record<string, { count: number; total_amount: number }>;
+    }> = [];
+
+    for (const a of rawAdmins) {
+      // init per-user status counts with zeros
+      const perUserCounts: Record<
+        string,
+        { count: number; total_amount: number }
+      > = {};
+      for (const s of ORDER_STATUSES_REPORT)
+        perUserCounts[s] = { count: 0, total_amount: 0 };
+
+      if (Array.isArray(a.statuses)) {
+        for (const stRow of a.statuses) {
+          const stName = stRow.status ?? "unknown";
+          perUserCounts[stName] = {
+            count: Number(stRow.count ?? 0),
+            total_amount: Number(stRow.total_amount ?? 0),
+          };
+        }
       }
+
+      // prefer admin_actor if present; otherwise user_actor; otherwise null
+      const actor = a.admin_actor ?? a.user_actor ?? null;
+
+      by_order_by_admin.push({
+        user_id: String(a.user_id),
+        actor: actor ? actor : null,
+        orders_count: Number(a.orders_count ?? 0),
+        total_amount: Number(a.total_amount ?? 0),
+        status_counts: perUserCounts,
+      });
     }
+
+    // If user filter is provided, by_order_by_admin will only contain that user's entry (or be empty).
+    // totals, status_counts, and by_status are already filtered above by match.
 
     return {
       totals,
-      statusCounts,
-      byStatus,
-      byDay,
-      actorsSummary,
-      sampleOrders,
-      actorInfo,
-      ordersForActor,
+      status_counts,
+      by_status,
+      by_order_by_admin,
     };
   }
 
