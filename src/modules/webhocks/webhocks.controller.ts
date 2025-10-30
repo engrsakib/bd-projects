@@ -8,7 +8,7 @@ class Controller extends BaseController {
     // Get Bearer token from header
     const authHeader = req.headers.authorization || "";
 
-    console.log("webhook body", req.body);
+    console.log("webhook body", req.body, authHeader);
     return res
       .status(200)
       .json({ success: true, message: "Webhook received!" });
