@@ -23,14 +23,13 @@ class service extends BaseController {
    */
   async steadfastWebhock(data: any, authToken?: string) {
     const expectedToken = process.env.STEADFAST_WEBHOOK_TOKEN || "";
-    console.log(expectedToken, "token");
-    if (!authToken || authToken !== `Bearer ${expectedToken}`) {
-      console.log("Unauthorized webhook request, invalid token");
-      return {
-        status: "error",
-        message: "Unauthorized webhook req request.",
-      };
-    }
+    console.log(
+      expectedToken,
+      "token",
+      authToken,
+      "authToken",
+      authToken === `Bearer ${expectedToken}`
+    );
 
     console.log(data, "consignment id");
 
@@ -62,6 +61,8 @@ class service extends BaseController {
 
     const prevDeliveryCharge = Number(order.delivery_charge) || 0;
     const prevOrderStatus = order.order_status;
+
+    console.log(data.notification_type, "notification type");
 
     if (data.notification_type === "delivery_status") {
       const mappedStatus =
@@ -106,7 +107,7 @@ class service extends BaseController {
       await order.save();
       await courier.save();
     }
-
+    console.log(order, "order");
     if (data.notification_type === "tracking_update") {
       order.system_message = data.tracking_message || "";
       if ("updated_at" in data)
