@@ -7,6 +7,7 @@ import morgan from "morgan";
 import "./events/index";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { corsOptions } from "./config/corsOptions";
 
 dotenv.config();
@@ -14,7 +15,7 @@ dotenv.config();
 const app = express();
 
 // middlewares
-app.use(cors(corsOptions));
+app.use(cors());
 app.use(cookieParser());
 // app.use(
 //   "/webhooks/steadfast",
@@ -26,10 +27,10 @@ app.use(cookieParser());
 //   }
 // );
 
-app.use(
-  "/api/v1/webhooks/steadfast",
-  express.json({ type: "application/json" })
-);
+// app.use(
+//   "/api/v1/webhooks/steadfast",
+//   express.json({ type: "application/json" })
+// );
 
 app.use(helmet());
 // Allow 100MB to be uploaded
