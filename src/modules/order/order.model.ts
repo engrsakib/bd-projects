@@ -40,7 +40,15 @@ const orderItemSchema = new Schema<IOrderItem>({
 
 const orderSchema = new Schema<IOrder>(
   {
-    user: { type: Schema.Types.ObjectId, ref: "User", required: false },
+    user: {
+      type: Schema.Types.ObjectId,
+      refPath: "user_or_admin_model",
+      required: false,
+    },
+    user_or_admin_model: {
+      type: String,
+      enum: ["User", "Admin"],
+    },
     customer_name: { type: String, default: "" },
     customer_number: { type: String, required: true },
     customer_email: { type: String, default: "" },
