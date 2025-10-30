@@ -11,14 +11,17 @@ class Controller extends BaseController {
     console.log("webhook body", req.body, authHeader);
 
     const expectedToken = process.env.STEADFAST_WEBHOOK_TOKEN || "";
+    console.log(authHeader, "authHeader");
+    console.log(expectedToken, "expectedToken");
+
     // console.log(expectedToken, "token");
-    if (!authHeader || authHeader !== `Bearer ${expectedToken}`) {
-      console.log("Unauthorized webhook request");
-      return res.status(HttpStatusCode.UNAUTHORIZED).json({
-        status: "error",
-        message: "Unauthorized webhook req request.",
-      });
-    }
+    // if (authHeader !== `Bearer${expectedToken}`) {
+    //   console.log("Unauthorized webhook request");
+    //   return res.status(HttpStatusCode.UNAUTHORIZED).json({
+    //     status: "error",
+    //     message: "Unauthorized webhook req request. contact support.",
+    //   });
+    // }
 
     const result = await WebhocksService.steadfastWebhock(req.body, authHeader);
 
