@@ -8,6 +8,11 @@ class Controller extends BaseController {
     // Get Bearer token from header
     const authHeader = req.headers.authorization || "";
 
+    console.log("webhook body", req.body);
+    return res
+      .status(200)
+      .json({ success: true, message: "Webhook received!" });
+
     const expectedToken = process.env.STEADFAST_WEBHOOK_TOKEN || "";
     // console.log(expectedToken, "token");
     if (!authHeader || authHeader !== `Bearer ${expectedToken}`) {
