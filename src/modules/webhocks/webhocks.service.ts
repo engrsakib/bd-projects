@@ -107,7 +107,7 @@ class service extends BaseController {
       await order.save();
       await courier.save();
     }
-    console.log(order, "order");
+    console.log(order.id, "order id for webhook tracking update");
     if (data.notification_type === "tracking_update") {
       order.system_message = data.tracking_message || "";
       if ("updated_at" in data)
