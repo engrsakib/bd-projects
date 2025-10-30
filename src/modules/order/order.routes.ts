@@ -17,7 +17,7 @@ router.post(
 router.get(
   "/report",
   JwtInstance.authenticate(Object.values(ROLES)),
-  JwtInstance.hasPermissions(PermissionEnum.ORDER_VIEW),
+  JwtInstance.hasPermissions(PermissionEnum.ORDER_REPORT_VIEW),
   OrderController.generateOrderReport
 );
 
