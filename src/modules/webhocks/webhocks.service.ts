@@ -22,16 +22,17 @@ class service extends BaseController {
    * @returns Success or error response object
    */
   async steadfastWebhock(data: any, authToken?: string) {
-    // const expectedToken = process.env.STEADFAST_WEBHOOK_TOKEN || "";
-    // console.log(expectedToken, "token");
-    // if (!authToken || authToken !== `Bearer ${expectedToken}`) {
-    //   return {
-    //     status: "error",
-    //     message: "Unauthorized webhook req request.",
-    //   };
-    // }
+    const expectedToken = process.env.STEADFAST_WEBHOOK_TOKEN || "";
+    console.log(expectedToken, "token");
+    if (!authToken || authToken !== `Bearer ${expectedToken}`) {
+      console.log("Unauthorized webhook request, invalid token");
+      return {
+        status: "error",
+        message: "Unauthorized webhook req request.",
+      };
+    }
 
-    // console.log(data, "consignment id")
+    console.log(data, "consignment id");
 
     if (!data.consignment_id || typeof data.consignment_id !== "number") {
       return {
