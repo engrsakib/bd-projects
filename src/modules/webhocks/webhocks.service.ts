@@ -62,6 +62,8 @@ class service extends BaseController {
     const prevDeliveryCharge = Number(order.delivery_charge) || 0;
     const prevOrderStatus = order.order_status;
 
+    console.log(data.notification_type, "notification type");
+
     if (data.notification_type === "delivery_status") {
       const mappedStatus =
         STATUS_MAP[String(data.status).toLowerCase()] || ORDER_STATUS.UNKNOWN;
@@ -105,7 +107,7 @@ class service extends BaseController {
       await order.save();
       await courier.save();
     }
-
+    console.log(order, "order");
     if (data.notification_type === "tracking_update") {
       order.system_message = data.tracking_message || "";
       if ("updated_at" in data)
