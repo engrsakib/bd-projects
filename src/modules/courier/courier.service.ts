@@ -228,7 +228,7 @@ class Service {
         const result = await OrderModel.findByIdAndUpdate(
           order_id,
           {
-            order_status: ORDER_STATUS.HANDED_OVER_TO_COURIER,
+            order_status: ORDER_STATUS.RTS,
             transfer_to_courier: true,
             courier: createdCourier._id,
           },
@@ -504,7 +504,7 @@ class Service {
               courier_note: courierRes?.consignment?.note,
               cod_amount: courierRes?.consignment?.cod_amount,
               order: order_id,
-              status: ORDER_STATUS.HANDED_OVER_TO_COURIER,
+              status: ORDER_STATUS.RTS,
               transfer_to_courier: true,
             },
           ],
