@@ -258,10 +258,10 @@ class Service {
       const updated = await OrderModel.findOneAndUpdate(
         {
           order_id: id,
-          order_status: { $in: [ORDER_STATUS.ACCEPTED, ORDER_STATUS.PLACED] },
+          order_status: { $in: [ORDER_STATUS.RTS] },
         },
         {
-          $set: { order_status: ORDER_STATUS.RTS },
+          $set: { order_status: ORDER_STATUS.HANDED_OVER_TO_COURIER },
         },
         {
           new: true, // return the updated document
@@ -519,7 +519,7 @@ class Service {
         const result = await OrderModel.findByIdAndUpdate(
           order_id,
           {
-            order_status: ORDER_STATUS.HANDED_OVER_TO_COURIER,
+            order_status: ORDER_STATUS.RTS,
             transfer_to_courier: true,
             courier: createdCourier._id,
           },
