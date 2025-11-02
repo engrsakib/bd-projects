@@ -35,6 +35,7 @@ export enum ORDER_BY {
   USER = "user",
   GUEST = "guest",
   RESELLER = "reseller",
+  CUSTOMER = "customer",
 }
 
 export const ORDER_STATUSES_REPORT = [
