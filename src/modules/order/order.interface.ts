@@ -35,6 +35,14 @@ type IAdminNote = {
   added_by: IUser["_id"];
 };
 
+type IpreOrderProduct = {
+  min_order_quantity: number;
+  max_order_quantity: number;
+  expected_delivery_time: number;
+  advance_payment_percentage: number;
+  advance_payment_required: boolean;
+};
+
 export type IOrderItem = {
   product: Types.ObjectId;
   variant: Types.ObjectId;
@@ -89,7 +97,6 @@ export type IOrder = {
   invoice_number: string;
   delivery_address: IAddress;
   payment_type: "bkash" | "cod";
-  order_type?: "regular" | "exchange" | "return";
   transaction_id?: string;
   payment_id?: string;
   payment_status?: "pending" | "paid" | "failed" | "refunded";
@@ -104,6 +111,9 @@ export type IOrder = {
 
   notes?: string;
   id?: string | Types.ObjectId;
+
+  order_type?: "regular" | "exchange" | "return";
+  pre_order_product?: IpreOrderProduct;
 
   logs?: IOrderLog[];
 };
