@@ -35,14 +35,6 @@ type IAdminNote = {
   added_by: IUser["_id"];
 };
 
-type IpreOrderProduct = {
-  min_order_quantity: number;
-  max_order_quantity: number;
-  expected_delivery_time: number;
-  advance_payment_percentage: number;
-  advance_payment_required: boolean;
-};
-
 export type IOrderItem = {
   product: Types.ObjectId;
   variant: Types.ObjectId;
@@ -113,7 +105,6 @@ export type IOrder = {
   id?: string | Types.ObjectId;
 
   order_type?: "regular" | "exchange" | "return";
-  pre_order_product?: IpreOrderProduct;
 
   logs?: IOrderLog[];
 };

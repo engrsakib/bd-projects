@@ -17,6 +17,14 @@ export enum OrderTypes {
   PRE_ORDER = "pre_order",
 }
 
+export type IpreOrderProduct = {
+  min_order_quantity: number;
+  max_order_quantity: number;
+  expected_delivery_time: number;
+  advance_payment_percentage: number;
+  advance_payment_required: boolean;
+};
+
 export interface IProduct extends Document {
   name: string;
   slug: string;
@@ -24,6 +32,7 @@ export interface IProduct extends Document {
   sku: string;
 
   order_type: IOrderTypes;
+  pre_order_product?: IpreOrderProduct;
 
   thumbnail: string;
   slider_images?: string[];
