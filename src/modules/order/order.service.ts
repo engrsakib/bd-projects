@@ -1260,7 +1260,7 @@ class Service {
       const [field, direction = "desc"] = orders_by.split(":");
       pipeline.push({ $sort: { [field]: direction === "asc" ? 1 : -1 } });
     } else {
-      pipeline.push({ $sort: { order_at: -1 } });
+      pipeline.push({ $sort: { updatedAt: -1 } });
     }
 
     // Populate product, variant, courier, user
