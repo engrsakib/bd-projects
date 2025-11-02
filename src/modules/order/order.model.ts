@@ -58,12 +58,14 @@ const orderSchema = new Schema<IOrder>(
       enum: Object.values(ORDER_BY),
       required: false,
     },
+
     order_type: {
       type: String,
       enum: ["regular", "exchange", "return"],
       required: false,
       default: "regular",
     },
+
     items: { type: [orderItemSchema], required: true },
 
     products: { type: [orderItemSchema], required: true },

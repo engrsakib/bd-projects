@@ -42,6 +42,14 @@ const productSchema = new Schema<IProduct>(
       default: OrderTypes.STANDARD,
     },
 
+    pre_order_product: {
+      min_order_quantity: { type: Number, required: false },
+      max_order_quantity: { type: Number, required: false },
+      expected_delivery_time: { type: Number, required: false },
+      advance_payment_percentage: { type: Number, required: false },
+      advance_payment_required: { type: Boolean, required: false },
+    },
+
     // ===== Category Info =====
     category: { type: Schema.Types.ObjectId, ref: "Category", required: true },
     subcategory: {
