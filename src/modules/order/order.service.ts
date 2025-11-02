@@ -1263,7 +1263,120 @@ class Service {
       pipeline.push({ $sort: { updatedAt: -1 } });
     }
 
-    // Populate product, variant, courier, user
+    pipeline.push(
+      // 1) normalize user to ObjectId if it's a string
+      {
+        $addFields: {
+          _user_objid_temp: {
+            $cond: [
+              {
+                $and: [
+                  { $ne: ["$user", null] },
+                  { $eq: [{ $type: "$user" }, "string"] },
+                ],
+              },
+              { $toObjectId: "$user" },
+              "$user",
+            ],
+          },
+        },
+      },
+
+      // 2) lookup from users with projection
+      {
+        $lookup: {
+          from: "users",
+          let: { userId: "$_user_objid_temp" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$_id", "$$userId"] } } },
+            {
+              $project: { _id: 1, name: 1, phone_number: 1, role: 1, email: 1 },
+            },
+          ],
+          as: "userData",
+        },
+      },
+
+      // 3) lookup from admins with projection
+      {
+        $lookup: {
+          from: "admins",
+          let: { userId: "$_user_objid_temp" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$_id", "$$userId"] } } },
+            {
+              $project: { _id: 1, name: 1, phone_number: 1, role: 1, email: 1 },
+            },
+          ],
+          as: "adminData",
+        },
+      },
+
+      // 4) choose based on user_or_admin_model; if missing, fallback to whichever exists; if none exists -> null
+      {
+        $addFields: {
+          create_order_by: {
+            $let: {
+              vars: {
+                u: { $arrayElemAt: ["$userData", 0] },
+                a: { $arrayElemAt: ["$adminData", 0] },
+              },
+              in: {
+                $switch: {
+                  branches: [
+                    {
+                      case: { $eq: ["$user_or_admin_model", "User"] },
+                      then: "$$u",
+                    },
+                    {
+                      case: { $eq: ["$user_or_admin_model", "Admin"] },
+                      then: "$$a",
+                    },
+                  ],
+                  default: {
+                    $cond: [
+                      { $ifNull: ["$$u", false] },
+                      "$$u",
+                      { $cond: [{ $ifNull: ["$$a", false] }, "$$a", null] },
+                    ],
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+
+      // 5) optional: keep only safe fields inside create_order_by (avoid leaking sensitive info)
+      {
+        $addFields: {
+          create_order_by: {
+            $cond: [
+              { $ifNull: ["$create_order_by", false] },
+              {
+                _id: "$create_order_by._id",
+                name: "$create_order_by.name",
+                phone_number: "$create_order_by.phone_number",
+                email: "$create_order_by.email",
+                role: "$create_order_by.role",
+              },
+              null,
+            ],
+          },
+        },
+      },
+
+      // 6) cleanup temps
+      {
+        $project: {
+          userData: 0,
+          adminData: 0,
+          _user_objid_temp: 0,
+          user_or_admin_model: 0,
+        },
+      }
+    );
+
     pipeline.push({
       $lookup: {
         from: "products",
@@ -1381,22 +1494,6 @@ class Service {
         },
       });
     }
-
-    const lookupCollection = orders_by === "admin" ? "admins" : "users";
-    pipeline.push({
-      $lookup: {
-        from: lookupCollection,
-        localField: "user",
-        foreignField: "_id",
-        as: "userDocs",
-      },
-    });
-    pipeline.push({
-      $unwind: {
-        path: "$userDocs",
-        preserveNullAndEmptyArrays: true,
-      },
-    });
 
     // Inject product/variant objects into items array
     pipeline.push({
