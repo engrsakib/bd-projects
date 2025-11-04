@@ -328,7 +328,7 @@ class Service {
               courier_note: courierRes?.consignment?.note,
               cod_amount: courierRes?.consignment?.cod_amount,
               order: order._id, // ✅ Always single ObjectId
-              status: ORDER_STATUS.HANDED_OVER_TO_COURIER,
+              status: ORDER_STATUS.RTS,
               transfer_to_courier: true,
             },
           ],
