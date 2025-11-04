@@ -7,6 +7,13 @@ import { PermissionEnum } from "../permission/permission.enum";
 const router = Router();
 
 router.patch(
+  "/transfer-to-courier/bulk",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.COURIER_CREATE),
+  CourierController.transferToCourierBulk
+);
+
+router.patch(
   "/transfer-to-courier/:id",
   JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.COURIER_CREATE),
@@ -24,7 +31,7 @@ router.patch(
   "/scan-to-rts/:orderId",
   JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.COURIER_UPDATE),
-  CourierController.scanToRTS
+  CourierController.scanToHandOver
 );
 
 router.patch(

@@ -9,6 +9,8 @@ import { HttpStatusCode } from "@/lib/httpStatus";
 import { IOrder, IOrderStatus } from "../order/order.interface";
 import { StockModel } from "../stock/stock.model";
 import { LotModel } from "../lot/lot.model";
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import pLimit from "p-limit";
 
 class Service {
   // courier sevice integration
@@ -248,9 +250,118 @@ class Service {
       session.endSession();
     }
   }
+  async transferToCourierBulk(params: {
+    ids: string[];
+    marchant: string;
+    note?: string;
+  }): Promise<{ failed: { order: string; error: string }[] }> {
+    const { ids, marchant, note = "Order transferred to courier" } = params;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      throw new ApiError(
+        HttpStatusCode.BAD_REQUEST,
+        "ids must be a non-empty array"
+      );
+    }
+
+    const failed: { order: string; error: string }[] = [];
+
+    for (const order_id of ids) {
+      const session = await OrderModel.startSession();
+      session.startTransaction();
+
+      try {
+        const order = await OrderModel.findById(order_id)
+          .populate("user")
+          .session(session);
+
+        if (!order) {
+          throw new ApiError(HttpStatusCode.NOT_FOUND, "Order not found");
+        }
+
+        if (
+          [
+            ORDER_STATUS.CANCELLED,
+            ORDER_STATUS.FAILED,
+            ORDER_STATUS.DELIVERED,
+          ].includes(order.order_status as any) ||
+          !marchant
+        ) {
+          throw new ApiError(
+            HttpStatusCode.UNAUTHORIZED,
+            `You can't transfer order (${order._id}) because status is '${order.order_status}'`
+          );
+        }
+
+        const courierPayload: TCourierPayload = {
+          invoice: order.invoice_number,
+          recipient_name: order.customer_name as string,
+          recipient_phone: order.customer_number,
+          recipient_address: `${order.delivery_address?.local_address}, Upazila: ${order.delivery_address?.thana}, District: ${order.delivery_address?.district}`,
+          cod_amount: order.payable_amount || 0,
+          note,
+        };
+
+        const courierRes: any =
+          await CourierMiddleware.transfer_single_order(courierPayload);
+
+        if (courierRes?.statusCode !== 200 && courierRes?.status !== 200) {
+          throw new ApiError(400, "Failed to transfer order to courier API");
+        }
+
+        const exists = await CourierModel.findOne({ order: order._id }).session(
+          session
+        );
+        if (exists) {
+          throw new ApiError(409, "Courier record already exists");
+        }
+
+        const createdCourier = await CourierModel.create(
+          [
+            {
+              merchant: marchant,
+              consignment_id: courierRes?.consignment?.consignment_id,
+              tracking_id: courierRes?.consignment?.tracking_code,
+              booking_date: courierRes?.consignment?.created_at
+                ? new Date(courierRes.consignment.created_at)
+                : new Date(),
+              courier_note: courierRes?.consignment?.note,
+              cod_amount: courierRes?.consignment?.cod_amount,
+              order: order._id, // ✅ Always single ObjectId
+              status: ORDER_STATUS.HANDED_OVER_TO_COURIER,
+              transfer_to_courier: true,
+            },
+          ],
+          { session }
+        );
+
+        await OrderModel.findByIdAndUpdate(
+          order._id,
+          {
+            order_status: ORDER_STATUS.RTS,
+            transfer_to_courier: true,
+            courier: createdCourier[0]._id,
+          },
+          { session }
+        );
+
+        await session.commitTransaction();
+      } catch (error: any) {
+        await session.abortTransaction();
+        failed.push({
+          order: order_id,
+          error: error?.message || "Unknown error",
+        });
+      } finally {
+        session.endSession();
+      }
+    }
+
+    return { failed };
+  }
 
   // Atomic variant: safer under concurrency
-  async scanToRTS(id: string) {
+  async scanToHandOver(id: string) {
     const session = await OrderModel.startSession();
     session.startTransaction();
     try {
