@@ -23,11 +23,12 @@ const CourierSchema = new Schema(
       enum: Object.values(ORDER_STATUS),
       default: ORDER_STATUS.PENDING,
     },
-    order: {
-      type: Types.ObjectId,
-      ref: "Order",
-      required: false,
-    },
+    order: [
+      {
+        type: Types.ObjectId,
+        ref: "Order",
+      },
+    ],
     delivery_man: {
       type: String,
       trim: true,
