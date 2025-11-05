@@ -11,6 +11,7 @@ import { StockModel } from "../stock/stock.model";
 import { LotModel } from "../lot/lot.model";
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import pLimit from "p-limit";
+import mongoose from "mongoose";
 
 class Service {
   // courier sevice integration
@@ -251,11 +252,15 @@ class Service {
     }
   }
 
+  // Add this method inside the same service/class where `transferToCourier` is defined.
+  // Assumes `mongoose`, `CourierModel`, `ApiError`, `HttpStatusCode` and `ORDER_STATUS` are available in the file scope.
+
+  // Replace or add this method inside your Service class (same file).
   async transferToCourierBulk(params: {
     ids: string[];
     marchant: string;
     note?: string;
-  }): Promise<{ failed: { order: string; error: string }[] }> {
+  }) {
     const { ids, marchant, note = "Order transferred to courier" } = params;
 
     if (!Array.isArray(ids) || ids.length === 0) {
@@ -264,242 +269,45 @@ class Service {
         "ids must be a non-empty array"
       );
     }
-
     if (!marchant) {
       throw new ApiError(HttpStatusCode.BAD_REQUEST, "marchant is required");
     }
 
-    const failed: { order: string; error: string }[] = [];
+    // RESPONSE
+    const failed: { orders_id: string; error: string }[] = [];
 
-    // We'll process sequentially in the provided order.
-    // But we guard against immediate duplicate processing within the same request:
-    const seenThisRequest = new Set<string>();
+    // ✅ STACK — LIFO
+    const stack: mongoose.Types.ObjectId[] = [];
 
-    // Helper: sleep
+    // ✅ Normalize → Only valid ObjectId → push to STACK
+    for (const rawId of ids) {
+      try {
+        const oid = this.normalizeToObjectId(rawId);
+        stack.push(oid);
+      } catch (e: any) {
+        failed.push({
+          orders_id: String(rawId),
+          error: e?.message || "Invalid order id",
+        });
+      }
+    }
+
+    // ✅ Sleep Helper
     const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
-    // Helper: call courier API with limited retries and exponential backoff
-    const callCourierWithRetry = async (
-      payload: TCourierPayload,
-      attempts = 3,
-      baseDelayMs = 500
-    ) => {
-      let lastErr: any = null;
-      for (let attempt = 1; attempt <= attempts; attempt++) {
-        try {
-          const res = await CourierMiddleware.transfer_single_order(payload);
-          return res;
-        } catch (err: any) {
-          lastErr = err;
-          // on last attempt, break and throw below
-          if (attempt < attempts) {
-            const delay = baseDelayMs * Math.pow(2, attempt - 1); // exponential backoff
-            await sleep(delay);
-            continue;
-          }
-        }
-      }
-      throw lastErr;
-    };
+    // ✅ Sequential → One ID → Finish → Next
+    while (stack.length > 0) {
+      const oid = stack.pop()!; // LIFO
 
-    for (const rawId of ids) {
-      const order_id = String(rawId);
-
-      // Maintain sequence but skip exact duplicates within this same request (optional behavior)
-      if (seenThisRequest.has(order_id)) {
-        // record as failed or skip silently; here we push a conflict/failure message
-        failed.push({
-          order: order_id,
-          error: "Duplicate order id in payload - skipped",
-        });
-        continue;
-      }
-      seenThisRequest.add(order_id);
-
-      // Start per-order session/transaction
-      const session = await OrderModel.startSession();
-      session.startTransaction();
+      await sleep(1000); // delay before next
 
       try {
-        // 1) Load order inside session
-        const order = await OrderModel.findById(order_id)
-          .populate("user")
-          .session(session);
-
-        if (!order) {
-          throw new ApiError(
-            HttpStatusCode.NOT_FOUND,
-            `Order not found: ${order_id}`
-          );
-        }
-
-        // 2) Validate status - do not transfer terminal/cancelled/failed/delivered orders
-        if (
-          [
-            ORDER_STATUS.CANCELLED,
-            ORDER_STATUS.FAILED,
-            ORDER_STATUS.DELIVERED,
-          ].includes(order.order_status as any)
-        ) {
-          throw new ApiError(
-            HttpStatusCode.UNAUTHORIZED,
-            `You can't transfer order (${order._id}) because status is '${order.order_status}'`
-          );
-        }
-
-        // 3) Check DB for existing courier record BEFORE calling external API to avoid duplicates
-        const existingCourier = await CourierModel.findOne({
-          order: order._id,
-        }).session(session);
-        if (existingCourier) {
-          throw new ApiError(
-            HttpStatusCode.CONFLICT,
-            `Courier record already exists for order ${order._id}`
-          );
-        }
-
-        // Commit the small read-check and end this session to reduce transaction time while we call external API.
-        // Note: we committed a read-only transaction; alternatively we can just end session without commit.
-        await session.commitTransaction();
-        session.endSession();
-
-        // After committing read transaction, call external courier API with retries (outside transaction)
-        const courierPayload: TCourierPayload = {
-          invoice: order.invoice_number,
-          recipient_name: (order.customer_name as string) || "",
-          recipient_phone: order.customer_number || "",
-          recipient_address: `${order.delivery_address?.local_address || ""}, Upazila: ${order.delivery_address?.thana || ""}, District: ${order.delivery_address?.district || ""}`,
-          cod_amount: order.payable_amount || 0,
-          note,
-        };
-
-        let courierRes: any;
-        try {
-          courierRes = await callCourierWithRetry(courierPayload, 3, 600);
-        } catch (apiErr: any) {
-          // Could not register with courier after retries -> mark failed and continue
-          failed.push({
-            order: order_id,
-            error: `Courier API error: ${apiErr?.message || String(apiErr)}`,
-          });
-          continue; // next order in sequence
-        }
-
-        // Basic success check from courier API (many courier APIs use different shapes)
-        if (
-          courierRes?.statusCode !== 200 &&
-          courierRes?.status !== 200 &&
-          !courierRes?.consignment
-        ) {
-          failed.push({
-            order: order_id,
-            error: "Courier API returned non-success response",
-          });
-          continue;
-        }
-
-        // 4) Now create courier record and update order inside a fresh session/transaction
-        const writeSession = await OrderModel.startSession();
-        writeSession.startTransaction();
-        try {
-          // Double-check again inside this write transaction to avoid TOCTOU: ensure no courier created in the meantime
-          const existsNow = await CourierModel.findOne({
-            order: order._id,
-          }).session(writeSession);
-          if (existsNow) {
-            // Another process might have created courier concurrently. We treat as conflict.
-            throw new ApiError(
-              HttpStatusCode.CONFLICT,
-              `Courier record already exists for order ${order._id} (concurrent)`
-            );
-          }
-
-          const created = await CourierModel.create(
-            [
-              {
-                merchant: marchant,
-                consignment_id:
-                  courierRes?.consignment?.consignment_id ||
-                  courierRes?.consignment_id ||
-                  null,
-                tracking_id:
-                  courierRes?.consignment?.tracking_code ||
-                  courierRes?.tracking_code ||
-                  null,
-                booking_date: courierRes?.consignment?.created_at
-                  ? new Date(courierRes.consignment.created_at)
-                  : new Date(),
-                courier_note:
-                  courierRes?.consignment?.note || courierRes?.note || "",
-                cod_amount:
-                  courierRes?.consignment?.cod_amount ??
-                  courierRes?.cod_amount ??
-                  0,
-                order: order._id,
-                status: ORDER_STATUS.RTS,
-                transfer_to_courier: true,
-              },
-            ],
-            { session: writeSession }
-          );
-
-          if (!created || created.length === 0) {
-            throw new ApiError(
-              HttpStatusCode.INTERNAL_SERVER_ERROR,
-              `Failed to create courier record for order ${order._id}`
-            );
-          }
-
-          const createdCourier = created[0];
-
-          await OrderModel.findByIdAndUpdate(
-            order._id,
-            {
-              order_status: ORDER_STATUS.RTS,
-              transfer_to_courier: true,
-              courier: createdCourier._id,
-            },
-            { session: writeSession }
-          );
-
-          await writeSession.commitTransaction();
-          writeSession.endSession();
-          // success for this order -> continue to next
-        } catch (writeErr: any) {
-          await writeSession.abortTransaction();
-          writeSession.endSession();
-
-          // At this point, external courier call succeeded but DB write failed.
-          // We cannot reliably cancel the courier via API (no generic way). So we record failure.
-          failed.push({
-            order: order_id,
-            error: `DB write error after courier success: ${writeErr?.message || String(writeErr)}`,
-          });
-          continue;
-        }
-      } catch (error: any) {
-        // If we hit here, it means an error occurred before we committed/ended the first session.
-        try {
-          // ensure abort if session still active
-          if (session.inTransaction()) {
-            await session.abortTransaction();
-          }
-        } catch (_) {
-          // ignore
-        }
-        try {
-          session.endSession();
-        } catch (_) {
-          // ignore
-        }
-
+        await this.transferToCourier(String(oid), note, marchant);
+      } catch (err: any) {
         failed.push({
-          order: order_id,
-          error: error?.message || "Unknown error",
+          orders_id: String(oid),
+          error: err?.message || String(err),
         });
-
-        // continue to next id
-        continue;
       }
     }
 
@@ -1168,6 +976,32 @@ class Service {
     }));
 
     return updatedItems;
+  }
+
+  private normalizeToObjectId(id: unknown): mongoose.Types.ObjectId {
+    // Reject arrays early
+    if (Array.isArray(id)) {
+      throw new ApiError(
+        HttpStatusCode.BAD_REQUEST,
+        `Invalid order id: array provided`
+      );
+    }
+
+    // If an object with _id is passed (e.g. a document), extract it
+    if (id && typeof id === "object" && "_id" in (id as any)) {
+      id = (id as any)._id;
+    }
+
+    const s = String(id ?? "").trim();
+    if (!s) {
+      throw new ApiError(HttpStatusCode.BAD_REQUEST, `Invalid order id: empty`);
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(s)) {
+      throw new ApiError(HttpStatusCode.BAD_REQUEST, `Invalid ObjectId: ${s}`);
+    }
+
+    return new mongoose.Types.ObjectId(s);
   }
 }
 
