@@ -23,16 +23,14 @@ const CourierSchema = new Schema(
       enum: Object.values(ORDER_STATUS),
       default: ORDER_STATUS.PENDING,
     },
-    order: [
-      {
-        type: Types.ObjectId,
-        ref: "Order",
-        validate: {
-          validator: (v: any) => !Array.isArray(v),
-          message: "order must be a single ObjectId, not an array",
-        },
+    order: {
+      type: Types.ObjectId,
+      ref: "Order",
+      validate: {
+        validator: (v: any) => !Array.isArray(v),
+        message: "order must be a single ObjectId, not an array",
       },
-    ],
+    },
 
     delivery_man: {
       type: String,
