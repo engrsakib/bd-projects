@@ -21,6 +21,7 @@ import { courierRouter } from "@/modules/courier/courier.routes";
 import { ContentManagementRoutes } from "@/modules/cms/cms.router";
 import { PermissionsRoutes } from "@/modules/permission/permission.route";
 import { WebhocksRoutes } from "@/modules/webhocks/webhocks.route";
+import { PreOrderRoutes } from "@/modules/preOrder/preOrder.routes";
 const router = Router();
 
 const moduleRoutes = [
@@ -91,6 +92,10 @@ const moduleRoutes = [
   {
     path: "/order",
     route: OrderRoutes,
+  },
+  {
+    path: "/pre/order",
+    route: PreOrderRoutes,
   },
   {
     path: "/payments/bkash",

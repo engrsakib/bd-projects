@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { Router } from "express";
-import { OrderController } from "./order.controller";
+import { OrderController } from "./preOrder.controller";
 import { JwtInstance } from "@/lib/jwt";
 import { ROLES } from "@/constants/roles";
 import { PermissionEnum } from "../permission/permission.enum";
-import { ORDER_STATUSES_REPORT } from "./order.enums";
+import { ORDER_STATUSES_REPORT } from "./preOrder.enum";
 
 const router = Router();
 
@@ -39,12 +39,6 @@ router.patch(
   JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.ORDER_UPDATE),
   OrderController.updateOrderStatus
-);
-router.patch(
-  "/update-order-status/bulk",
-  JwtInstance.authenticate(Object.values(ROLES)),
-  JwtInstance.hasPermissions(PermissionEnum.ORDER_UPDATE),
-  OrderController.updateOrderStatusBulk
 );
 
 // status update by admin
@@ -93,4 +87,4 @@ router.delete(
 
 router.get("/orders/track/:id", OrderController.orderTracking);
 
-export const OrderRoutes = router;
+export const PreOrderRoutes = router;

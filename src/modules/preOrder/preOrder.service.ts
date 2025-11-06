@@ -2,33 +2,32 @@ import mongoose, { Types } from "mongoose";
 import { CartService } from "../cart/cart.service";
 import {
   IOrder,
-  IOrderBy,
+  IPreOrderBy as IOrderBy,
   IOrderItem,
-  IOrderPlace,
-  IOrderStatus,
+  IPreOrderPlace as IOrderPlace,
+  IPreOrderStatus as IOrderStatus,
   Istatus_count,
-  ReportParams,
-} from "./order.interface";
+} from "./preOrder.interface";
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { ICartItem } from "../cart/cart.interface";
 import { InvoiceService } from "@/lib/invoice";
 import { CounterModel } from "@/common/models/counter.model";
-import { OrderModel } from "./order.model";
+import { OrderModel } from "./preOrder.model";
 import ApiError from "@/middlewares/error";
 import { HttpStatusCode } from "@/lib/httpStatus";
 import { BkashService } from "../bkash/bkash.service";
 import {
-  ORDER_STATUS,
+  PRE_ORDER_STATUS as ORDER_STATUS,
   ORDER_STATUSES_REPORT,
   PAYMENT_STATUS,
-} from "./order.enums";
+} from "./preOrder.enum";
 import { ProductModel } from "../product/product.model";
 import { OrderQuery } from "@/interfaces/common.interface";
 import { StockModel } from "../stock/stock.model";
 import { VariantModel } from "../variant/variant.model";
 import { UserModel } from "../user/user.model";
 import { LotModel } from "../lot/lot.model";
-import pLimit from "p-limit";
+import { ReportParams } from "../order/order.interface";
 
 class Service {
   async placeOrder(
@@ -2056,184 +2055,6 @@ class Service {
     } finally {
       session.endSession();
     }
-  }
-
-  async updateOrdersStatusBulk(params: {
-    ids: string[];
-    userId: string;
-    status: ORDER_STATUS;
-    concurrency?: number;
-  }): Promise<{
-    updated: { order_id?: number; _id: string; order_status: ORDER_STATUS }[];
-    failed: {
-      orderId: string;
-      error: string;
-      order?: { order_id?: number; _id?: string; order_status?: ORDER_STATUS };
-    }[];
-  }> {
-    const { ids, status, userId, concurrency = 10 } = params;
-
-    if (!Array.isArray(ids) || ids.length === 0) {
-      throw new ApiError(
-        HttpStatusCode.BAD_REQUEST,
-        "ids must be a non-empty array"
-      );
-    }
-
-    const limit = pLimit(concurrency);
-
-    const tasks = ids.map((id) =>
-      limit(async () => {
-        // Each order gets its own session/transaction
-        const session = await OrderModel.startSession();
-        session.startTransaction();
-        try {
-          const order = await OrderModel.findById(id).session(session);
-          if (!order) {
-            throw new ApiError(
-              HttpStatusCode.NOT_FOUND,
-              `Order not found: ${id}`
-            );
-          }
-
-          const previousStatus = order.order_status || "N/A";
-
-          if (
-            order.order_status === ORDER_STATUS.HANDED_OVER_TO_COURIER &&
-            [
-              ORDER_STATUS.RTS,
-              ORDER_STATUS.ACCEPTED,
-              ORDER_STATUS.PLACED,
-            ].includes(status)
-          ) {
-            throw new ApiError(
-              HttpStatusCode.BAD_REQUEST,
-              `Cannot change status from handed_over_to_courier to ${status} for order ${id}`
-            );
-          }
-
-          const updated = await OrderModel.findOneAndUpdate(
-            { _id: id },
-            {
-              $set: { order_status: status },
-              $push: {
-                logs: {
-                  user: userId,
-                  time: new Date(),
-                  action: `ORDER_STATUS_UPDATED: ${previousStatus} -> ${status}`,
-                },
-              },
-            },
-            { new: true, session }
-          );
-
-          if (!updated) {
-            throw new ApiError(
-              HttpStatusCode.NOT_FOUND,
-              `Order was not found with id: ${id}`
-            );
-          }
-
-          // restore stock/lots for cancel/return/failed
-          if (
-            status === ORDER_STATUS.CANCELLED ||
-            status === ORDER_STATUS.RETURNED ||
-            status === ORDER_STATUS.FAILED
-          ) {
-            for (const item of updated.items ?? []) {
-              const stock = await StockModel.findOne(
-                { product: item.product, variant: item.variant },
-                null,
-                { session }
-              );
-              if (stock) {
-                stock.available_quantity += item.quantity;
-                await stock.save({ session });
-              }
-
-              const lotDoc = await LotModel.findOne(
-                { variant: item.variant },
-                null,
-                { session }
-              );
-              if (lotDoc) {
-                lotDoc.qty_available += item.quantity;
-                await lotDoc.save({ session });
-              }
-            }
-          }
-
-          await session.commitTransaction();
-          session.endSession();
-
-          // Return only requested fields for updated
-          return {
-            orderId: id,
-            ok: true,
-            order: {
-              order_id: (updated as IOrder).order_id,
-              _id: String(updated._id),
-              order_status: updated.order_status as ORDER_STATUS,
-            },
-          };
-        } catch (err: any) {
-          await session.abortTransaction();
-          session.endSession();
-          const message = err?.message || String(err);
-
-          // Try to fetch minimal order info if exists (outside transaction) to include in failed response
-          try {
-            const maybeOrder = await OrderModel.findById(id).select({
-              order_id: 1,
-              order_status: 1,
-            });
-            if (maybeOrder) {
-              return {
-                orderId: id,
-                ok: false,
-                error: message,
-                order: {
-                  order_id: (maybeOrder as any).order_id,
-                  _id: String(maybeOrder._id),
-                  order_status: (maybeOrder as any).order_status,
-                },
-              };
-            }
-          } catch {
-            // ignore fetch errors, will return without order info
-          }
-
-          return { orderId: id, ok: false, error: message };
-        }
-      })
-    );
-
-    const results = await Promise.all(tasks);
-
-    const updated: {
-      order_id?: number;
-      _id: string;
-      order_status: ORDER_STATUS;
-    }[] = [];
-    const failed: {
-      orderId: string;
-      error: string;
-      order?: { order_id?: number; _id?: string; order_status?: ORDER_STATUS };
-    }[] = [];
-
-    for (const r of results) {
-      if (r.ok)
-        updated.push(
-          r.order as {
-            order_id?: number;
-            _id: string;
-            order_status: ORDER_STATUS;
-          }
-        );
-      else failed.push({ orderId: r.orderId, error: r.error, order: r.order });
-    }
-
-    return { updated, failed };
   }
 
   async order_tracking(order_id: string) {

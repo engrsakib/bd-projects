@@ -1,10 +1,10 @@
 import BaseController from "@/shared/baseController";
 import { Request, Response } from "express";
-import { OrderService } from "./order.service";
+import { OrderService } from "./preOrder.service";
 import { HttpStatusCode } from "@/lib/httpStatus";
 import { OrderQuery } from "@/interfaces/common.interface";
 import ApiError from "@/middlewares/error";
-import { ReportParams } from "./order.interface";
+import { ReportParams } from "../order/order.interface";
 
 class Controller extends BaseController {
   placeOrder = this.catchAsync(async (req: Request, res: Response) => {
@@ -120,34 +120,6 @@ class Controller extends BaseController {
       data,
     });
   });
-
-  updateOrderStatusBulk = this.catchAsync(
-    async (req: Request, res: Response) => {
-      const { ids, status } = req.body;
-      if (!ids || !status) {
-        return this.sendResponse(res, {
-          statusCode: HttpStatusCode.BAD_REQUEST,
-          success: false,
-          message: "Order IDs and Status are required",
-        });
-      }
-
-      const concurrency = Math.min(ids.length, 5);
-      const params = {
-        ids,
-        userId: req.user?.id as string,
-        status,
-        concurrency,
-      };
-      const data = await OrderService.updateOrdersStatusBulk(params);
-      this.sendResponse(res, {
-        statusCode: HttpStatusCode.OK,
-        success: true,
-        message: "Order status updated successfully",
-        data,
-      });
-    }
-  );
 
   deleteOrder = this.catchAsync(async (req: Request, res: Response) => {
     if (!req.params.id) {

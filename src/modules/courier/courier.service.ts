@@ -9,202 +9,80 @@ import { HttpStatusCode } from "@/lib/httpStatus";
 import { IOrder, IOrderStatus } from "../order/order.interface";
 import { StockModel } from "../stock/stock.model";
 import { LotModel } from "../lot/lot.model";
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import pLimit from "p-limit";
+import mongoose from "mongoose";
 
 class Service {
   // courier sevice integration
   async transferToCourier(
-    order_id: string,
+    order_id: string | string[],
     note: string = "Order transferred to courier",
-    marchant: string
+    merchant: string
   ) {
     const session = await OrderModel.startSession();
     session.startTransaction();
 
     try {
-      const order = await OrderModel.findOne({ _id: order_id })
-        .populate("user")
-        .session(session);
+      // ensure array
+      const orderIds = Array.isArray(order_id) ? order_id : [order_id];
 
-      if (!order) {
-        throw new ApiError(HttpStatusCode.NOT_FOUND, "Order not found");
-      } else if (
-        !order ||
-        order.order_status === ORDER_STATUS.CANCELLED ||
-        order.order_status === ORDER_STATUS.FAILED ||
-        order.order_status === ORDER_STATUS.DELIVERED ||
-        !marchant
-      ) {
-        throw new ApiError(
-          HttpStatusCode.UNAUTHORIZED,
-          `you can't transfer this order status ${order ? order.order_status : "unknown"} to courier`
-        );
-      }
+      const couriers = [];
 
-      // if (business_location) {
-      //   // Check if the order is already assigned to an business_location
-      //   if (order.is_assigned_to_business_location) {
-      //     throw new ApiError(
-      //       400,
-      //       "Order is already assigned to an business_location and cannot be reassigned"
-      //     );
-      //   }
-      //   // Check if the business_location exists
-      //   const businessLocationExists =
-      //     await Business_location.findById(business_location).session(session);
-      //   if (!businessLocationExists) {
-      //     throw new ApiError(404, "business Location   not found");
-      //   }
-      //   // Create a new assigned order record
-      //   const assignedOrder = new AssignedOrder({
-      //     order: order_id,
-      //     business_location: business_location,
-      //     assignedAt: new Date(),
-      //   });
-      //   await assignedOrder.save({ session });
-      //   order.is_assigned_to_business_location = true;
-      //   order.assigned_business_location = business_location;
-      //   await order.save({ session });
-      //   // reduce product stock from business_location inventory
-      //   // Todo add fifo stock reduce inventory movement
-      //   for (const product of order.products) {
-      //     const variantId = product?.selected_variant?._id;
-      //     const productId = product.product; // Added: Extract productId for movements
-      //     const quantity = product.total_quantity;
-      //     // Find variant by barcode (assuming unique)
-      //     const variant = await Variants.findById(variantId).session(session);
-      //     if (!variant) {
-      //       throw new ApiError(
-      //         404,
-      //         `Variant not found for barcode ${product?.selected_variant?.barcode}`
-      //       );
-      //     }
+      for (const oid of orderIds) {
+        const order = await OrderModel.findById(oid)
+          .populate("user")
+          .session(session);
 
-      //     await ReservedOrderQuantity.findOneAndUpdate(
-      //       {
-      //         product: productId,
-      //         variant: variant._id,
-      //         order: order_id,
-      //       },
-      //       {
-      //         reserved: 0,
-      //       }
-      //     ).session(session);
-      //     // console.log({variantId})
-      //     // Find stock record
-      //     const stock = await StocksModel.findOne({
-      //       product: productId,
-      //       variant: variantId,
-      //       business_location: business_location,
-      //     }).session(session);
+        if (!order) {
+          throw new ApiError(404, `Order (${oid}) not found`);
+        }
 
-      //     if (!stock || stock.available_quantity < quantity) {
-      //       throw new ApiError(
-      //         400,
-      //         `Insufficient stock for barcode ${product?.selected_variant?.barcode}. Available: ${stock?.available_quantity || 0}, Requested: ${quantity}`
-      //       );
-      //     }
-
-      //     // Find active, non-expired lots sorted by received_at (FIFO)
-      //     const lots = await LotsModel.find({
-      //       stock: stock._id,
-      //       status: "active",
-      //       qty_available: { $gt: 0 },
-      //       // $or: [{ expiry_date: null }, { expiry_date: { $gt: new Date() } }],
-      //     })
-      //       .sort({ received_at: 1 })
-      //       .session(session);
-
-      //     let remaining = quantity;
-      //     let item_cost = 0;
-
-      //     for (const lot of lots) {
-      //       if (remaining <= 0) break;
-      //       const alloc = Math.min(remaining, lot.qty_available);
-      //       item_cost += alloc * lot.cost_per_unit;
-
-      //       // Update lot
-      //       const update: any = {
-      //         $inc: { qty_available: -alloc },
-      //       };
-      //       if (alloc === lot.qty_available) {
-      //         update.status = "closed";
-      //       }
-      //       await LotsModel.findByIdAndUpdate(lot._id, update, { session });
-
-      //       // Added: Create inventory movement for pos_sale (per allocation)
-      //       await InventoryMovementModel.create(
-      //         [
-      //           {
-      //             type: "pos_sale",
-      //             ref: order._id, // Reference to the Order
-      //             variant: variantId,
-      //             product: productId,
-      //             business_location: business_location,
-      //             qty: -alloc, // Negative for sale (out)
-      //             cost_per_unit: lot.cost_per_unit,
-      //             lot: lot._id, // Source lot
-      //             note: `sold via Online order, invoice ${order.invoice_number}`,
-      //           },
-      //         ],
-      //         { session }
-      //       );
-
-      //       remaining -= alloc;
-      //     }
-
-      //     if (remaining > 0) {
-      //       throw new ApiError(
-      //         400,
-      //         `Insufficient available lots for barcode ${product?.selected_variant?.barcode} despite stock record`
-      //       );
-      //     }
-
-      //     // Update stock
-      //     await StocksModel.findByIdAndUpdate(
-      //       stock._id,
-      //       {
-      //         $inc: {
-      //           available_quantity: -quantity,
-      //           total_sold: quantity,
-      //         },
-      //       },
-      //       { session }
-      //     );
-      //   }
-      // }
-
-      const courierPayload: TCourierPayload = {
-        invoice: order?.invoice_number,
-        recipient_name: order?.customer_name as string,
-        recipient_phone: order?.customer_number as string,
-        recipient_address: `${order?.delivery_address?.local_address}, Upazila: ${order?.delivery_address?.thana}, District: ${order?.delivery_address?.district}`,
-        cod_amount: order?.payable_amount || 0,
-        ...(note && { note: note }),
-      };
-
-      const courierRes: any =
-        await CourierMiddleware.transfer_single_order(courierPayload);
-
-      //   console.log(courierRes, "courierRes");
-
-      if (courierRes?.statusCode === 200 || courierRes?.status === 200) {
-        // console.log("Courier transfer successful");
-        // Handle successful courier response
-        const existing = await CourierModel.findOne({
-          order: order_id,
-        }).session(session);
-        if (existing) {
+        if (
+          [
+            ORDER_STATUS.CANCELLED,
+            ORDER_STATUS.FAILED,
+            ORDER_STATUS.DELIVERED,
+          ].includes(order.order_status as ORDER_STATUS) ||
+          !merchant
+        ) {
           throw new ApiError(
-            409,
-            "Courier record already exists for this order"
+            401,
+            `You can't transfer order (${oid}) with status '${order.order_status}'`
           );
         }
 
-        // console.log(courierRes?.consignment, "parcel id");
-        const [createdCourier] = await CourierModel.create(
+        // courier payload
+        const courierPayload: TCourierPayload = {
+          invoice: order.invoice_number,
+          recipient_name: order.customer_name as string,
+          recipient_phone: order.customer_number as string,
+          recipient_address: `${order.delivery_address?.local_address}, Upazila: ${order.delivery_address?.thana}, District: ${order.delivery_address?.district}`,
+          cod_amount: order.payable_amount || 0,
+          ...(note && { note }),
+        };
+
+        // API
+        const courierRes: any =
+          await CourierMiddleware.transfer_single_order(courierPayload);
+
+        if (!courierRes?.statusCode && !courierRes?.status) {
+          throw new ApiError(400, "Failed to transfer order to courier");
+        }
+
+        // check exists
+        const existing = await CourierModel.findOne({ order: oid }).session(
+          session
+        );
+        if (existing) {
+          throw new ApiError(409, `Courier already exists for order ${oid}`);
+        }
+
+        // create courier
+        const createdCourier = await CourierModel.create(
           [
             {
-              merchant: marchant ?? MARCHANT.STEAD_FAST,
+              merchant: merchant ?? MARCHANT.STEAD_FAST,
               consignment_id: courierRes?.consignment?.consignment_id,
               tracking_id: courierRes?.consignment?.tracking_code,
               booking_date: courierRes?.consignment?.created_at
@@ -212,36 +90,35 @@ class Service {
                 : new Date(),
               courier_note: courierRes?.consignment?.note,
               cod_amount: courierRes?.consignment?.cod_amount,
-              order: order_id,
+              order: oid,
               status: ORDER_STATUS.HANDED_OVER_TO_COURIER,
               transfer_to_courier: true,
             },
           ],
           { session }
         );
-        // console.log(createdCourier, "createdCourier");
 
-        if (!createdCourier) {
-          throw new ApiError(500, "Failed to create courier record");
-        }
-
-        const result = await OrderModel.findByIdAndUpdate(
-          order_id,
+        // mark order transferred
+        await OrderModel.findByIdAndUpdate(
+          oid,
           {
             order_status: ORDER_STATUS.RTS,
             transfer_to_courier: true,
-            courier: createdCourier._id,
+            courier: createdCourier[0]?._id,
           },
           { new: true, session }
         );
 
-        await session.commitTransaction();
-        return result;
-      } else {
-        throw new ApiError(400, "Failed to transfer order to courier");
+        couriers.push(createdCourier[0]);
       }
-    } catch (error: any) {
-      console.log(error, "error");
+
+      await session.commitTransaction();
+      return {
+        message: "Orders transferred successfully",
+        count: couriers.length,
+        data: couriers,
+      };
+    } catch (error) {
       await session.abortTransaction();
       throw error;
     } finally {
@@ -249,8 +126,70 @@ class Service {
     }
   }
 
+  // Add this method inside the same service/class where `transferToCourier` is defined.
+  // Assumes `mongoose`, `CourierModel`, `ApiError`, `HttpStatusCode` and `ORDER_STATUS` are available in the file scope.
+
+  // Replace or add this method inside your Service class (same file).
+  async transferToCourierBulk(params: {
+    ids: string[];
+    marchant: string;
+    note?: string;
+  }) {
+    const { ids, marchant, note = "Order transferred to courier" } = params;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      throw new ApiError(
+        HttpStatusCode.BAD_REQUEST,
+        "ids must be a non-empty array"
+      );
+    }
+    if (!marchant) {
+      throw new ApiError(HttpStatusCode.BAD_REQUEST, "marchant is required");
+    }
+
+    // RESPONSE
+    const failed: { orders_id: string; error: string }[] = [];
+
+    // ✅ STACK — LIFO
+    const stack: mongoose.Types.ObjectId[] = [];
+
+    // ✅ Normalize → Only valid ObjectId → push to STACK
+    for (const rawId of ids) {
+      try {
+        const oid = this.normalizeToObjectId(rawId);
+        stack.push(oid);
+      } catch (e: any) {
+        failed.push({
+          orders_id: String(rawId),
+          error: e?.message || "Invalid order id",
+        });
+      }
+    }
+
+    // ✅ Sleep Helper
+    const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
+
+    // ✅ Sequential → One ID → Finish → Next
+    while (stack.length > 0) {
+      const oid = stack.pop()!; // LIFO
+
+      await sleep(1000); // delay before next
+
+      try {
+        await this.transferToCourier(String(oid), note, marchant);
+      } catch (err: any) {
+        failed.push({
+          orders_id: String(oid),
+          error: err?.message || String(err),
+        });
+      }
+    }
+
+    return { failed };
+  }
+
   // Atomic variant: safer under concurrency
-  async scanToRTS(id: string) {
+  async scanToHandOver(id: string) {
     const session = await OrderModel.startSession();
     session.startTransaction();
     try {
@@ -911,6 +850,32 @@ class Service {
     }));
 
     return updatedItems;
+  }
+
+  private normalizeToObjectId(id: unknown): mongoose.Types.ObjectId {
+    // Reject arrays early
+    if (Array.isArray(id)) {
+      throw new ApiError(
+        HttpStatusCode.BAD_REQUEST,
+        `Invalid order id: array provided`
+      );
+    }
+
+    // If an object with _id is passed (e.g. a document), extract it
+    if (id && typeof id === "object" && "_id" in (id as any)) {
+      id = (id as any)._id;
+    }
+
+    const s = String(id ?? "").trim();
+    if (!s) {
+      throw new ApiError(HttpStatusCode.BAD_REQUEST, `Invalid order id: empty`);
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(s)) {
+      throw new ApiError(HttpStatusCode.BAD_REQUEST, `Invalid ObjectId: ${s}`);
+    }
+
+    return new mongoose.Types.ObjectId(s);
   }
 }
 

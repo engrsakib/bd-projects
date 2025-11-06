@@ -24,7 +24,34 @@ class Controller extends BaseController {
     });
   });
 
-  scanToRTS = this.catchAsync(async (req: Request, res: Response) => {
+  transferToCourierBulk = this.catchAsync(
+    async (req: Request, res: Response) => {
+      const { ids } = req.body;
+      console.log(ids);
+      const { note, marchant } = req.body;
+      if (!ids || !marchant) {
+        return this.sendResponse(res, {
+          statusCode: HttpStatus.BAD_REQUEST,
+          success: false,
+          message: "Order ID and Marchant are required",
+        });
+      }
+
+      const result = await CourierService.transferToCourier(
+        ids,
+        note,
+        marchant
+      );
+      return this.sendResponse(res, {
+        statusCode: HttpStatus.OK,
+        success: true,
+        message: "Order transferred to courier successfully",
+        data: result,
+      });
+    }
+  );
+
+  scanToHandOver = this.catchAsync(async (req: Request, res: Response) => {
     const { orderId } = req.params;
     if (!orderId) {
       return this.sendResponse(res, {
@@ -34,11 +61,11 @@ class Controller extends BaseController {
       });
     }
 
-    const result = await CourierService.scanToRTS(orderId);
+    const result = await CourierService.scanToHandOver(orderId);
     return this.sendResponse(res, {
       statusCode: HttpStatus.OK,
       success: true,
-      message: "Order marked as RTS successfully",
+      message: "Order marked as Handed Over successfully",
       data: result,
     });
   });

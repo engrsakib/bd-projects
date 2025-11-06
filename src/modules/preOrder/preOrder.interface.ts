@@ -1,8 +1,11 @@
+import { IAddress } from "@/interfaces/common.interface";
 import { Types } from "mongoose";
+import { IUser } from "../user/user.interface";
 
 export type IPreOrderStatus =
   | "incomplete"
   | "pending"
+  | "placed"
   | "pending_approval"
   | "failed"
   | "purchased"
@@ -40,4 +43,105 @@ export type IPreOrderItem = {
   new_cod?: number;
   subtotal: number;
   status?: IPreOrderStatus;
+};
+
+export type IPreOrderBy = "admin" | "user" | "guest" | "reseller";
+
+type IAdminNote = {
+  note: string;
+  added_at: Date;
+  added_by: IUser["_id"];
+};
+
+export type IOrderItem = {
+  product: Types.ObjectId;
+  variant: Types.ObjectId;
+  previous_variant?: Types.ObjectId;
+  attributes: { [key: string]: string };
+  lots: [
+    {
+      lotId: Types.ObjectId;
+      deducted: number;
+    },
+  ];
+  quantity: number;
+  price: number;
+  new_cod?: number;
+  subtotal: number;
+  status?: IPreOrderStatus;
+};
+
+export type IOrderLog = {
+  user?: Types.ObjectId | "webhook" | null;
+  time: Date;
+  action: string;
+};
+
+export type Istatus_count = Record<IPreOrderStatus, number>;
+
+export type IOrder = {
+  user?: Types.ObjectId;
+  previous_order?: Types.ObjectId | string;
+  customer_name?: string;
+  customer_number: string;
+  customer_email?: string;
+  customer_secondary_number?: string;
+
+  user_or_admin_model?: "User" | "Admin";
+
+  items?: IPreOrderItem[];
+  orders_by: IPreOrderBy;
+  products?: IPreOrderItem[];
+  total_items: number;
+  total_price: number;
+  delivery_charge?: number;
+  total_amount: number;
+  paid_amount?: number;
+  payable_amount?: number;
+  new_cod?: number;
+  discounts?: number;
+  order_status?: IPreOrderStatus;
+  transfer_to_courier?: boolean;
+  courier?: Types.ObjectId;
+  order_id?: number;
+  invoice_number: string;
+  delivery_address: IAddress;
+  payment_type: "bkash" | "cod";
+  transaction_id?: string;
+  payment_id?: string;
+  payment_status?: "pending" | "paid" | "failed" | "refunded";
+
+  order_at?: Date;
+
+  is_delivery_charge_paid?: boolean;
+
+  system_message?: string;
+  order_note?: string;
+  admin_notes?: IAdminNote[];
+
+  notes?: string;
+  id?: string | Types.ObjectId;
+
+  order_type?: "regular" | "exchange" | "return";
+
+  logs?: IOrderLog[];
+};
+
+export type IPreOrderPlace = {
+  user_id: string | Types.ObjectId;
+  previous_order?: string | Types.ObjectId;
+  customer_name?: string;
+  customer_number: string;
+  customer_secondary_number?: string;
+  customer_email?: string;
+  delivery_charge?: number;
+  order_type?: "regular" | "exchange" | "return";
+  tax?: number;
+  paid_amount?: number;
+  discounts?: number;
+  new_cod?: number;
+  delivery_address: IAddress;
+  products: IOrderItem[];
+  payment_type: "bkash" | "cod";
+  orders_by: IPreOrderBy;
 };
