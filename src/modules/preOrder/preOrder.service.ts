@@ -1184,6 +1184,74 @@ class Service {
     return order as IOrder;
   }
 
+  async setOrderReadyForDispatch(payload: {
+    order_id: string | number;
+  }): Promise<IOrder> {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      const order = await OrderModel.findOne({
+        order_id: payload.order_id,
+      }).session(session);
+      if (!order) {
+        await session.abortTransaction();
+        session.endSession();
+        throw new ApiError(
+          HttpStatusCode.NOT_FOUND,
+          `Order with ID ${payload.order_id} not found`
+        );
+      }
+
+      if (
+        order.order_status === ORDER_STATUS.CANCELLED ||
+        order.order_status === ORDER_STATUS.FAILED ||
+        order.order_status === ORDER_STATUS.DELIVERED ||
+        order.order_status === ORDER_STATUS.READY_FOR_DISPATCH
+      ) {
+        throw new ApiError(
+          HttpStatusCode.BAD_REQUEST,
+          `Cannot set order ${payload.order_id} ready for dispatch from status ${order.order_status}`
+        );
+      }
+
+      // update status and log
+      order.order_status = ORDER_STATUS.READY_FOR_DISPATCH;
+      order.logs = order.logs || [];
+      order.logs.push({
+        user: null,
+        time: new Date(),
+        action: `ORDER_STATUS_UPDATED: -> ${ORDER_STATUS.READY_FOR_DISPATCH}`,
+      });
+
+      await order.save({ session });
+
+      await session.commitTransaction();
+      session.endSession();
+
+      // populate before return for consistency with other methods
+      const populatedOrder = await OrderModel.findById(order._id)
+        .populate({
+          path: "items.product",
+          select: "name slug sku thumbnail description",
+        })
+        .populate({
+          path: "items.variant",
+          select:
+            "attributes attribute_values regular_price sale_price sku barcode image",
+        });
+
+      return populatedOrder as IOrder;
+    } catch (error) {
+      await session.abortTransaction();
+      session.endSession();
+      throw new ApiError(
+        HttpStatusCode.INTERNAL_SERVER_ERROR,
+        `Failed to set order ready for dispatch: ${error}`
+      );
+    }
+  }
+
   async getOrders(query: OrderQuery): Promise<{
     meta: { page: number; limit: number; total: number };
     status_count: Istatus_count & { all: number };
