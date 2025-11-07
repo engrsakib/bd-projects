@@ -1190,17 +1190,16 @@ class Service {
   }): Promise<IOrder> {
     const session = await mongoose.startSession();
     session.startTransaction();
-
+    const { order_id, user } = payload;
     try {
-      const { order_id, user } = payload;
       const order = await OrderModel.findOne({
         order_id: order_id,
       })
         .session(session)
         .populate("items.product")
         .populate("items.variant");
+
       if (!order) {
-        session.endSession();
         throw new ApiError(
           HttpStatusCode.NOT_FOUND,
           `Order with ID ${payload.order_id} not found`
@@ -1213,10 +1212,9 @@ class Service {
         order.order_status === ORDER_STATUS.DELIVERED ||
         order.order_status === ORDER_STATUS.READY_FOR_DISPATCH
       ) {
-        session.endSession();
         throw new ApiError(
           HttpStatusCode.BAD_REQUEST,
-          `Cannot set order ${payload.order_id} ready for dispatch from status ${order.order_status}`
+          `Cannot set order ${payload.order_id} ready for dispatch status ${order.order_status}`
         );
       }
 
@@ -1233,7 +1231,7 @@ class Service {
 
         if (!stock || stock.available_quantity < item.quantity) {
           // await session.abortTransaction();
-          session.endSession();
+
           // Guard: item.product may be an ObjectId; fallback to its string form if name is not available
           const productName =
             item.product &&
@@ -1243,7 +1241,7 @@ class Service {
               : String(item.product);
           throw new ApiError(
             HttpStatusCode.BAD_REQUEST,
-            `Product ${productName} is out of stock or does not have enough quantity`
+            `Product ${productName} is Insufficient stock`
           );
         }
 
