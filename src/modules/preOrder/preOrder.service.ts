@@ -1273,7 +1273,7 @@ class Service {
       order.logs.push({
         user: user || null,
         time: new Date(),
-        action: `ORDER_STATUS_UPDATED: -> ${ORDER_STATUS.READY_FOR_DISPATCH}`,
+        action: `ORDER_STATUS_UPDATED: {order.order_status} -> ${ORDER_STATUS.READY_FOR_DISPATCH}`,
       });
 
       await order.save({ session });
