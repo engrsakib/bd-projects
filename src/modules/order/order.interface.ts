@@ -19,7 +19,8 @@ export type IOrderStatus =
   | "handed_over_to_courier"
   | "unknown"
   | "partial"
-  | "lost";
+  | "lost"
+  | "awaiting_stock";
 
 export type ReportParams = {
   start_date?: string;

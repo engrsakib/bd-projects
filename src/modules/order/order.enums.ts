@@ -16,6 +16,7 @@ export enum ORDER_STATUS {
   PARTIAL = "partial",
   UNKNOWN = "unknown",
   LOST = "lost",
+  AWAITING_STOCK = "awaiting_stock",
 }
 
 export enum PAYMENT_STATUS {

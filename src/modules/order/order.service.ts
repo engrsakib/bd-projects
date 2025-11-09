@@ -55,6 +55,8 @@ class Service {
 
       // console.log(cartItems, "cart items");
 
+      let total_stock_issue = false;
+
       // check stock availability [most important]
       for (const item of enrichedOrder.products) {
         // console.log(item.variant, "for stock");
@@ -67,7 +69,7 @@ class Service {
           { session }
         );
 
-        if (!stock || stock.available_quantity < item.quantity) {
+        if (!stock) {
           // await session.abortTransaction();
           session.endSession();
           throw new ApiError(
@@ -76,26 +78,32 @@ class Service {
           );
         }
 
-        // lot consumption (FIFO)
-        const consumedLots = await this.consumeLotsFIFO(
-          item.product,
-          item.variant,
-          item.quantity,
-          session
-        );
-        item.lots = consumedLots;
-        // console.log(consumedLots, "consumed lots `");
+        if (stock.available_quantity < item.quantity) {
+          total_stock_issue = true;
+          item.status = ORDER_STATUS.AWAITING_STOCK;
+          continue;
+        } else {
+          // lot consumption (FIFO)
+          const consumedLots = await this.consumeLotsFIFO(
+            item.product,
+            item.variant,
+            item.quantity,
+            session
+          );
+          item.lots = consumedLots;
+          // console.log(consumedLots, "consumed lots `");
 
-        stock.available_quantity -= item.quantity;
-        stock.total_sold = (stock.total_sold || 0) + item.quantity;
-        item.total_sold = (item.total_sold || 0) + item.quantity;
-        await stock.save({ session });
+          stock.available_quantity -= item.quantity;
+          stock.total_sold = (stock.total_sold || 0) + item.quantity;
+          item.total_sold = (item.total_sold || 0) + item.quantity;
+          await stock.save({ session });
+        }
       }
 
-      console.log(
-        JSON.stringify(enrichedOrder.products, null, 2),
-        "final enriched order"
-      );
+      // console.log(
+      //   JSON.stringify(enrichedOrder.products, null, 2),
+      //   "final enriched order"
+      // );
 
       const { total_price, items, total_items } =
         await this.calculateCart(enrichedOrder);
@@ -126,6 +134,7 @@ class Service {
         orders_by: order_by,
 
         items,
+
         total_items,
         total_price,
         total_amount: total_price,
@@ -136,7 +145,9 @@ class Service {
         payment_type: data.payment_type,
         payment_status: PAYMENT_STATUS.PENDING,
         order_at: new Date(),
-        order_status: ORDER_STATUS.PLACED,
+        order_status: total_stock_issue
+          ? ORDER_STATUS.AWAITING_STOCK
+          : ORDER_STATUS.PLACED,
       };
 
       if (data?.tax && data?.tax > 0) {
@@ -164,7 +175,9 @@ class Service {
       if (data.payment_type === "cod") {
         payload.payment_status = PAYMENT_STATUS.PENDING;
         payload.payable_amount = payload.total_amount;
-        payload.order_status = ORDER_STATUS.PLACED;
+        payload.order_status = total_stock_issue
+          ? ORDER_STATUS.AWAITING_STOCK
+          : ORDER_STATUS.PLACED;
       }
 
       if (data.payment_type === "bkash") {
@@ -2371,6 +2384,7 @@ class Service {
           quantity: cartItem.quantity,
           lots: cartItem.lots,
           price: variant?.sale_price || 0,
+          status: cartItem.status ? cartItem.status : ORDER_STATUS.PLACED,
           subtotal,
         };
       })
