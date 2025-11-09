@@ -299,6 +299,7 @@ class Service {
           "Your cart is empty, cannot place order"
         );
       }
+
       let total_stock_issue = false;
 
       // console.log(cartItems, "cart items");
@@ -366,7 +367,7 @@ class Service {
 
       const order_by: IOrderBy = role ? role : "guest";
 
-      console.log(data.user_id, "admin placing order for user");
+      // console.log(data.user_id, "admin placing order for user");
 
       const payload: IOrder = {
         user: data.user_id as Types.ObjectId,
@@ -422,7 +423,9 @@ class Service {
         payload.payable_amount -= data.paid_amount;
       }
 
-      payload.order_status = ORDER_STATUS.PLACED;
+      payload.order_status = total_stock_issue
+        ? ORDER_STATUS.AWAITING_STOCK
+        : ORDER_STATUS.PLACED;
 
       payload.total_amount = Number(payload.total_amount.toFixed());
 
