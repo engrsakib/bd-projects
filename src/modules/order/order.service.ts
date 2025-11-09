@@ -680,6 +680,26 @@ class Service {
         throw new ApiError(404, `Order with ID ${orderId} does not exist`);
       }
 
+      if (
+        order.order_status === ORDER_STATUS.CANCELLED ||
+        order.order_status === ORDER_STATUS.RETURNED ||
+        order.order_status === ORDER_STATUS.LOST ||
+        order.order_status === ORDER_STATUS.UNKNOWN ||
+        order.order_status === ORDER_STATUS.RTS ||
+        order.order_status === ORDER_STATUS.DELIVERED ||
+        order.order_status === ORDER_STATUS.HANDED_OVER_TO_COURIER ||
+        order.order_status === ORDER_STATUS.PENDING_RETURN ||
+        order.order_status === ORDER_STATUS.EXCHANGED ||
+        order.order_status === ORDER_STATUS.PARTIAL ||
+        order.order_status === ORDER_STATUS.AWAITING_STOCK ||
+        order.order_status === ORDER_STATUS.FAILED
+      ) {
+        throw new ApiError(
+          HttpStatusCode.BAD_REQUEST,
+          "Cannot edit a cancelled order"
+        );
+      }
+
       // ২. নতুন enriched products (validate & enrich)
       const enrichedOrder = await this.enrichProducts(payload);
 
@@ -2311,6 +2331,123 @@ class Service {
       throw new ApiError(
         error.statusCode || 500,
         error?.message || "Error adding admin note to order"
+      );
+    }
+  }
+
+  async setOrderReadyForAccepted(payload: {
+    order_id: number | string;
+    user?: Types.ObjectId;
+  }): Promise<IOrder> {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    const { order_id, user } = payload;
+    try {
+      const order = await OrderModel.findOne({
+        order_id: order_id,
+      })
+        .session(session)
+        .populate("items.product")
+        .populate("items.variant");
+
+      if (!order) {
+        throw new ApiError(
+          HttpStatusCode.NOT_FOUND,
+          `Order with ID ${payload.order_id} not found`
+        );
+      }
+
+      if (!order.order_status?.includes(ORDER_STATUS.AWAITING_STOCK)) {
+        throw new ApiError(
+          HttpStatusCode.BAD_REQUEST,
+          `Cannot set order ${payload.order_id} ready for dispatch status ${order.order_status}`
+        );
+      }
+
+      for (const item of order.items || []) {
+        // console.log(item.variant, "for stock");
+        if (String(item.status) !== String(ORDER_STATUS.AWAITING_STOCK)) {
+          continue;
+        }
+
+        const stock = await StockModel.findOne(
+          {
+            product: item.product,
+            variant: item.variant,
+          },
+          null,
+          { session }
+        );
+
+        if (!stock || stock.available_quantity < item.quantity) {
+          // await session.abortTransaction();
+
+          // Guard: item.product may be an ObjectId; fallback to its string form if name is not available
+          const productName =
+            item.product &&
+            typeof item.product === "object" &&
+            "name" in item.product
+              ? (item.product as any).name
+              : String(item.product);
+          throw new ApiError(
+            HttpStatusCode.BAD_REQUEST,
+            `Product ${productName} is Insufficient stock`
+          );
+        }
+
+        // lot consumption (FIFO)
+        const consumedLots = await this.consumeLotsFIFO(
+          item.product._id ? (item.product as any)._id : item.product,
+          item.variant._id ? (item.variant as any)._id : item.variant,
+          item.quantity,
+          session
+        );
+        // convert returned lotId strings to ObjectId instances to satisfy the expected type
+        item.lots = consumedLots.map((c) => ({
+          lotId: new Types.ObjectId(String(c.lotId)),
+          deducted: c.deducted,
+        })) as any;
+        // console.log(consumedLots, "consumed lots `");
+
+        stock.available_quantity -= item.quantity;
+        stock.total_sold = (stock.total_sold || 0) + item.quantity;
+        item.total_sold = (item.total_sold || 0) + item.quantity;
+        await stock.save({ session });
+      }
+
+      // update status and log
+      order.order_status = ORDER_STATUS.ACCEPTED;
+      order.logs = order.logs || [];
+      order.logs.push({
+        user: user || null,
+        time: new Date(),
+        action: `ORDER_STATUS_UPDATED: {order.order_status} -> ${ORDER_STATUS.ACCEPTED}`,
+      });
+
+      await order.save({ session });
+
+      await session.commitTransaction();
+      session.endSession();
+
+      // populate before return for consistency with other methods
+      const populatedOrder = await OrderModel.findById(order._id)
+        .populate({
+          path: "items.product",
+          select: "name slug sku thumbnail description",
+        })
+        .populate({
+          path: "items.variant",
+          select:
+            "attributes attribute_values regular_price sale_price sku barcode image",
+        });
+
+      return populatedOrder as IOrder;
+    } catch (error) {
+      await session.abortTransaction();
+      session.endSession();
+      throw new ApiError(
+        HttpStatusCode.INTERNAL_SERVER_ERROR,
+        `Failed to set order ready for dispatch: ${error}`
       );
     }
   }
