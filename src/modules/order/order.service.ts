@@ -299,13 +299,13 @@ class Service {
           "Your cart is empty, cannot place order"
         );
       }
+      let total_stock_issue = false;
 
       // console.log(cartItems, "cart items");
 
       // check stock availability [most important]
       for (const item of enrichedOrder.products) {
         // console.log(item.variant, "for stock");
-
         const stock = await StockModel.findOne(
           {
             product: item.product,
@@ -315,28 +315,35 @@ class Service {
           { session }
         );
 
-        if (!stock || stock.available_quantity < item.quantity) {
+        if (!stock) {
           // await session.abortTransaction();
-
+          session.endSession();
           throw new ApiError(
             HttpStatusCode.BAD_REQUEST,
             `Product ${item.product.name} is out of stock or does not have enough quantity`
           );
         }
 
-        // lot consumption (FIFO)
-        const consumedLots = await this.consumeLotsFIFO(
-          item.product,
-          item.variant,
-          item.quantity,
-          session
-        );
-        item.lots = consumedLots;
+        if (stock.available_quantity < item.quantity) {
+          total_stock_issue = true;
+          item.status = ORDER_STATUS.AWAITING_STOCK;
+          continue;
+        } else {
+          // lot consumption (FIFO)
+          const consumedLots = await this.consumeLotsFIFO(
+            item.product,
+            item.variant,
+            item.quantity,
+            session
+          );
+          item.lots = consumedLots;
+          // console.log(consumedLots, "consumed lots `");
 
-        stock.available_quantity -= item.quantity;
-        stock.total_sold = (stock.total_sold || 0) + item.quantity;
-        item.total_sold = (item.total_sold || 0) + item.quantity;
-        await stock.save({ session });
+          stock.available_quantity -= item.quantity;
+          stock.total_sold = (stock.total_sold || 0) + item.quantity;
+          item.total_sold = (item.total_sold || 0) + item.quantity;
+          await stock.save({ session });
+        }
       }
 
       const { total_price, items, total_items } =
@@ -382,7 +389,9 @@ class Service {
         payment_type: data.payment_type,
         payment_status: PAYMENT_STATUS.PENDING,
         order_at: new Date(),
-        order_status: ORDER_STATUS.PLACED,
+        order_status: total_stock_issue
+          ? ORDER_STATUS.AWAITING_STOCK
+          : ORDER_STATUS.PLACED,
       };
 
       if (data?.tax && data?.tax > 0) {
