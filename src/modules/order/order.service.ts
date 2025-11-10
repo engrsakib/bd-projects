@@ -2412,6 +2412,7 @@ class Service {
         stock.available_quantity -= item.quantity;
         stock.total_sold = (stock.total_sold || 0) + item.quantity;
         item.total_sold = (item.total_sold || 0) + item.quantity;
+        item.status = ORDER_STATUS.PLACED;
         await stock.save({ session });
       }
 
