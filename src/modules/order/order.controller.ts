@@ -233,8 +233,10 @@ class Controller extends BaseController {
 
   setOrderReadyForAccepted = this.catchAsync(
     async (req: Request, res: Response) => {
-      const orderId = req.params.id;
+      const orderId = req.params.orderId;
       const user = req?.user.id;
+
+      // console.log("order id", orderId, "user id", user);
 
       // const params = { orderId, user };
 
