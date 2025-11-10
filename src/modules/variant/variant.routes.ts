@@ -9,30 +9,35 @@ const router = Router();
 router.post(
   "/",
   JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.PRODUCT_CREATE),
   VariantController.createVariant
 );
 
 router.patch(
   "/:id",
   JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.PRODUCT_UPDATE),
   VariantController.updateOne
 );
 
 router.patch(
   "/many",
   JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.PRODUCT_UPDATE),
   VariantController.updateMany
 );
 
 router.patch(
   "/by-product/:product_id",
   JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.PRODUCT_UPDATE),
   VariantController.updateVariantsOfAProduct
 );
 
 router.delete(
   "/:id",
   JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.PRODUCT_DELETE),
   VariantController.deleteVariant
 );
 

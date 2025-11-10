@@ -230,6 +230,26 @@ class Controller extends BaseController {
       data: result,
     });
   });
+
+  setOrderReadyForAccepted = this.catchAsync(
+    async (req: Request, res: Response) => {
+      const orderId = req.params.id;
+      const user = req?.user.id;
+
+      // const params = { orderId, user };
+
+      const result = await OrderService.setOrderReadyForAccepted({
+        order_id: orderId,
+        user,
+      });
+      return this.sendResponse(res, {
+        statusCode: HttpStatusCode.OK,
+        success: true,
+        message: "Order set to ready for accepted successfully",
+        data: result,
+      });
+    }
+  );
 }
 
 export const OrderController = new Controller();
