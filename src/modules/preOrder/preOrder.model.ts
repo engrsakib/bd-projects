@@ -1,5 +1,5 @@
 import { model, Schema } from "mongoose";
-import { IOrder, IOrderItem } from "./preOrder.interface";
+import { IOrder, IPreOrderItem } from "./preOrder.interface";
 import { schemaOptions } from "@/utils/schemaOptions";
 import { addressSchema } from "@/common/models/address.model";
 import {
@@ -10,7 +10,7 @@ import {
 } from "./preOrder.enum";
 import { PRE_ORDER_STATUS as ORDER_STATUS } from "./preOrder.enum";
 
-const orderItemSchema = new Schema<IOrderItem>({
+const orderItemSchema = new Schema<IPreOrderItem>({
   product: { type: Schema.Types.ObjectId, ref: "Product", required: true },
   variant: { type: Schema.Types.ObjectId, ref: "Variant", required: true },
   previous_variant: {

@@ -202,6 +202,35 @@ class Controller extends BaseController {
       data: result,
     });
   });
+
+  setOrderReadyForDispatch = this.catchAsync(
+    async (req: Request, res: Response) => {
+      const { order_id } = req.body;
+
+      console.log(order_id, "order id daa");
+
+      const user = req.user?.id;
+
+      if (!order_id) {
+        return this.sendResponse(res, {
+          statusCode: HttpStatusCode.BAD_REQUEST,
+          success: false,
+          message: "Order ID is required",
+        });
+      }
+
+      const data = await OrderService.setOrderReadyForDispatch({
+        order_id,
+        user: user,
+      });
+      this.sendResponse(res, {
+        statusCode: HttpStatusCode.OK,
+        success: true,
+        message: "Order status set to Ready for Dispatch successfully",
+        data,
+      });
+    }
+  );
 }
 
 export const OrderController = new Controller();

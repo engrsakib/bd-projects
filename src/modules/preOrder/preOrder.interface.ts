@@ -41,6 +41,7 @@ export type IPreOrderItem = {
   quantity: number;
   price: number;
   new_cod?: number;
+  total_sold?: number;
   subtotal: number;
   status?: IPreOrderStatus;
 };
@@ -51,24 +52,6 @@ type IAdminNote = {
   note: string;
   added_at: Date;
   added_by: IUser["_id"];
-};
-
-export type IOrderItem = {
-  product: Types.ObjectId;
-  variant: Types.ObjectId;
-  previous_variant?: Types.ObjectId;
-  attributes: { [key: string]: string };
-  lots: [
-    {
-      lotId: Types.ObjectId;
-      deducted: number;
-    },
-  ];
-  quantity: number;
-  price: number;
-  new_cod?: number;
-  subtotal: number;
-  status?: IPreOrderStatus;
 };
 
 export type IOrderLog = {
@@ -141,7 +124,7 @@ export type IPreOrderPlace = {
   discounts?: number;
   new_cod?: number;
   delivery_address: IAddress;
-  products: IOrderItem[];
+  products: IPreOrderItem[];
   payment_type: "bkash" | "cod";
   orders_by: IPreOrderBy;
 };
