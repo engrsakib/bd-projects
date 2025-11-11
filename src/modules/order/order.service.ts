@@ -1988,7 +1988,7 @@ class Service {
   }
 
   async updateOrderStatus(
-    order_id: string,
+    order_id: string | Types.ObjectId,
     user_id: string,
     status: ORDER_STATUS
   ): Promise<IOrder | null> {

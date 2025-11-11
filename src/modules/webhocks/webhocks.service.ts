@@ -4,6 +4,7 @@ import { OrderModel } from "@/modules/order/order.model";
 import { ORDER_STATUS } from "@/modules/order/order.enums";
 import CourierModel from "../courier/courier.model";
 import { IOrderStatus } from "../order/order.interface";
+import { OrderService } from "../order/order.service";
 
 // Map steadfast status to system status
 const STATUS_MAP: Record<string, string> = {
@@ -106,6 +107,19 @@ class service extends BaseController {
         }
       await order.save();
       await courier.save();
+
+      if (String(data.status).toLowerCase() === "cancelled") {
+        try {
+          await OrderService.updateOrderStatus(
+            order._id,
+            "",
+            ORDER_STATUS.CANCELLED
+          );
+          console.log("Stock updated due to cancellation");
+        } catch (error) {
+          console.error("Error updating stock after cancellation:", error);
+        }
+      }
     }
     console.log(order.id, "order id for webhook tracking update");
     if (data.notification_type === "tracking_update") {
