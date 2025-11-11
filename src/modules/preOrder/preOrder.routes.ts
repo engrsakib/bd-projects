@@ -78,6 +78,13 @@ router.get(
   OrderController.getOrders
 );
 
+router.post(
+  "/set-ready-for-dispatch",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.ORDER_UPDATE),
+  OrderController.setOrderReadyForDispatch
+);
+
 router.delete(
   "/orders/delete/:id",
   JwtInstance.authenticate(Object.values(ROLES)),

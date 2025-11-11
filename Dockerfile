@@ -8,7 +8,7 @@ WORKDIR /usr/src/app
 COPY package*.json ./
 
 # Install dependencies (including dev dependencies for build)
-RUN npm ci
+RUN npm i
 
 # Copy tsconfig and source code
 COPY tsconfig.json ./
@@ -31,7 +31,7 @@ WORKDIR /usr/src/app
 COPY package*.json ./
 
 # Install only production dependencies
-RUN npm ci  && npm cache clean --force
+RUN npm i  && npm cache clean --force
 
 # Copy built application from builder stage
 COPY --from=builder /usr/src/app/dist ./dist

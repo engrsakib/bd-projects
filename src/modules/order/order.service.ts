@@ -55,6 +55,8 @@ class Service {
 
       // console.log(cartItems, "cart items");
 
+      let total_stock_issue = false;
+
       // check stock availability [most important]
       for (const item of enrichedOrder.products) {
         // console.log(item.variant, "for stock");
@@ -67,7 +69,7 @@ class Service {
           { session }
         );
 
-        if (!stock || stock.available_quantity < item.quantity) {
+        if (!stock) {
           // await session.abortTransaction();
           session.endSession();
           throw new ApiError(
@@ -76,26 +78,32 @@ class Service {
           );
         }
 
-        // lot consumption (FIFO)
-        const consumedLots = await this.consumeLotsFIFO(
-          item.product,
-          item.variant,
-          item.quantity,
-          session
-        );
-        item.lots = consumedLots;
-        // console.log(consumedLots, "consumed lots `");
+        if (stock.available_quantity < item.quantity) {
+          total_stock_issue = true;
+          item.status = ORDER_STATUS.AWAITING_STOCK;
+          continue;
+        } else {
+          // lot consumption (FIFO)
+          const consumedLots = await this.consumeLotsFIFO(
+            item.product,
+            item.variant,
+            item.quantity,
+            session
+          );
+          item.lots = consumedLots;
+          // console.log(consumedLots, "consumed lots `");
 
-        stock.available_quantity -= item.quantity;
-        stock.total_sold = (stock.total_sold || 0) + item.quantity;
-        item.total_sold = (item.total_sold || 0) + item.quantity;
-        await stock.save({ session });
+          stock.available_quantity -= item.quantity;
+          stock.total_sold = (stock.total_sold || 0) + item.quantity;
+          item.total_sold = (item.total_sold || 0) + item.quantity;
+          await stock.save({ session });
+        }
       }
 
-      console.log(
-        JSON.stringify(enrichedOrder.products, null, 2),
-        "final enriched order"
-      );
+      // console.log(
+      //   JSON.stringify(enrichedOrder.products, null, 2),
+      //   "final enriched order"
+      // );
 
       const { total_price, items, total_items } =
         await this.calculateCart(enrichedOrder);
@@ -126,6 +134,7 @@ class Service {
         orders_by: order_by,
 
         items,
+
         total_items,
         total_price,
         total_amount: total_price,
@@ -136,7 +145,9 @@ class Service {
         payment_type: data.payment_type,
         payment_status: PAYMENT_STATUS.PENDING,
         order_at: new Date(),
-        order_status: ORDER_STATUS.PLACED,
+        order_status: total_stock_issue
+          ? ORDER_STATUS.AWAITING_STOCK
+          : ORDER_STATUS.PLACED,
       };
 
       if (data?.tax && data?.tax > 0) {
@@ -164,7 +175,9 @@ class Service {
       if (data.payment_type === "cod") {
         payload.payment_status = PAYMENT_STATUS.PENDING;
         payload.payable_amount = payload.total_amount;
-        payload.order_status = ORDER_STATUS.PLACED;
+        payload.order_status = total_stock_issue
+          ? ORDER_STATUS.AWAITING_STOCK
+          : ORDER_STATUS.PLACED;
       }
 
       if (data.payment_type === "bkash") {
@@ -287,12 +300,13 @@ class Service {
         );
       }
 
+      let total_stock_issue = false;
+
       // console.log(cartItems, "cart items");
 
       // check stock availability [most important]
       for (const item of enrichedOrder.products) {
         // console.log(item.variant, "for stock");
-
         const stock = await StockModel.findOne(
           {
             product: item.product,
@@ -302,28 +316,35 @@ class Service {
           { session }
         );
 
-        if (!stock || stock.available_quantity < item.quantity) {
+        if (!stock) {
           // await session.abortTransaction();
-
+          session.endSession();
           throw new ApiError(
             HttpStatusCode.BAD_REQUEST,
             `Product ${item.product.name} is out of stock or does not have enough quantity`
           );
         }
 
-        // lot consumption (FIFO)
-        const consumedLots = await this.consumeLotsFIFO(
-          item.product,
-          item.variant,
-          item.quantity,
-          session
-        );
-        item.lots = consumedLots;
+        if (stock.available_quantity < item.quantity) {
+          total_stock_issue = true;
+          item.status = ORDER_STATUS.AWAITING_STOCK;
+          continue;
+        } else {
+          // lot consumption (FIFO)
+          const consumedLots = await this.consumeLotsFIFO(
+            item.product,
+            item.variant,
+            item.quantity,
+            session
+          );
+          item.lots = consumedLots;
+          // console.log(consumedLots, "consumed lots `");
 
-        stock.available_quantity -= item.quantity;
-        stock.total_sold = (stock.total_sold || 0) + item.quantity;
-        item.total_sold = (item.total_sold || 0) + item.quantity;
-        await stock.save({ session });
+          stock.available_quantity -= item.quantity;
+          stock.total_sold = (stock.total_sold || 0) + item.quantity;
+          item.total_sold = (item.total_sold || 0) + item.quantity;
+          await stock.save({ session });
+        }
       }
 
       const { total_price, items, total_items } =
@@ -346,7 +367,7 @@ class Service {
 
       const order_by: IOrderBy = role ? role : "guest";
 
-      console.log(data.user_id, "admin placing order for user");
+      // console.log(data.user_id, "admin placing order for user");
 
       const payload: IOrder = {
         user: data.user_id as Types.ObjectId,
@@ -369,7 +390,9 @@ class Service {
         payment_type: data.payment_type,
         payment_status: PAYMENT_STATUS.PENDING,
         order_at: new Date(),
-        order_status: ORDER_STATUS.PLACED,
+        order_status: total_stock_issue
+          ? ORDER_STATUS.AWAITING_STOCK
+          : ORDER_STATUS.PLACED,
       };
 
       if (data?.tax && data?.tax > 0) {
@@ -400,7 +423,9 @@ class Service {
         payload.payable_amount -= data.paid_amount;
       }
 
-      payload.order_status = ORDER_STATUS.PLACED;
+      payload.order_status = total_stock_issue
+        ? ORDER_STATUS.AWAITING_STOCK
+        : ORDER_STATUS.PLACED;
 
       payload.total_amount = Number(payload.total_amount.toFixed());
 
@@ -653,6 +678,26 @@ class Service {
       const order = await OrderModel.findById(orderId).session(session);
       if (!order) {
         throw new ApiError(404, `Order with ID ${orderId} does not exist`);
+      }
+
+      if (
+        order.order_status === ORDER_STATUS.CANCELLED ||
+        order.order_status === ORDER_STATUS.RETURNED ||
+        order.order_status === ORDER_STATUS.LOST ||
+        order.order_status === ORDER_STATUS.UNKNOWN ||
+        order.order_status === ORDER_STATUS.RTS ||
+        order.order_status === ORDER_STATUS.DELIVERED ||
+        order.order_status === ORDER_STATUS.HANDED_OVER_TO_COURIER ||
+        order.order_status === ORDER_STATUS.PENDING_RETURN ||
+        order.order_status === ORDER_STATUS.EXCHANGED ||
+        order.order_status === ORDER_STATUS.PARTIAL ||
+        order.order_status === ORDER_STATUS.AWAITING_STOCK ||
+        order.order_status === ORDER_STATUS.FAILED
+      ) {
+        throw new ApiError(
+          HttpStatusCode.BAD_REQUEST,
+          "Cannot edit a cancelled order"
+        );
       }
 
       // ২. নতুন enriched products (validate & enrich)
@@ -1943,7 +1988,7 @@ class Service {
   }
 
   async updateOrderStatus(
-    order_id: string,
+    order_id: string | Types.ObjectId,
     user_id: string,
     status: ORDER_STATUS
   ): Promise<IOrder | null> {
@@ -2290,6 +2335,124 @@ class Service {
     }
   }
 
+  async setOrderReadyForAccepted(payload: {
+    order_id: number | string;
+    user?: Types.ObjectId;
+  }): Promise<IOrder> {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    const { order_id, user } = payload;
+    try {
+      const order = await OrderModel.findOne({
+        order_id: order_id,
+      })
+        .session(session)
+        .populate("items.product")
+        .populate("items.variant");
+
+      if (!order) {
+        throw new ApiError(
+          HttpStatusCode.NOT_FOUND,
+          `Order with ID ${payload.order_id} not found`
+        );
+      }
+
+      if (!order.order_status?.includes(ORDER_STATUS.AWAITING_STOCK)) {
+        throw new ApiError(
+          HttpStatusCode.BAD_REQUEST,
+          `Cannot set order ${payload.order_id} ready for dispatch status ${order.order_status}`
+        );
+      }
+
+      for (const item of order.items || []) {
+        // console.log(item.variant, "for stock");
+        if (String(item.status) !== String(ORDER_STATUS.AWAITING_STOCK)) {
+          continue;
+        }
+
+        const stock = await StockModel.findOne(
+          {
+            product: item.product,
+            variant: item.variant,
+          },
+          null,
+          { session }
+        );
+
+        if (!stock || stock.available_quantity < item.quantity) {
+          // await session.abortTransaction();
+
+          // Guard: item.product may be an ObjectId; fallback to its string form if name is not available
+          const productName =
+            item.product &&
+            typeof item.product === "object" &&
+            "name" in item.product
+              ? (item.product as any).name
+              : String(item.product);
+          throw new ApiError(
+            HttpStatusCode.BAD_REQUEST,
+            `Product ${productName} is Insufficient stock`
+          );
+        }
+
+        // lot consumption (FIFO)
+        const consumedLots = await this.consumeLotsFIFO(
+          item.product._id ? (item.product as any)._id : item.product,
+          item.variant._id ? (item.variant as any)._id : item.variant,
+          item.quantity,
+          session
+        );
+        // convert returned lotId strings to ObjectId instances to satisfy the expected type
+        item.lots = consumedLots.map((c) => ({
+          lotId: new Types.ObjectId(String(c.lotId)),
+          deducted: c.deducted,
+        })) as any;
+        // console.log(consumedLots, "consumed lots `");
+
+        stock.available_quantity -= item.quantity;
+        stock.total_sold = (stock.total_sold || 0) + item.quantity;
+        item.total_sold = (item.total_sold || 0) + item.quantity;
+        item.status = ORDER_STATUS.PLACED;
+        await stock.save({ session });
+      }
+
+      // update status and log
+      order.order_status = ORDER_STATUS.ACCEPTED;
+      order.logs = order.logs || [];
+      order.logs.push({
+        user: user || null,
+        time: new Date(),
+        action: `ORDER_STATUS_UPDATED: {order.order_status} -> ${ORDER_STATUS.ACCEPTED}`,
+      });
+
+      await order.save({ session });
+
+      await session.commitTransaction();
+      session.endSession();
+
+      // populate before return for consistency with other methods
+      const populatedOrder = await OrderModel.findById(order._id)
+        .populate({
+          path: "items.product",
+          select: "name slug sku thumbnail description",
+        })
+        .populate({
+          path: "items.variant",
+          select:
+            "attributes attribute_values regular_price sale_price sku barcode image",
+        });
+
+      return populatedOrder as IOrder;
+    } catch (error) {
+      await session.abortTransaction();
+      session.endSession();
+      throw new ApiError(
+        HttpStatusCode.INTERNAL_SERVER_ERROR,
+        `Failed to set order ready for dispatch: ${error}`
+      );
+    }
+  }
+
   // enrich products with details
   private async enrichProducts(orderData: any) {
     const enrichedProducts = await Promise.all(
@@ -2371,6 +2534,7 @@ class Service {
           quantity: cartItem.quantity,
           lots: cartItem.lots,
           price: variant?.sale_price || 0,
+          status: cartItem.status ? cartItem.status : ORDER_STATUS.PLACED,
           subtotal,
         };
       })
