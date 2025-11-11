@@ -16,6 +16,8 @@ import { generateUniqueCode } from "@/utils/generateUniqueCode";
 import { VariantService } from "../variant/variant.service";
 import { productSearchableFields } from "./product.constants";
 import { IVariant } from "../variant/variant.interface";
+import { SubcategoryModel } from "../subcategory/subcategory.model";
+import { CategoryModel } from "../category/category.model";
 
 class Service {
   async create(data: ICreateProductPayload): Promise<IProduct> {
@@ -70,6 +72,28 @@ class Service {
     }
   }
 
+  // Replace your normalizeObjectIdList with this:
+  private normalizeSlugList(
+    input: string | string[] | undefined,
+    label?: string
+  ): string[] {
+    const raw = Array.isArray(input) ? input : input ? [input] : [];
+    const slugs = raw
+      .flatMap((v) => String(v).split(",")) // support comma + array
+      .map((v) => v.trim().toLowerCase()) // normalize
+      .filter(Boolean);
+
+    // (Optional) simple slug guard — keep if you want stricter input
+    const invalid = slugs.filter((s) => /[^a-z0-9-_]/i.test(s));
+    if (invalid.length)
+      throw new ApiError(
+        400,
+        `Invalid ${label} slug(s): ${invalid.join(", ")}`
+      );
+
+    return slugs;
+  }
+
   async getAllProducts(options: IPaginationOptions, filters: IProductFilters) {
     const {
       limit = 10,
@@ -112,15 +136,41 @@ class Service {
       });
     }
 
-    if (category && mongoose.isValidObjectId(category)) {
-      andConditions.push({
-        category: new mongoose.Types.ObjectId(category),
-      });
+    // Category & Subcategory by slug (support single, array, comma list)
+    // NOTE: assumes Products.category / Products.subcategory store ObjectId refs
+    const categorySlugs = this.normalizeSlugList(category as any, "category");
+    const subcategorySlugs = this.normalizeSlugList(
+      subcategory as any,
+      "subcategory"
+    );
+
+    if (categorySlugs.length) {
+      const cats = await CategoryModel.find(
+        { slug: { $in: categorySlugs } },
+        { _id: 1 }
+      ).lean();
+      if (!cats.length) {
+        throw new ApiError(
+          404,
+          `Category not found by slug(s): ${categorySlugs.join(", ")}`
+        );
+      }
+      andConditions.push({ category: { $in: cats.map((c: any) => c._id) } });
     }
 
-    if (subcategory && mongoose.isValidObjectId(subcategory)) {
+    if (subcategorySlugs.length) {
+      const subs = await SubcategoryModel.find(
+        { slug: { $in: subcategorySlugs } },
+        { _id: 1 }
+      ).lean();
+      if (!subs.length) {
+        throw new ApiError(
+          404,
+          `Subcategory not found by slug(s): ${subcategorySlugs.join(", ")}`
+        );
+      }
       andConditions.push({
-        subcategory: new mongoose.Types.ObjectId(subcategory),
+        subcategory: { $in: subs.map((s: any) => s._id) },
       });
     }
 
