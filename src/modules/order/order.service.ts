@@ -71,7 +71,6 @@ class Service {
 
         if (!stock) {
           // await session.abortTransaction();
-          session.endSession();
           throw new ApiError(
             HttpStatusCode.BAD_REQUEST,
             `Product ${item.product.name} is out of stock or does not have enough quantity for this order`
