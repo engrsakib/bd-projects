@@ -19,7 +19,7 @@ export type IExpenseApplied = {
 };
 
 export type IPurchase = {
-  _id: string;
+  _id: Types.ObjectId;
   created_by: Types.ObjectId;
   received_by: Types.ObjectId;
   received_at: Date; // auto
