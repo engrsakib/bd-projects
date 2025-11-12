@@ -304,7 +304,7 @@ class Service {
       }
 
       await session.commitTransaction();
-      return updatedPurchase as IPurchase;
+      return updatedPurchase as unknown as IPurchase;
     } catch (error) {
       console.log(error);
       await session.abortTransaction();
