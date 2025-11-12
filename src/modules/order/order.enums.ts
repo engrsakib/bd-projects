@@ -57,4 +57,5 @@ export const ORDER_STATUSES_REPORT = [
   "unknown",
   "partial",
   "lost",
+  "awaiting_stock",
 ] as const;

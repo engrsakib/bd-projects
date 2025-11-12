@@ -1665,6 +1665,7 @@ class Service {
       "partial",
       "unknown",
       "lost",
+      "awaiting_stock",
     ];
 
     // Build status_count object at root level + all property
