@@ -34,7 +34,7 @@ router.patch(
   OrderController.addAdminNoteToOrder
 );
 
-router.post(
+router.patch(
   "/send-order-to-accepted/:orderId",
   JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.ORDER_UPDATE),
