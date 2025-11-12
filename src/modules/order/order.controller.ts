@@ -121,6 +121,27 @@ class Controller extends BaseController {
     });
   });
 
+  cancleOrder = this.catchAsync(async (req: Request, res: Response) => {
+    const { id } = req.params;
+    if (!id) {
+      return this.sendResponse(res, {
+        statusCode: HttpStatusCode.BAD_REQUEST,
+        success: false,
+        message: "Order ID is required",
+      });
+    }
+    const data = await OrderService.cancleOrder(
+      id as string,
+      req.user?.id as string
+    );
+    this.sendResponse(res, {
+      statusCode: HttpStatusCode.OK,
+      success: true,
+      message: "Order cancelled successfully",
+      data,
+    });
+  });
+
   updateOrderStatusBulk = this.catchAsync(
     async (req: Request, res: Response) => {
       const { ids, status } = req.body;
