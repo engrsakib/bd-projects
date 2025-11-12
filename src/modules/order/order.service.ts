@@ -71,10 +71,14 @@ class Service {
 
         if (!stock) {
           // await session.abortTransaction();
-          throw new ApiError(
-            HttpStatusCode.BAD_REQUEST,
-            `Product ${item.product.name} is out of stock or does not have enough quantity for this order`
-          );
+          // throw new ApiError(
+          //   HttpStatusCode.BAD_REQUEST,
+          //   `Product ${item.product.name} is out of stock or does not have enough quantity for this order`
+          // );
+
+          total_stock_issue = true;
+          item.status = ORDER_STATUS.AWAITING_STOCK;
+          continue;
         }
 
         if (stock.available_quantity < item.quantity) {
@@ -318,13 +322,16 @@ class Service {
         if (!stock) {
           // await session.abortTransaction();
           // session.endSession();
-          throw new ApiError(
-            HttpStatusCode.BAD_REQUEST,
-            `Product ${item.product.name} is out of stock or does not have enough quantity`
-          );
+          // throw new ApiError(
+          //   HttpStatusCode.BAD_REQUEST,
+          //   `Product ${item.product.name} is out of stock or does not have enough quantity`
+          // );
+          total_stock_issue = true;
+          item.status = ORDER_STATUS.AWAITING_STOCK;
+          continue;
         }
 
-        if (stock.available_quantity < item.quantity) {
+        if (stock.available_quantity || 0 < item.quantity) {
           total_stock_issue = true;
           item.status = ORDER_STATUS.AWAITING_STOCK;
           continue;
