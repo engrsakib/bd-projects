@@ -2069,6 +2069,10 @@ class Service {
       ) {
         // restore stock if order is cancelled
         for (const item of updatedOrder.items ?? []) {
+          if (item.status === ORDER_STATUS.AWAITING_STOCK) {
+            continue; // skip stock restore for items that were never in stock
+          }
+
           const stock = await StockModel.findOne(
             {
               product: item.product,
@@ -2124,6 +2128,49 @@ class Service {
     } finally {
       session.endSession();
     }
+  }
+
+  async cancleOrder(order_id: string, user_id: string): Promise<IOrder | null> {
+    const order = await OrderModel.findOne({ order_id: order_id });
+    if (!order) {
+      throw new ApiError(
+        HttpStatusCode.NOT_FOUND,
+        `Order was not found with id: ${order_id}`
+      );
+    }
+
+    if (order.order_status === ORDER_STATUS.CANCELLED) {
+      throw new ApiError(
+        HttpStatusCode.BAD_REQUEST,
+        `Order is already cancelled: ${order_id}`
+      );
+    }
+
+    if (order.order_status !== ORDER_STATUS.AWAITING_STOCK) {
+      throw new ApiError(
+        HttpStatusCode.BAD_REQUEST,
+        `Only orders with status AWAITING_STOCK can be cancelled: ${order_id}`
+      );
+    }
+
+    const previousStatus = order.order_status || "N/A";
+
+    const updatedOrder = await OrderModel.findOneAndUpdate(
+      { order_id: order_id },
+      {
+        $set: { order_status: ORDER_STATUS.CANCELLED },
+        $push: {
+          logs: {
+            user: user_id,
+            time: new Date(),
+            action: `ORDER_STATUS_UPDATED: ${previousStatus} -> ${ORDER_STATUS.CANCELLED}`,
+          },
+        },
+      },
+      { new: true }
+    );
+
+    return updatedOrder;
   }
 
   async updateOrdersStatusBulk(params: {
