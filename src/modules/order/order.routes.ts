@@ -42,6 +42,13 @@ router.patch(
 );
 
 router.patch(
+  "/cancel-order/awaiting-stock/:id",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.ORDER_UPDATE),
+  OrderController.cancleOrder
+);
+
+router.patch(
   "/update-order-status",
   JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.ORDER_UPDATE),
