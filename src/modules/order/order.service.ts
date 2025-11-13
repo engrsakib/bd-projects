@@ -81,6 +81,9 @@ class Service {
           continue;
         }
 
+        // console.log(stock.available_quantity, "available qnt");
+        // console.log(item.quantity, "item qnt");
+
         if (stock.available_quantity < item.quantity) {
           total_stock_issue = true;
           item.status = ORDER_STATUS.AWAITING_STOCK;
@@ -93,6 +96,7 @@ class Service {
             item.quantity,
             session
           );
+
           item.lots = consumedLots;
           // console.log(consumedLots, "consumed lots `");
 
@@ -319,6 +323,8 @@ class Service {
           { session }
         );
 
+        console.log(stock, "stocks data");
+
         if (!stock) {
           // await session.abortTransaction();
           // session.endSession();
@@ -331,7 +337,10 @@ class Service {
           continue;
         }
 
-        if (stock.available_quantity || 0 < item.quantity) {
+        // console.log(stock.available_quantity, "available qnt");
+        // console.log(item.quantity, "item qnt");
+
+        if (stock.available_quantity < item.quantity) {
           total_stock_issue = true;
           item.status = ORDER_STATUS.AWAITING_STOCK;
           continue;
