@@ -711,7 +711,7 @@ class Service {
       ) {
         throw new ApiError(
           HttpStatusCode.BAD_REQUEST,
-          "Cannot edit a cancelled order"
+          `Cannot edit ${order.order_status} order`
         );
       }
 
@@ -727,6 +727,10 @@ class Service {
 
       // ৩. পুরাতন order.items এর stock rollback + total_sold কমানো
       for (const prevItem of order.items ?? []) {
+        // if (prevItem.status === ORDER_STATUS.AWAITING_STOCK) {
+        //   continue;
+        // }
+
         const stock = await StockModel.findOne({
           product: prevItem.product,
           variant: prevItem.variant,
@@ -2028,8 +2032,7 @@ class Service {
         previousStatus === ORDER_STATUS.LOST ||
         previousStatus === ORDER_STATUS.EXCHANGED ||
         previousStatus === ORDER_STATUS.INCOMPLETE ||
-        previousStatus === ORDER_STATUS.PARTIAL ||
-        previousStatus === ORDER_STATUS.AWAITING_STOCK
+        previousStatus === ORDER_STATUS.PARTIAL
       ) {
         throw new ApiError(
           HttpStatusCode.BAD_REQUEST,
