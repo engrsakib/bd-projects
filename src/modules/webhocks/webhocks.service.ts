@@ -66,8 +66,11 @@ class service extends BaseController {
     console.log(data.notification_type, "notification type");
 
     if (data.notification_type === "delivery_status") {
-      const mappedStatus =
+      let mappedStatus =
         STATUS_MAP[String(data.status).toLowerCase()] || ORDER_STATUS.UNKNOWN;
+      if (String(data.status).toLowerCase() === "cancelled") {
+        mappedStatus = ORDER_STATUS.PENDING_RETURN;
+      }
       order.order_status = mappedStatus as IOrderStatus;
       courier.order_status = mappedStatus as ORDER_STATUS;
 
@@ -76,7 +79,7 @@ class service extends BaseController {
         order.delivery_charge = data.delivery_charge;
       if ("tracking_message" in data)
         order.system_message = data.tracking_message;
-      if ("updated_at" in data)
+      if ("updated_at" in data) {
         if (
           prevOrderStatus == mappedStatus &&
           prevDeliveryCharge != order.delivery_charge
@@ -105,21 +108,22 @@ class service extends BaseController {
             time: new Date(data.updated_at),
           });
         }
+      }
       await order.save();
       await courier.save();
 
-      if (String(data.status).toLowerCase() === "cancelled") {
-        try {
-          await OrderService.updateOrderStatus(
-            order._id,
-            "",
-            ORDER_STATUS.CANCELLED
-          );
-          console.log("Stock updated due to cancellation");
-        } catch (error) {
-          console.error("Error updating stock after cancellation:", error);
-        }
-      }
+      // if (String(data.status).toLowerCase() === "cancelled") {
+      //   try {
+      //     await OrderService.updateOrderStatus(
+      //       order._id,
+      //       "",
+      //       ORDER_STATUS.PENDING_RETURN
+      //     );
+      //     console.log("Stock updated due to cancellation");
+      //   } catch (error) {
+      //     console.error("Error updating stock after cancellation:", error);
+      //   }
+      // }
     }
     console.log(order.id, "order id for webhook tracking update");
     if (data.notification_type === "tracking_update") {
