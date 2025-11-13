@@ -81,8 +81,8 @@ class Service {
           continue;
         }
 
-        console.log(stock.available_quantity, "available qnt");
-        console.log(item.quantity, "item qnt");
+        // console.log(stock.available_quantity, "available qnt");
+        // console.log(item.quantity, "item qnt");
 
         if (stock.available_quantity < item.quantity) {
           total_stock_issue = true;
@@ -337,8 +337,8 @@ class Service {
           continue;
         }
 
-        console.log(stock.available_quantity, "available qnt");
-        console.log(item.quantity, "item qnt");
+        // console.log(stock.available_quantity, "available qnt");
+        // console.log(item.quantity, "item qnt");
 
         if (stock.available_quantity < item.quantity) {
           total_stock_issue = true;
