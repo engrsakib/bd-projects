@@ -15,7 +15,7 @@ class Controller extends BaseController {
     if (data.status === "success") {
       res.redirect(`${frontendUrl}/payment/success?payment_id=${paymentID}`);
     } else {
-      res.redirect(`${frontendUrl}/payment/fail?payment_id=${paymentID}`);
+      res.redirect(`${frontendUrl}/payment/failed?payment_id=${paymentID}`);
     }
   });
 }

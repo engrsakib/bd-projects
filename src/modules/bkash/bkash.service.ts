@@ -17,7 +17,7 @@ class Service {
     envConfig.bkash.urls.execute_payment_url;
   private readonly refund_transaction_url =
     envConfig.bkash.urls.refund_transaction_url;
-  private readonly callback_url = `${envConfig.bkash.urls.callback_url}/payments/bkash/execute-callback`;
+  private readonly callback_url = `${envConfig.clients.server_base_url}/payments/bkash/execute-callback`;
 
   // --- bKash Credentials ---
   private readonly username = envConfig.bkash.credentials.username;
@@ -32,6 +32,7 @@ class Service {
   // Internal helper to ensure token is valid or refresh it
   private async ensureToken() {
     const now = Date.now();
+    console.log("grantToken", this.id_token);
     if (!this.id_token || !this.token_expiry || now >= this.token_expiry) {
       await this.grantToken();
     }
@@ -93,7 +94,7 @@ class Service {
         merchantInvoiceNumber: params.invoice_number,
       };
 
-      console.log(payload);
+      console.log(payload, "bKash Create Payment Payload");
 
       const config: AxiosRequestConfig = {
         headers: {
@@ -110,14 +111,14 @@ class Service {
         config
       );
 
+      console.log("Bkash payment response", data);
+
       if (!data?.paymentID) {
         throw new ApiError(
           HttpStatusCode.BAD_REQUEST,
           "Failed to place order or payment initiate. Please try again"
         );
       }
-
-      console.log("Successfully payment", data);
 
       return { payment_id: data.paymentID, payment_url: data.bkashURL };
     } catch (error: any) {
@@ -151,6 +152,8 @@ class Service {
         payload,
         config
       );
+
+      console.log("bkash execute data", data);
 
       // 4. Validate response
       if (!data || !data.trxID || !data.transactionStatus) {
