@@ -7,14 +7,14 @@ import { IOrder } from "../order/order.interface";
 
 export type ITransaction = {
   trx_id: string;
-  user?: IUser; // for guest user user_id will null
+  user?: IUser | Types.ObjectId | null; // for guest user user_id will null
   trx_status: string;
-  order: IOrder;
+  order: IOrder | Types.ObjectId | string | null;
   payment_id: string;
   payment_date: Date;
   amount: number;
   currency: string;
-  payment_by: string;
+  payment_by: string | Types.ObjectId | null;
   message?: string;
   method: "BKASH" | "NAGAD";
   _id?: Types.ObjectId;

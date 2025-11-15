@@ -13,6 +13,7 @@ export const envConfig = {
     admin_prod: process.env.ADMIN_CLIENT_URL_PROD as string,
     public_dev: process.env.PUBLIC_CLIENT_URL_DEV as string,
     public_prod: process.env.PUBLIC_CLIENT_URL_PROD as string,
+    server_base_url: process.env.SERVER_BASE_URL as string,
   },
   cors_origins: process.env.CORS_ORIGINS
     ? (process.env.CORS_ORIGINS as string).split(", ")

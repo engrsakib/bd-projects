@@ -92,14 +92,15 @@ export type IOrder = {
   delivery_address: IAddress;
   payment_type: "bkash" | "cod";
   transaction_id?: string;
-  payment_id?: string;
+  payment_info?: Types.ObjectId | string | null;
+  payment_id?: string | Types.ObjectId;
   payment_status?: "pending" | "paid" | "failed" | "refunded";
 
   order_at?: Date;
 
   is_delivery_charge_paid?: boolean;
 
-  system_message?: string;
+  system_message?: [string];
   order_note?: string;
   admin_notes?: IAdminNote[];
 
