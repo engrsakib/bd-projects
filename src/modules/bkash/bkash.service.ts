@@ -197,7 +197,6 @@ class Service {
     }
   }
 
-  // Expose grantToken if you want to manually hit the grant endpoint somewhere else
   public async grantToken() {
     return this.getNewGrantToken();
   }
@@ -347,11 +346,12 @@ class Service {
         payload,
         config
       );
+      console.log("refund data", data);
 
       if (!data?.transactionStatus) {
         throw new ApiError(
           HttpStatusCode.BAD_REQUEST,
-          "Failed to refund bKash payment"
+          data?.statusMessage || "Failed to refund bKash payment"
         );
       }
 
