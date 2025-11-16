@@ -6,7 +6,7 @@ import { ROLES } from "@/constants/roles";
 import { PermissionEnum } from "../permission/permission.enum";
 
 const router = Router();
-router.post(
+router.put(
   "/",
   JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.DEFAULTS_PURCHASE),
