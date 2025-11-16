@@ -44,6 +44,12 @@ router.delete(
 router.get("/search-by-sku", VariantController.searchVariantsBySku);
 
 router.get(
+  "/search-by-sku/purchase",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  VariantController.searchVariantsBySkuPurchase
+);
+
+router.get(
   "/search-by-sku/admin",
   JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.ORDER_CREATE),

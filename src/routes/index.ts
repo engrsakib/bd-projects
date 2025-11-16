@@ -22,6 +22,7 @@ import { ContentManagementRoutes } from "@/modules/cms/cms.router";
 import { PermissionsRoutes } from "@/modules/permission/permission.route";
 import { WebhocksRoutes } from "@/modules/webhocks/webhocks.route";
 import { PreOrderRoutes } from "@/modules/preOrder/preOrder.routes";
+import { defaultPurchaseRoutes } from "@/modules/default-purchase/default-purchase.routes";
 const router = Router();
 
 const moduleRoutes = [
@@ -72,6 +73,10 @@ const moduleRoutes = [
   {
     path: "/purchase",
     route: PurchaseRoutes,
+  },
+  {
+    path: "/purchase/default",
+    route: defaultPurchaseRoutes,
   },
   {
     path: "/stocks",

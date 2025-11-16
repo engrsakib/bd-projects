@@ -258,6 +258,42 @@ class Service {
     };
   }
 
+  async searchVariantsBySkuPurchase(
+    search_query: string,
+    options: IPaginationOptions
+  ) {
+    const {
+      limit = 10,
+      page = 1,
+      skip,
+      sortBy = "createdAt",
+      sortOrder = "desc",
+    } = paginationHelpers.calculatePagination(options);
+
+    const searchCondition: any = {};
+    if (search_query) {
+      searchCondition.$or = [{ sku: { $regex: search_query, $options: "i" } }];
+    }
+
+    const result = await VariantModel.find({ ...searchCondition })
+      .populate("product", "name slug sku thumbnail")
+      .populate("default_purchase", "unit_cost discount tax")
+      .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
+      .skip(skip)
+      .limit(limit);
+
+    const total = await VariantModel.countDocuments(searchCondition);
+
+    return {
+      meta: {
+        page,
+        limit,
+        total,
+      },
+      data: result,
+    };
+  }
+
   async searchVariantsBySkuForAdmin(
     search_query: string,
     options: IPaginationOptions
