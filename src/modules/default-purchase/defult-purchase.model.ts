@@ -1,6 +1,6 @@
 import { model, Schema } from "mongoose";
 import { schemaOptions } from "@/utils/schemaOptions";
-import { IDefaultsPurchase } from "./defult-purchase.interface";
+import { IDefaultsPurchase } from "./default-purchase.interface";
 
 const defaultsPurchaseSchema = new Schema<IDefaultsPurchase>(
   {

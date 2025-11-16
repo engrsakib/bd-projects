@@ -1,6 +1,6 @@
 import { Types } from "mongoose";
 import { DefaultsPurchaseModel } from "./defult-purchase.model";
-import { IDefaultsPurchase } from "./defult-purchase.interface";
+import { IDefaultsPurchase } from "./default-purchase.interface";
 import ApiError from "@/middlewares/error";
 import { HttpStatusCode } from "@/lib/httpStatus";
 
@@ -78,4 +78,4 @@ class Service {
   }
 }
 
-export const PurchaseService = new Service();
+export const DefaultsPurchaseService = new Service();
