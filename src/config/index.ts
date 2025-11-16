@@ -42,6 +42,7 @@ export const envConfig = {
   bkash: {
     urls: {
       grant_token_url: process.env.BKASH_GRANT_TOKEN_URL as string,
+      refresh_token_url: process.env.BKASH_REFRESH_TOKEN_URL as string,
       create_payment_url: process.env.BKASH_CREATE_PAYMENT_URL as string,
       execute_payment_url: process.env.BKASH_EXECUTE_PAYMENT_URL as string,
       refund_transaction_url: process.env
