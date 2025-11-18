@@ -355,6 +355,8 @@ class Service {
         customer_email: data.customer_email,
         orders_by: order_by,
 
+        is_pre_order: true,
+
         items,
         total_items,
         total_price,
@@ -398,6 +400,12 @@ class Service {
         data.paid_amount = Number(data?.paid_amount.toFixed());
         payload.payable_amount -= data.paid_amount;
       }
+
+      // const res = await OrderModel.updateMany(
+      //   { is_pre_order: { $exists: false } }, // only those without the field
+      //   { $set: { is_pre_order: true } }
+      // );
+      // console.log(res, "bulk update pre order field");
 
       payload.order_status = ORDER_STATUS.PLACED;
 
@@ -1210,7 +1218,7 @@ class Service {
         order.order_status === ORDER_STATUS.CANCELLED ||
         order.order_status === ORDER_STATUS.FAILED ||
         order.order_status === ORDER_STATUS.DELIVERED ||
-        order.order_status === ORDER_STATUS.READY_FOR_DISPATCH
+        order.order_status === ORDER_STATUS.RTS
       ) {
         throw new ApiError(
           HttpStatusCode.BAD_REQUEST,
@@ -1266,12 +1274,12 @@ class Service {
       }
 
       // update status and log
-      order.order_status = ORDER_STATUS.READY_FOR_DISPATCH;
+      order.order_status = ORDER_STATUS.RTS;
       order.logs = order.logs || [];
       order.logs.push({
         user: user || null,
         time: new Date(),
-        action: `ORDER_STATUS_UPDATED: {order.order_status} -> ${ORDER_STATUS.READY_FOR_DISPATCH}`,
+        action: `ORDER_STATUS_UPDATED: {order.order_status} -> ${ORDER_STATUS.RTS}`,
       });
 
       await order.save({ session });

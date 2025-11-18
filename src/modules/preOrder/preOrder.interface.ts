@@ -78,6 +78,7 @@ export type IOrder = {
   total_items: number;
   total_price: number;
   delivery_charge?: number;
+
   total_amount: number;
   paid_amount?: number;
   payable_amount?: number;
@@ -97,6 +98,8 @@ export type IOrder = {
   order_at?: Date;
 
   is_delivery_charge_paid?: boolean;
+
+  is_pre_order?: boolean;
 
   system_message?: string;
   order_note?: string;
