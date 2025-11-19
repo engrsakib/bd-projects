@@ -1728,23 +1728,28 @@ class Service {
     ]);
 
     const orderStatusList: IOrderStatus[] = [
-      "failed",
-      "pending",
+      "arrived_international_warehouse",
+      "on_the_way_to_bd",
+      "arrived_bd_warehouse",
+      "inspection_in_progress",
       "placed",
       "accepted",
+      "rejected",
       "rts",
       "handed_over_to_courier",
       "in_transit",
+      "pending",
       "delivered",
       "pending_return",
       "returned",
       "cancelled",
       "exchange_requested",
       "exchanged",
-      "incomplete",
       "partial",
       "unknown",
       "lost",
+      "incomplete",
+      "failed",
     ];
 
     // Build status_count object at root level + all property
