@@ -1218,7 +1218,7 @@ class Service {
         order.order_status === ORDER_STATUS.CANCELLED ||
         order.order_status === ORDER_STATUS.FAILED ||
         order.order_status === ORDER_STATUS.DELIVERED ||
-        order.order_status === ORDER_STATUS.RTS
+        order.order_status === ORDER_STATUS.INSPECTION_IN_PROGRESS
       ) {
         throw new ApiError(
           HttpStatusCode.BAD_REQUEST,
@@ -1274,12 +1274,12 @@ class Service {
       }
 
       // update status and log
-      order.order_status = ORDER_STATUS.RTS;
+      order.order_status = ORDER_STATUS.INSPECTION_IN_PROGRESS;
       order.logs = order.logs || [];
       order.logs.push({
         user: user || null,
         time: new Date(),
-        action: `ORDER_STATUS_UPDATED: {order.order_status} -> ${ORDER_STATUS.RTS}`,
+        action: `ORDER_STATUS_UPDATED: {order.order_status} -> ${ORDER_STATUS.INSPECTION_IN_PROGRESS}`,
       });
 
       await order.save({ session });
