@@ -504,6 +504,8 @@ class Service {
       for (const { product, variant, quantity, lot } of pairs) {
         // Stock check, deduct, or update operations
 
+        // console.log(product, "product", variant, "variant", quantity, "quantity", lot, "product variant quantity");
+
         if (!product || !variant || !lot) {
           throw new ApiError(400, "Invalid product, variant, or lot data");
         }
@@ -525,7 +527,7 @@ class Service {
           session
         );
         if (!lotRecord) {
-          throw new ApiError(404, "Lot record not found");
+          throw new ApiError(404, "Lot records not found");
         }
         lotRecord.qty_available += quantity;
         await stock.save({ session });

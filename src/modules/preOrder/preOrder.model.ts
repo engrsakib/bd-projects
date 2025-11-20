@@ -110,6 +110,8 @@ const orderSchema = new Schema<IOrder>(
     // tracking dates
     order_at: { type: Date, default: new Date() },
 
+    is_pre_order: { type: Boolean, default: true },
+
     system_message: { type: String, default: "" },
     order_note: { type: String, default: "" },
     notes: { type: String, default: "" },

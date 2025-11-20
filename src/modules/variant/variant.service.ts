@@ -306,8 +306,57 @@ class Service {
       sortOrder = "desc",
     } = paginationHelpers.calculatePagination(options);
 
+    // Normalize order_type from options: may be string, comma list or array
+    const orderTypeFilter = (options as any)?.order_type;
+    console.log(orderTypeFilter, "order filter");
+    let orderTypes: string[] | null = null;
+    if (orderTypeFilter) {
+      if (Array.isArray(orderTypeFilter)) orderTypes = orderTypeFilter;
+      else
+        orderTypes = String(orderTypeFilter)
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
+      if (orderTypes && orderTypes.length === 0) orderTypes = null;
+    }
+
+    /**
+     * Pipeline design:
+     * 1) $lookup product
+     * 2) $unwind product
+     * 3) Immediately filter by product.order_type (if provided) AND product.is_published
+     * 4) Apply variant-level filters like sku search (so sku filter is applied *after*
+     *    we've restricted to the desired product order_type)
+     * 5) Sort / Skip / Limit
+     *
+     * Note: totalCount pipeline mirrors the same filters to produce an accurate total.
+     */
+
+    // Build the initial product-level match (applied right after $unwind)
+    const productLevelMatch: any = { "product.is_published": true };
+    if (orderTypes) {
+      productLevelMatch["product.order_type"] = { $in: orderTypes };
+    }
+
     // Aggregation pipeline setup
     const pipeline: any[] = [
+      // 1) join product
+      {
+        $lookup: {
+          from: "products",
+          localField: "product",
+          foreignField: "_id",
+          as: "product",
+        },
+      },
+
+      // 2) unwind product array to get single product object per variant
+      { $unwind: "$product" },
+
+      // 3) apply product-level filters first (order_type + is_published)
+      { $match: productLevelMatch },
+
+      // 4) apply variant-level search (sku) after product-level filtering
       ...(search_query
         ? [
             {
@@ -317,16 +366,8 @@ class Service {
             },
           ]
         : []),
-      {
-        $lookup: {
-          from: "products",
-          localField: "product",
-          foreignField: "_id",
-          as: "product",
-        },
-      },
-      { $unwind: "$product" },
-      { $match: { "product.is_published": true } },
+
+      // 5) sorting, pagination
       { $sort: { [sortBy]: sortOrder === "desc" ? -1 : 1 } },
       { $skip: skip },
       { $limit: limit },
@@ -336,16 +377,7 @@ class Service {
     const variants = await VariantModel.aggregate(pipeline);
 
     // Total count with same filter (for pagination meta)
-    const totalCountAgg = await VariantModel.aggregate([
-      ...(search_query
-        ? [
-            {
-              $match: {
-                sku: { $regex: search_query, $options: "i" },
-              },
-            },
-          ]
-        : []),
+    const countPipeline: any[] = [
       {
         $lookup: {
           from: "products",
@@ -355,18 +387,29 @@ class Service {
         },
       },
       { $unwind: "$product" },
-      { $match: { "product.is_published": true } },
+      { $match: productLevelMatch },
+      ...(search_query
+        ? [
+            {
+              $match: {
+                sku: { $regex: search_query, $options: "i" },
+              },
+            },
+          ]
+        : []),
       { $count: "total" },
-    ]);
+    ];
+
+    const totalCountAgg = await VariantModel.aggregate(countPipeline);
     const total = totalCountAgg[0]?.total || 0;
 
-    // Prepare data: inject stock for all items
+    // Prepare data: inject stock for all items (response shape preserved)
     const data = await Promise.all(
       variants.map(async (item) => {
         const stock = await StockModel.findOne({
           product: item.product._id,
           variant: item._id,
-        });
+        }).lean();
         return {
           ...item,
           stock: stock?.available_quantity || 0,
