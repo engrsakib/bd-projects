@@ -258,6 +258,8 @@ class Service {
           description: 1,
           thumbnail: 1,
           category: 1,
+          order_type: 1,
+          pre_order_product: 1,
           subcategory: 1,
           is_published: 1,
           search_tags: 1,
