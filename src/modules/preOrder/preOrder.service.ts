@@ -2092,9 +2092,12 @@ class Service {
 
       if (
         order.order_status === ORDER_STATUS.HANDED_OVER_TO_COURIER &&
-        [ORDER_STATUS.RTS, ORDER_STATUS.ACCEPTED, ORDER_STATUS.PLACED].includes(
-          status
-        )
+        [
+          ORDER_STATUS.RTS,
+          ORDER_STATUS.ACCEPTED,
+          ORDER_STATUS.PLACED,
+          ORDER_STATUS.REJECTED,
+        ].includes(status)
       ) {
         throw new ApiError(
           HttpStatusCode.BAD_REQUEST,

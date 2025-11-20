@@ -20,6 +20,7 @@ import { IVariant } from "../variant/variant.interface";
 class Service {
   async create(data: ICreateProductPayload): Promise<IProduct> {
     const { variants = [], ...rest } = data;
+    console.log(variants, "vat");
     // Start a session for transaction
     const session = await ProductModel.startSession();
     session.startTransaction();
