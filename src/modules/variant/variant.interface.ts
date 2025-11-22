@@ -12,6 +12,7 @@ export interface IVariant extends Document {
   barcode: string;
   image?: string;
   product: Types.ObjectId;
+  default_purchase?: Types.ObjectId;
 }
 
 export interface IUpdateVariantByProduct {

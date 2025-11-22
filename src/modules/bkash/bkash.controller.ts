@@ -15,8 +15,18 @@ class Controller extends BaseController {
     if (data.status === "success") {
       res.redirect(`${frontendUrl}/payment/success?payment_id=${paymentID}`);
     } else {
-      res.redirect(`${frontendUrl}/payment/fail?payment_id=${paymentID}`);
+      res.redirect(`${frontendUrl}/payment/failed?payment_id=${paymentID}`);
     }
+  });
+  refundPayment = this.catchAsync(async (req: Request, res: Response) => {
+    const payload = req.body;
+    const data = await BkashService.refundPayment(payload);
+    this.sendResponse(res, {
+      statusCode: 200,
+      success: true,
+      message: "Refund processed successfully",
+      data,
+    });
   });
 }
 

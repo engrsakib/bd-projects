@@ -36,7 +36,7 @@ const productSchema = new Schema<IProduct>(
     slider_images: { type: [String], default: [] },
 
     // ===== Order Type =====
-    order_type: {
+    product_type: {
       type: String,
       enum: OrderTypes,
       default: OrderTypes.STANDARD,

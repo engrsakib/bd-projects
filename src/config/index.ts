@@ -13,6 +13,7 @@ export const envConfig = {
     admin_prod: process.env.ADMIN_CLIENT_URL_PROD as string,
     public_dev: process.env.PUBLIC_CLIENT_URL_DEV as string,
     public_prod: process.env.PUBLIC_CLIENT_URL_PROD as string,
+    server_base_url: process.env.SERVER_BASE_URL as string,
   },
   cors_origins: process.env.CORS_ORIGINS
     ? (process.env.CORS_ORIGINS as string).split(", ")
@@ -41,6 +42,7 @@ export const envConfig = {
   bkash: {
     urls: {
       grant_token_url: process.env.BKASH_GRANT_TOKEN_URL as string,
+      refresh_token_url: process.env.BKASH_REFRESH_TOKEN_URL as string,
       create_payment_url: process.env.BKASH_CREATE_PAYMENT_URL as string,
       execute_payment_url: process.env.BKASH_EXECUTE_PAYMENT_URL as string,
       refund_transaction_url: process.env

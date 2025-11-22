@@ -22,6 +22,11 @@ const variantSchema = new Schema<IVariant>(
     },
     image: { type: String },
     product: { type: Schema.Types.ObjectId, ref: "Product", required: true },
+    default_purchase: {
+      type: Schema.Types.ObjectId,
+      ref: "DefaultsPurchase",
+      required: false,
+    },
   },
   schemaOptions
 );

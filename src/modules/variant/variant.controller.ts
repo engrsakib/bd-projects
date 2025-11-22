@@ -79,9 +79,27 @@ class Controller extends BaseController {
     });
   });
 
+  searchVariantsBySkuPurchase = this.catchAsync(
+    async (req: Request, res: Response) => {
+      const options = pickQueries(req.query, paginationFields);
+      const result = await VariantService.searchVariantsBySkuPurchase(
+        req.query.search_query as string,
+        options
+      );
+      this.sendResponse(res, {
+        statusCode: HttpStatusCode.OK,
+        success: true,
+        message: "Variants fetched successfully",
+        data: result,
+      });
+    }
+  );
+
   searchVariantsBySkuForAdmin = this.catchAsync(
     async (req: Request, res: Response) => {
       const options = pickQueries(req.query, paginationFields);
+
+      console.log(options, "options");
 
       const result = await VariantService.searchVariantsBySkuForAdmin(
         req.query.search_query as string,

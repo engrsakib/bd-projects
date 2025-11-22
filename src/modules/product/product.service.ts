@@ -22,6 +22,7 @@ import { CategoryModel } from "../category/category.model";
 class Service {
   async create(data: ICreateProductPayload): Promise<IProduct> {
     const { variants = [], ...rest } = data;
+    console.log(variants, "vat");
     // Start a session for transaction
     const session = await ProductModel.startSession();
     session.startTransaction();
@@ -307,6 +308,8 @@ class Service {
           description: 1,
           thumbnail: 1,
           category: 1,
+          product_type: 1,
+          pre_order_product: 1,
           subcategory: 1,
           is_published: 1,
           search_tags: 1,
