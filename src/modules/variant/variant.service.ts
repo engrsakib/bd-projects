@@ -307,7 +307,7 @@ class Service {
     } = paginationHelpers.calculatePagination(options);
 
     // Normalize order_type from options: may be string, comma list or array
-    const orderTypeFilter = (options as any)?.order_type;
+    const orderTypeFilter = (options as any)?.product_type;
     console.log(orderTypeFilter, "order filter");
     let orderTypes: string[] | null = null;
     if (orderTypeFilter) {
@@ -324,9 +324,9 @@ class Service {
      * Pipeline design:
      * 1) $lookup product
      * 2) $unwind product
-     * 3) Immediately filter by product.order_type (if provided) AND product.is_published
+     * 3) Immediately filter by product.product_type (if provided) AND product.is_published
      * 4) Apply variant-level filters like sku search (so sku filter is applied *after*
-     *    we've restricted to the desired product order_type)
+     *    we've restricted to the desired product.product_type)
      * 5) Sort / Skip / Limit
      *
      * Note: totalCount pipeline mirrors the same filters to produce an accurate total.
@@ -335,7 +335,7 @@ class Service {
     // Build the initial product-level match (applied right after $unwind)
     const productLevelMatch: any = { "product.is_published": true };
     if (orderTypes) {
-      productLevelMatch["product.order_type"] = { $in: orderTypes };
+      productLevelMatch["product.product_type"] = { $in: orderTypes };
     }
 
     // Aggregation pipeline setup
@@ -353,7 +353,7 @@ class Service {
       // 2) unwind product array to get single product object per variant
       { $unwind: "$product" },
 
-      // 3) apply product-level filters first (order_type + is_published)
+      // 3) apply product-level filters first (product_type + is_published)
       { $match: productLevelMatch },
 
       // 4) apply variant-level search (sku) after product-level filtering

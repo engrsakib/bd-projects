@@ -99,7 +99,7 @@ class Controller extends BaseController {
     async (req: Request, res: Response) => {
       const options = pickQueries(req.query, paginationFields);
 
-      // console.log(options, "options")
+      console.log(options, "options");
 
       const result = await VariantService.searchVariantsBySkuForAdmin(
         req.query.search_query as string,
