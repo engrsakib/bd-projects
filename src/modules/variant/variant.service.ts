@@ -366,7 +366,7 @@ class Service {
       { $unwind: "$product" },
 
       // always require published products
-      { $match: { "product.is_published": true } },
+      // { $match: { "product.is_published": true } },
     ];
 
     // add case-insensitive product_type match if filter provided
