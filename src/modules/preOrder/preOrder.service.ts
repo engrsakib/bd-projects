@@ -2293,7 +2293,7 @@ class Service {
     session: mongoose.ClientSession
   ): Promise<number> {
     const counter = await CounterModel.findOneAndUpdate(
-      { name: "order_id" },
+      { name: "pre_order_id" },
       { $inc: { sequence: 1 } },
       { new: true, upsert: true, session }
     );
