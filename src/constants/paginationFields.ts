@@ -3,7 +3,7 @@ export const paginationFields: string[] = [
   "limit",
   "sortBy",
   "sortOrder",
-  "order_type",
+  "product_type",
   "searchTerm",
 ];
 
