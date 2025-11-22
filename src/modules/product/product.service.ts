@@ -583,7 +583,7 @@ class Service {
     const product = await ProductModel.findById(id)
       .populate("category")
       .populate("subcategory")
-      // .populate("variants")
+      .populate("variants")
       .lean();
 
     if (!product) {
