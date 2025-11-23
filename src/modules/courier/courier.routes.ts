@@ -21,6 +21,13 @@ router.patch(
 );
 
 router.patch(
+  "/pre-order/transfer-to-courier/:id",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.COURIER_CREATE),
+  CourierController.transferToCourierPreOrder
+);
+
+router.patch(
   "/scan-to-shipping/:orderId",
   JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.COURIER_CREATE),

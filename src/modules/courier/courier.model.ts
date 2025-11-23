@@ -32,6 +32,8 @@ const CourierSchema = new Schema(
       },
     },
 
+    is_pre_order: { type: Boolean, default: false },
+
     delivery_man: {
       type: String,
       trim: true,
