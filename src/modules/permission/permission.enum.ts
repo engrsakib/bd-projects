@@ -32,6 +32,7 @@ export enum PermissionEnum {
   PURCHASE_UPDATE = "purchase.update",
   PURCHASE_DELETE = "purchase.delete",
   PURCHASE_VIEW = "purchase.view",
+  DEFAULTS_PURCHASE = "defaults.purchase",
 
   REPORT_VIEW = "report.view",
 

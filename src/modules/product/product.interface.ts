@@ -31,7 +31,7 @@ export interface IProduct extends Document {
   description: string;
   sku: string;
 
-  order_type: IOrderTypes;
+  product_type: IOrderTypes;
   pre_order_product?: IpreOrderProduct;
 
   thumbnail: string;

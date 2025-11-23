@@ -258,6 +258,42 @@ class Service {
     };
   }
 
+  async searchVariantsBySkuPurchase(
+    search_query: string,
+    options: IPaginationOptions
+  ) {
+    const {
+      limit = 10,
+      page = 1,
+      skip,
+      sortBy = "createdAt",
+      sortOrder = "desc",
+    } = paginationHelpers.calculatePagination(options);
+
+    const searchCondition: any = {};
+    if (search_query) {
+      searchCondition.$or = [{ sku: { $regex: search_query, $options: "i" } }];
+    }
+
+    const result = await VariantModel.find({ ...searchCondition })
+      .populate("product", "name slug sku thumbnail")
+      .populate("default_purchase", "unit_cost discount tax")
+      .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
+      .skip(skip)
+      .limit(limit);
+
+    const total = await VariantModel.countDocuments(searchCondition);
+
+    return {
+      meta: {
+        page,
+        limit,
+        total,
+      },
+      data: result,
+    };
+  }
+
   async searchVariantsBySkuForAdmin(
     search_query: string,
     options: IPaginationOptions
@@ -270,17 +306,55 @@ class Service {
       sortOrder = "desc",
     } = paginationHelpers.calculatePagination(options);
 
-    // Aggregation pipeline setup
+    // Accept either options.product_type or options.order_type (clients may send either)
+    const rawTypeFilter =
+      (options as any)?.product_type ?? (options as any)?.order_type;
+    console.log(rawTypeFilter, "product_type/order_type filter (raw)");
+
+    let productTypesLower: string[] | null = null;
+    if (rawTypeFilter) {
+      let productTypes: string[] = [];
+      if (Array.isArray(rawTypeFilter)) {
+        productTypes = rawTypeFilter.map((v: string) => String(v).trim());
+      } else {
+        productTypes = String(rawTypeFilter)
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
+      }
+
+      // Normalize common typos and casing (extend map if necessary)
+      const corrections: Record<string, string> = {
+        pre_orde: "pre_order",
+        preorder: "pre_order",
+        preorde: "pre_order",
+        PREORDER: "pre_order",
+        PRE_ORDE: "pre_order",
+        // add more if you observe other common mistakes
+      };
+      const normalized = productTypes.map((p) => {
+        const key = p;
+        const keyLower = p.toLowerCase();
+        return corrections[key] ?? corrections[keyLower] ?? p;
+      });
+
+      // Use lowercase version for case-insensitive matching in pipeline
+      productTypesLower = normalized.map((p) => String(p).toLowerCase());
+      // remove empties
+      productTypesLower = productTypesLower.filter(Boolean);
+      if (productTypesLower.length === 0) productTypesLower = null;
+    }
+
+    /**
+     * Pipeline:
+     * 1) $lookup products
+     * 2) $unwind product
+     * 3) $match product.is_published
+     * 4) IF productTypesLower -> case-insensitive match using $expr + $toLower
+     * 5) variant-level sku match, sort, skip, limit
+     */
+
     const pipeline: any[] = [
-      ...(search_query
-        ? [
-            {
-              $match: {
-                sku: { $regex: search_query, $options: "i" },
-              },
-            },
-          ]
-        : []),
       {
         $lookup: {
           from: "products",
@@ -290,26 +364,43 @@ class Service {
         },
       },
       { $unwind: "$product" },
-      { $match: { "product.is_published": true } },
+
+      // always require published products
+      // { $match: { "product.is_published": true } },
+    ];
+
+    // add case-insensitive product_type match if filter provided
+    if (productTypesLower) {
+      pipeline.push({
+        $match: {
+          $expr: {
+            $in: [{ $toLower: "$product.product_type" }, productTypesLower],
+          },
+        },
+      });
+    }
+
+    // variant-level search
+    if (search_query) {
+      pipeline.push({
+        $match: {
+          sku: { $regex: search_query, $options: "i" },
+        },
+      });
+    }
+
+    // sorting & pagination
+    pipeline.push(
       { $sort: { [sortBy]: sortOrder === "desc" ? -1 : 1 } },
       { $skip: skip },
-      { $limit: limit },
-    ];
+      { $limit: limit }
+    );
 
     // Fetch variants
     const variants = await VariantModel.aggregate(pipeline);
 
-    // Total count with same filter (for pagination meta)
-    const totalCountAgg = await VariantModel.aggregate([
-      ...(search_query
-        ? [
-            {
-              $match: {
-                sku: { $regex: search_query, $options: "i" },
-              },
-            },
-          ]
-        : []),
+    // Total count pipeline (mirror same filters)
+    const countPipeline: any[] = [
       {
         $lookup: {
           from: "products",
@@ -320,17 +411,38 @@ class Service {
       },
       { $unwind: "$product" },
       { $match: { "product.is_published": true } },
-      { $count: "total" },
-    ]);
+    ];
+
+    if (productTypesLower) {
+      countPipeline.push({
+        $match: {
+          $expr: {
+            $in: [{ $toLower: "$product.product_type" }, productTypesLower],
+          },
+        },
+      });
+    }
+
+    if (search_query) {
+      countPipeline.push({
+        $match: {
+          sku: { $regex: search_query, $options: "i" },
+        },
+      });
+    }
+
+    countPipeline.push({ $count: "total" });
+
+    const totalCountAgg = await VariantModel.aggregate(countPipeline);
     const total = totalCountAgg[0]?.total || 0;
 
-    // Prepare data: inject stock for all items
+    // Prepare data: inject stock for all items (response shape preserved)
     const data = await Promise.all(
       variants.map(async (item) => {
         const stock = await StockModel.findOne({
           product: item.product._id,
           variant: item._id,
-        });
+        }).lean();
         return {
           ...item,
           stock: stock?.available_quantity || 0,
