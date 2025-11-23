@@ -15,6 +15,7 @@ class Service {
   private readonly grant_token_url = envConfig.bkash.urls.grant_token_url;
   private readonly refresh_token_url = envConfig.bkash.urls.refresh_token_url;
   private readonly create_payment_url = envConfig.bkash.urls.create_payment_url;
+  private readonly query_payment_url = envConfig.bkash.urls.query_payment_url;
   private readonly execute_payment_url =
     envConfig.bkash.urls.execute_payment_url;
   private readonly refund_transaction_url =
@@ -275,19 +276,53 @@ class Service {
         },
       };
 
-      const { data } = await axios.post(
+      const { data: executeResponse } = await axios.post(
         this.execute_payment_url,
         payload,
         config
       );
 
-      console.log("bkash execute data", data);
+      console.log("bkash execute data", executeResponse);
+      const data = { ...executeResponse };
 
-      if (!data || !data.trxID || !data.transactionStatus) {
+      if (
+        data &&
+        data?.statusCode &&
+        data.statusCode !== "0000" &&
+        data?.transactionStatus == "completed"
+      ) {
         throw new ApiError(
           HttpStatusCode.BAD_REQUEST,
           "Invalid bKash execute payment response"
         );
+      }
+
+      if (
+        data?.transactionStatus !== "Completed" &&
+        data?.statusCode !== "0000"
+      ) {
+        const { data: queryResponse } = await axios.post(
+          this.query_payment_url,
+          payload,
+          config
+        );
+        if (
+          queryResponse?.transactionStatus !== "Completed" ||
+          queryResponse?.statusCode !== "0000"
+        ) {
+          throw new ApiError(
+            HttpStatusCode.BAD_REQUEST,
+            "Invalid bKash execute payment response"
+          );
+        }
+        if (
+          queryResponse?.transactionStatus === "Completed" &&
+          queryResponse?.statusCode == "0000"
+        ) {
+          // proceed
+          data.transactionStatus = queryResponse.transactionStatus;
+          data.trxID = queryResponse.trxID;
+        }
       }
 
       const transaction_id: string = data.trxID;
