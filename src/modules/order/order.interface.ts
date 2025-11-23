@@ -109,6 +109,8 @@ export type IOrder = {
 
   order_type?: "regular" | "exchange" | "return";
 
+  is_pre_order?: boolean;
+
   logs?: IOrderLog[];
 };
 

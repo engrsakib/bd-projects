@@ -32,6 +32,7 @@ const orderItemSchema = new Schema<IPreOrderItem>({
   price: { type: Number, required: true },
   new_cod: { type: Number, default: 0, required: false },
   subtotal: { type: Number, required: true },
+
   status: {
     type: String,
     enum: Object.values(PRE_ORDER_STATUS),
