@@ -148,6 +148,8 @@ class Service {
           .populate("user")
           .session(session);
 
+        console.log(order, "pre order data");
+
         if (!order) {
           throw new ApiError(404, `Order (${oid}) not found`);
         }
@@ -157,6 +159,8 @@ class Service {
             ORDER_STATUS.CANCELLED,
             ORDER_STATUS.FAILED,
             ORDER_STATUS.DELIVERED,
+            ORDER_STATUS.RTS,
+            ORDER_STATUS.HANDED_OVER_TO_COURIER,
           ].includes(order.order_status as ORDER_STATUS) ||
           !merchant
         ) {
@@ -214,7 +218,7 @@ class Service {
         );
 
         // mark order transferred
-        await OrderModel.findByIdAndUpdate(
+        await preOrderModel.findByIdAndUpdate(
           oid,
           {
             order_status: ORDER_STATUS.RTS,
