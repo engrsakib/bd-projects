@@ -4,7 +4,7 @@ export enum PRE_ORDER_STATUS {
   PLACED = "placed",
   ACCEPTED = "accepted",
   REJECTED = "rejected",
-  ARRIVED_INTERNATIONAL_WAREHOUSE = "arrived_international_warehouse",
+  PURCHASED_IN_CNY = "purchased_in_cny",
   ON_THE_WAY_TO_BD = "on_the_way_to_bd",
   ARRIVED_BD_WAREHOUSE = "arrived_bd_warehouse",
   INSPECTION_IN_PROGRESS = "inspection_in_progress",

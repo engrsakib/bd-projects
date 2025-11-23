@@ -8,7 +8,7 @@ export type IPreOrderStatus =
   | "placed"
   | "pending_approval"
   | "accepted"
-  | "arrived_international_warehouse"
+  | "purchased_in_cny"
   | "rejected"
   | "failed"
   | "purchased"
