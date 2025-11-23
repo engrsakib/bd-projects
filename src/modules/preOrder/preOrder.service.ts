@@ -2089,6 +2089,10 @@ class Service {
       }
 
       const previousStatus = order.order_status || "N/A";
+      this.validateStatusTransition(
+        previousStatus as ORDER_STATUS,
+        status as ORDER_STATUS
+      );
 
       if (
         order.order_status === ORDER_STATUS.HANDED_OVER_TO_COURIER &&
