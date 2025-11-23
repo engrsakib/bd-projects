@@ -24,6 +24,32 @@ class Controller extends BaseController {
     });
   });
 
+  transferToCourierPreOrder = this.catchAsync(
+    async (req: Request, res: Response) => {
+      const { id } = req.params;
+      const { note, marchant } = req.body;
+      if (!id || !marchant) {
+        return this.sendResponse(res, {
+          statusCode: HttpStatus.BAD_REQUEST,
+          success: false,
+          message: "Order ID and Marchant are required",
+        });
+      }
+
+      const result = await CourierService.transferToCourierPreOrder(
+        id,
+        note,
+        marchant
+      );
+      return this.sendResponse(res, {
+        statusCode: HttpStatus.OK,
+        success: true,
+        message: "Order transferred to courier successfully",
+        data: result,
+      });
+    }
+  );
+
   transferToCourierBulk = this.catchAsync(
     async (req: Request, res: Response) => {
       const { ids } = req.body;
