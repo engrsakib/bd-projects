@@ -5,6 +5,9 @@ import { IRoles } from "@/constants/roles";
 export interface updateBy {
   name: string;
   role: IRoles;
+  reason?: string;
+  status_change_notes?: string;
+  date: Date;
 }
 
 export type IBarcode = {
@@ -18,7 +21,6 @@ export type IBarcode = {
 
   status: productBarcodeStatus[];
   conditions?: productBarcodeCondition[];
-  reason?: string;
 
   is_used_barcode?: boolean;
 
