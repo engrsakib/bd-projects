@@ -62,6 +62,40 @@ class Service {
       session.endSession();
     }
   }
+
+  async getBarcodesBySku(
+    sku: string,
+    options?: { page?: number; limit?: number; is_used_barcode?: boolean }
+  ): Promise<{
+    data: IBarcode[];
+    meta: { total: number; page: number; limit: number; totalPages: number };
+  }> {
+    const page = Math.max(1, options?.page ?? 1);
+    const limit = Math.max(1, options?.limit ?? 10);
+
+    // Build filter: always filter by sku, add is_used_barcode only if provided
+    const filter: Record<string, any> = { sku };
+    if (options && typeof options.is_used_barcode !== "undefined") {
+      filter.is_used_barcode = options.is_used_barcode;
+    }
+
+    // Run count + find in parallel for performance
+    const [total, docs] = await Promise.all([
+      BarcodeModel.countDocuments(filter),
+      BarcodeModel.find(filter)
+        .sort({ createdAt: -1 }) // optional: adjust sorting as needed
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(), // return plain objects (faster) — remove if you want mongoose docs
+    ]);
+
+    const totalPages = limit > 0 ? Math.ceil(total / limit) : 0;
+
+    return {
+      data: docs as IBarcode[],
+      meta: { total, page, limit, totalPages },
+    };
+  }
 }
 
 export const UniqueBarcodeService = new Service();
