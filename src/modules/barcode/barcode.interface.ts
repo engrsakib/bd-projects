@@ -19,8 +19,8 @@ export type IBarcode = {
   lot?: string | Types.ObjectId;
   stock?: string | Types.ObjectId;
 
-  status: productBarcodeStatus[];
-  conditions?: productBarcodeCondition[];
+  status: productBarcodeStatus;
+  conditions?: productBarcodeCondition;
 
   is_used_barcode?: boolean;
 
