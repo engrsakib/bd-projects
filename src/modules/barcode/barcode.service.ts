@@ -8,7 +8,11 @@ import { BarcodeModel } from "./barcode.model";
 import { productBarcodeCondition, productBarcodeStatus } from "./barcode.enum";
 
 class Service {
-  async crateBarcodeForStock(sku: string, product_count: number) {
+  async crateBarcodeForStock(
+    sku: string,
+    product_count: number,
+    user: unknown
+  ): Promise<boolean> {
     const session = await mongoose.startSession();
     session.startTransaction();
     try {
@@ -19,6 +23,12 @@ class Service {
           "Variant not found for the provided SKU"
         );
       }
+
+      const update_by = {
+        name: (user as any).name || "System",
+        role: (user as any).role || "System",
+        date: new Date(),
+      };
 
       const doc: Partial<IBarcode>[] = [];
       for (let i = 0; i < product_count; i++) {
@@ -31,6 +41,7 @@ class Service {
           status: productBarcodeStatus.QC_PENDING,
           conditions: productBarcodeCondition.NEW,
           is_used_barcode: false,
+          updated_by: [update_by],
         });
       }
       await BarcodeModel.insertMany(doc, { session });
@@ -48,4 +59,4 @@ class Service {
   }
 }
 
-export const CartService = new Service();
+export const UniqueBarcodeService = new Service();
