@@ -45,6 +45,12 @@ export enum PermissionEnum {
   SUPPLIER_UPDATE = "supplier.update",
   SUPPLIER_DELETE = "supplier.delete",
   SUPPLIER_VIEW = "supplier.view",
+
+  BARCODE_GENERATE = "barcode.generate",
+  BARCODE_VIEW = "barcode.view",
+  BARCODE_DELETE = "barcode.delete",
+  BARCODE_UPDATE = "barcode.update",
+  BARCODE_ASSIGN_STOCK = "barcode.assign.stock",
 }
 
 export enum PermissionGroup {

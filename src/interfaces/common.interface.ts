@@ -4,6 +4,7 @@ import { Types } from "mongoose";
 export type IJWtPayload = {
   id: string | Types.ObjectId;
   phone_number: string;
+  name?: string;
   role: IRoles;
 };
 

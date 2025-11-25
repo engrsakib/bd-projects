@@ -202,6 +202,7 @@ class JWT {
       const payload: IJWtPayload = {
         id: result.id,
         phone_number: result?.phone_number,
+        name: result?.name,
         role: result?.role,
       };
       const { access_token, refresh_token: new_refresh_token } =
