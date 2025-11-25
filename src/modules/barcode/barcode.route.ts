@@ -14,4 +14,10 @@ router.post(
   UniqueBarcodeController.crateBarcodeForStock
 );
 
+router.get(
+  "/:sku",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.ORDER_VIEW),
+  UniqueBarcodeController.getBarcodesBySku
+);
 export const UniqueBarcodeRoutes = router;

@@ -68,7 +68,7 @@ class Service {
     barcode: string,
     options?: { page?: number; limit?: number; is_used_barcode?: boolean }
   ): Promise<{
-    data: IBarcode[];
+    barcode: IBarcode[];
     meta: { total: number; page: number; limit: number; totalPages: number };
   }> {
     const page = Math.max(1, options?.page ?? 1);
@@ -119,13 +119,13 @@ class Service {
     const totalPages = limit > 0 ? Math.ceil(total / limit) : 0;
 
     return {
-      data: agg.data ?? [],
       meta: {
         total,
         page,
         limit,
         totalPages,
       },
+      barcode: agg.data ?? [],
     };
   }
 }
