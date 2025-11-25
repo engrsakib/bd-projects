@@ -35,19 +35,11 @@ class Controller extends BaseController {
   );
 
   getBarcodesBySku = this.catchAsync(async (req: Request, res: Response) => {
-    const { sku } = req.params;
-    if (!sku) {
-      this.sendResponse(res, {
-        statusCode: 400,
-        success: false,
-        message: "SKU is required",
-      });
-      return;
-    }
-
     // read optional query params
     const barcode =
       typeof req.query.barcode === "string" ? req.query.barcode : "";
+
+    const sku = req.query.sku as string;
     const page = Math.max(1, parseInt(String(req.query.page ?? "1"), 10) || 1);
     const limit = Math.max(
       1,

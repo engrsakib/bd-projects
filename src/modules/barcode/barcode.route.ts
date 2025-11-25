@@ -15,7 +15,7 @@ router.post(
 );
 
 router.get(
-  "/:sku",
+  "/",
   JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.ORDER_VIEW),
   UniqueBarcodeController.getBarcodesBySku
