@@ -65,6 +65,7 @@ class Service {
 
   async getBarcodesBySku(
     sku: string,
+    barcode: string,
     options?: { page?: number; limit?: number; is_used_barcode?: boolean }
   ): Promise<{
     data: IBarcode[];
@@ -72,28 +73,59 @@ class Service {
   }> {
     const page = Math.max(1, options?.page ?? 1);
     const limit = Math.max(1, options?.limit ?? 10);
+    const skip = (page - 1) * limit;
 
-    // Build filter: always filter by sku, add is_used_barcode only if provided
-    const filter: Record<string, any> = { sku };
+    // Build dynamic match object — only add keys if value is provided (truthy)
+    const match: Record<string, any> = {};
+    if (sku) match.sku = sku;
+    if (barcode) match.barcode = barcode;
     if (options && typeof options.is_used_barcode !== "undefined") {
-      filter.is_used_barcode = options.is_used_barcode;
+      match.is_used_barcode = options.is_used_barcode;
     }
 
-    // Run count + find in parallel for performance
-    const [total, docs] = await Promise.all([
-      BarcodeModel.countDocuments(filter),
-      BarcodeModel.find(filter)
-        .sort({ createdAt: -1 }) // optional: adjust sorting as needed
-        .skip((page - 1) * limit)
-        .limit(limit)
-        .lean(), // return plain objects (faster) — remove if you want mongoose docs
-    ]);
+    // Aggregation pipeline with $facet to get total + paginated data in one query
+    const pipeline: any[] = [
+      { $match: match },
+      { $sort: { createdAt: -1 } },
+      {
+        $facet: {
+          metadata: [{ $count: "total" }],
+          data: [{ $skip: skip }, { $limit: limit }],
+        },
+      },
+      // Unwind metadata to make reading easier (optional but keeps shape consistent)
+      {
+        $unwind: {
+          path: "$metadata",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $project: {
+          data: 1,
+          total: { $ifNull: ["$metadata.total", 0] },
+        },
+      },
+    ];
 
+    const result = (await BarcodeModel.aggregate(pipeline).exec()) as Array<{
+      data: IBarcode[];
+      total: number;
+    }>;
+
+    const agg = result[0] ?? { data: [], total: 0 };
+
+    const total = agg.total ?? 0;
     const totalPages = limit > 0 ? Math.ceil(total / limit) : 0;
 
     return {
-      data: docs as IBarcode[],
-      meta: { total, page, limit, totalPages },
+      data: agg.data ?? [],
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages,
+      },
     };
   }
 }
