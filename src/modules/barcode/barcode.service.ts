@@ -11,6 +11,7 @@ class Service {
   async crateBarcodeForStock(
     sku: string,
     product_count: number,
+    admin_note: string,
     user: unknown
   ): Promise<boolean> {
     const session = await mongoose.startSession();
@@ -28,6 +29,10 @@ class Service {
         name: (user as any).name || "System",
         role: (user as any).role || "System",
         date: new Date(),
+        admin_note:
+          admin_note ||
+          `barcode initialized for stock by ${(user as any).name || "System"} and not assigned yet`,
+        system_message: "Barcode created for stock initialization",
       };
 
       const doc: Partial<IBarcode>[] = [];
@@ -41,7 +46,7 @@ class Service {
           status: productBarcodeStatus.QC_PENDING,
           conditions: productBarcodeCondition.NEW,
           is_used_barcode: false,
-          updated_by: [update_by],
+          updated_logs: [update_by],
         });
       }
       await BarcodeModel.insertMany(doc, { session });

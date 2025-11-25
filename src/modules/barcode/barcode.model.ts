@@ -1,13 +1,13 @@
 import { model, Schema } from "mongoose";
-import { IBarcode, updateBy as IUpdateBy } from "./barcode.interface";
+import { IBarcode, IupdateLogs } from "./barcode.interface";
 import { productBarcodeCondition, productBarcodeStatus } from "./barcode.enum";
 
-const UpdateBySchema = new Schema<IUpdateBy>(
+const UpdateBySchema = new Schema<IupdateLogs>(
   {
     name: { type: String, required: true },
     role: { type: String, required: true },
-    reason: { type: String, required: false },
-    status_change_notes: { type: String, required: false },
+    admin_note: { type: String, required: false, default: "" },
+    system_message: { type: String, required: false, default: "" },
     date: { type: Date, required: true },
   },
   { _id: false }
@@ -45,7 +45,7 @@ const BarcodeSchema = new Schema<IBarcode>(
       default: "",
     },
     is_used_barcode: { type: Boolean, required: false, default: false },
-    updated_by: { type: [UpdateBySchema], required: false, default: [] },
+    updated_logs: { type: [UpdateBySchema], required: false, default: [] },
   },
   { timestamps: true }
 );

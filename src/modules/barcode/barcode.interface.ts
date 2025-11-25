@@ -2,11 +2,11 @@ import { Types } from "mongoose";
 import { productBarcodeCondition, productBarcodeStatus } from "./barcode.enum";
 import { IRoles } from "@/constants/roles";
 
-export interface updateBy {
+export interface IupdateLogs {
   name: string;
   role: IRoles;
-  reason?: string;
-  status_change_notes?: string;
+  admin_note?: string;
+  system_message?: string;
   date: Date;
 }
 
@@ -24,7 +24,7 @@ export type IBarcode = {
 
   is_used_barcode?: boolean;
 
-  updated_by?: updateBy[];
+  updated_logs?: IupdateLogs[];
 
   createdAt?: Date;
   updatedAt?: Date;
