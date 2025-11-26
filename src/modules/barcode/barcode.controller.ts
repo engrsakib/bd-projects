@@ -146,6 +146,27 @@ class Controller extends BaseController {
       data: result,
     });
   });
+
+  checkBarcodeUsedOrNot = this.catchAsync(
+    async (req: Request, res: Response) => {
+      const barcode = req.params.barcode;
+      if (!barcode) {
+        this.sendResponse(res, {
+          statusCode: 400,
+          success: false,
+          message: "Barcode is required",
+        });
+        return;
+      }
+      const result = await UniqueBarcodeService.checkBarcodeUsedOrNot(barcode);
+      this.sendResponse(res, {
+        statusCode: 200,
+        success: true,
+        message: "Barcode usage status retrieved successfully",
+        data: result,
+      });
+    }
+  );
 }
 
 export const UniqueBarcodeController = new Controller();
