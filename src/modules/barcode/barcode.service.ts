@@ -131,7 +131,7 @@ class Service {
 
   async getBarcodeDetails(barcode: string): Promise<IBarcode | null> {
     const barcodeDetails = await BarcodeModel.findOne({ barcode }).populate(
-      "variant product"
+      "variant product stock lots"
     );
     return barcodeDetails;
   }
