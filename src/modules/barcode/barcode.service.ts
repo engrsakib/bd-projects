@@ -73,40 +73,31 @@ class Service {
     const session = await mongoose.startSession();
     session.startTransaction();
     try {
-      // Find the document within the session
       const barcodeDoc = await BarcodeModel.findOne({ barcode }).session(
         session
       );
       if (!barcodeDoc) {
-        // abort and throw error if not found
         throw new ApiError(HttpStatusCode.NOT_FOUND, "Barcode not found");
       }
 
-      // Append to updated_by log
       const updateLog = {
         ...updated_by,
         status_change_notes: status_change_notes ?? null,
         system_message: `Status changed from ${barcodeDoc.status} to ${status} on ${new Date().toISOString()} and conditions set from ${barcodeDoc.conditions} to ${conditions}`,
       };
 
-      // Ensure updated_logs exists as array
       if (!Array.isArray(barcodeDoc.updated_logs)) {
         barcodeDoc.updated_logs = [];
       }
       barcodeDoc.updated_logs.push(updateLog);
 
-      // Update status and conditions
       barcodeDoc.status = status;
       barcodeDoc.conditions = conditions;
 
-      // Save with session
       await barcodeDoc.save({ session });
 
-      // Commit transaction
       await session.commitTransaction();
 
-      // Optionally convert to plain object or re-fetch fresh doc outside transaction
-      // return barcodeDoc.toObject ? barcodeDoc.toObject() as IBarcode : (barcodeDoc as any as IBarcode);
       return barcodeDoc as unknown as IBarcode;
     } catch (err) {
       // Abort transaction on error

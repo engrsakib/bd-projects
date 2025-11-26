@@ -3,6 +3,7 @@ import { Request, Response } from "express";
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { Types } from "mongoose";
 import { UniqueBarcodeService } from "./barcode.service";
+import { productBarcodeCondition, productBarcodeStatus } from "./barcode.enum";
 
 class Controller extends BaseController {
   crateBarcodeForStock = this.catchAsync(
@@ -33,6 +34,61 @@ class Controller extends BaseController {
       });
     }
   );
+
+  updateBarcodeStatus = this.catchAsync(async (req: Request, res: Response) => {
+    const { barcode, status, conditions, reason, status_change_notes } =
+      req.body;
+
+    if (!barcode || !status) {
+      this.sendResponse(res, {
+        statusCode: 400,
+        success: false,
+        message: "Barcode and status are required",
+      });
+      return;
+    }
+
+    const user = req.user as { name?: string; role?: string } | undefined;
+    if (!user || !user.name || !user.role) {
+      this.sendResponse(res, {
+        statusCode: 401,
+        success: false,
+        message: "Unauthorized: user info missing",
+      });
+      return;
+    }
+
+    const updated_by = {
+      name: user.name,
+      role: user.role,
+      reason: reason ?? undefined,
+      date: new Date(),
+    };
+
+    // If your service requires `conditions`, ensure it's present or set a default
+    // (adjust default according to your domain)
+    const finalConditions =
+      typeof conditions !== "undefined"
+        ? (conditions as productBarcodeCondition)
+        : productBarcodeCondition.NEW; // <-- or throw error if required
+
+    // Optionally validate status/conditions are valid enum values here
+
+    const result = await UniqueBarcodeService.updateBarcodeStatus(
+      barcode,
+      status as productBarcodeStatus,
+      finalConditions,
+      updated_by,
+      status_change_notes // optional
+    );
+
+    this.sendResponse(res, {
+      statusCode: 200,
+      success: true,
+      message: "Barcode status updated successfully",
+      data: result,
+    });
+  });
 
   getBarcodesBySku = this.catchAsync(async (req: Request, res: Response) => {
     // read optional query params
