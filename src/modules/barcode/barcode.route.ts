@@ -20,4 +20,12 @@ router.get(
   JwtInstance.hasPermissions(PermissionEnum.ORDER_VIEW),
   UniqueBarcodeController.getBarcodesBySku
 );
+
+router.get(
+  "/:barcode",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.ORDER_VIEW),
+  UniqueBarcodeController.getBarcodeDetails
+);
+
 export const UniqueBarcodeRoutes = router;
