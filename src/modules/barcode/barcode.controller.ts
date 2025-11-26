@@ -36,8 +36,7 @@ class Controller extends BaseController {
   );
 
   updateBarcodeStatus = this.catchAsync(async (req: Request, res: Response) => {
-    const { barcode, status, conditions, reason, status_change_notes } =
-      req.body;
+    const { barcode, status, conditions, admin_note } = req.body;
 
     if (!barcode || !status) {
       this.sendResponse(res, {
@@ -61,7 +60,6 @@ class Controller extends BaseController {
     const updated_by = {
       name: user.name,
       role: user.role,
-      reason: reason ?? undefined,
       date: new Date(),
     };
 
@@ -79,7 +77,7 @@ class Controller extends BaseController {
       status as productBarcodeStatus,
       finalConditions,
       updated_by,
-      status_change_notes // optional
+      admin_note // optional
     );
 
     this.sendResponse(res, {

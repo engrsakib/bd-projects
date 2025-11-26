@@ -67,8 +67,8 @@ class Service {
     barcode: string,
     status: productBarcodeStatus,
     conditions: productBarcodeCondition,
-    updated_by: { name: string; role: string; reason?: string; date: Date },
-    status_change_notes?: string
+    updated_by: { name: string; role: string; date: Date },
+    admin_note?: string
   ): Promise<IBarcode | null> {
     const session = await mongoose.startSession();
     session.startTransaction();
@@ -82,14 +82,14 @@ class Service {
 
       const updateLog = {
         ...updated_by,
-        status_change_notes: status_change_notes ?? null,
+        admin_note: admin_note ?? undefined,
         system_message: `Status changed from ${barcodeDoc.status} to ${status} on ${new Date().toISOString()} and conditions set from ${barcodeDoc.conditions} to ${conditions}`,
       };
 
       if (!Array.isArray(barcodeDoc.updated_logs)) {
         barcodeDoc.updated_logs = [];
       }
-      barcodeDoc.updated_logs.push(updateLog);
+      barcodeDoc.updated_logs.unshift(updateLog);
 
       barcodeDoc.status = status;
       barcodeDoc.conditions = conditions;
@@ -101,9 +101,8 @@ class Service {
       return barcodeDoc as unknown as IBarcode;
     } catch (err) {
       // Abort transaction on error
+      console.log(err, "update error");
       await session.abortTransaction();
-
-      // Preserve ApiError (e.g., NOT_FOUND) so caller sees original status/message
       if (err instanceof ApiError) throw err;
 
       // Wrap other errors
