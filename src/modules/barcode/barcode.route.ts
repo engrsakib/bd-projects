@@ -29,6 +29,13 @@ router.get(
 );
 
 router.get(
+  "/check-used/:barcode",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.ORDER_VIEW),
+  UniqueBarcodeController.checkBarcodeUsedOrNot
+);
+
+router.get(
   "/:barcode",
   JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.ORDER_VIEW),

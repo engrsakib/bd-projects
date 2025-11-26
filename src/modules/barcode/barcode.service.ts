@@ -191,12 +191,22 @@ class Service {
     return barcodeDetails;
   }
 
-  async checkBarcodeUsedOrNot(barcode: string): Promise<boolean> {
+  async checkBarcodeUsedOrNot(barcode: string): Promise<{
+    is_used_barcode: boolean;
+    status: productBarcodeStatus;
+    conditions: productBarcodeCondition;
+  }> {
     const barcodeDoc = await BarcodeModel.findOne({ barcode });
     if (!barcodeDoc) {
       throw new ApiError(HttpStatusCode.NOT_FOUND, "Barcode not found");
     }
-    return barcodeDoc.is_used_barcode || false;
+    const result = {
+      is_used_barcode: barcodeDoc.is_used_barcode || false,
+      status: barcodeDoc.status as productBarcodeStatus,
+      conditions: barcodeDoc.conditions as productBarcodeCondition,
+    };
+
+    return result;
   }
 }
 
