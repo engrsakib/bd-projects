@@ -182,9 +182,12 @@ class Service {
   }
 
   async getBarcodeDetails(barcode: string): Promise<IBarcode | null> {
-    const barcodeDetails = await BarcodeModel.findOne({ barcode }).populate(
-      "variant product stock lot"
-    );
+    const barcodeDetails = await BarcodeModel.findOne({ barcode })
+      .populate("variant stock lot")
+      .populate({
+        path: "product",
+        select: { name: 1, sku: 1, thumbnail: 1 }, // 1 = include
+      });
     return barcodeDetails;
   }
 }
