@@ -190,6 +190,14 @@ class Service {
       });
     return barcodeDetails;
   }
+
+  async checkBarcodeUsedOrNot(barcode: string): Promise<boolean> {
+    const barcodeDoc = await BarcodeModel.findOne({ barcode });
+    if (!barcodeDoc) {
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "Barcode not found");
+    }
+    return barcodeDoc.is_used_barcode || false;
+  }
 }
 
 export const UniqueBarcodeService = new Service();
