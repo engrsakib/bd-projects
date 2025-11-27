@@ -207,6 +207,25 @@ class Service {
     if (!barcodeDoc) {
       throw new ApiError(HttpStatusCode.NOT_FOUND, "Barcode not found");
     }
+
+    const defualt_purchase = await DefaultsPurchaseModel.findOne({
+      variant: barcodeDoc.variant,
+    });
+
+    if (!defualt_purchase) {
+      throw new ApiError(
+        HttpStatusCode.NOT_FOUND,
+        "Default purchase must be needed for barcode condition check"
+      );
+    }
+
+    if (!defualt_purchase.unit_cost || !defualt_purchase.supplier) {
+      throw new ApiError(
+        HttpStatusCode.BAD_REQUEST,
+        "Default purchase must have unit cost and supplier for barcode condition check"
+      );
+    }
+
     const result = {
       is_used_barcode: barcodeDoc.is_used_barcode || false,
       status: barcodeDoc.status as productBarcodeStatus,
@@ -244,6 +263,258 @@ class Service {
   //   }
   // }
 
+  // async createPurchaseFromBarcodes(
+  //   barcodes: string[],
+  //   location: Types.ObjectId,
+  //   created_by: Types.ObjectId,
+  //   received_by: Types.ObjectId,
+  //   purchase_date: Date = new Date(),
+  //   updated_by: { name: string; role: string; date: Date },
+  //   admin_note?: string
+  // ): Promise<{ purchase: IPurchase; updatedBarcodes: IBarcode[] }> {
+  //   if (!Array.isArray(barcodes) || barcodes.length === 0) {
+  //     throw new ApiError(
+  //       HttpStatusCode.BAD_REQUEST,
+  //       "barcodes must be a non-empty array"
+  //     );
+  //   }
+
+  //   const session = await mongoose.startSession();
+  //   session.startTransaction();
+  //   try {
+  //     // 1) Load barcode documents
+  //     const barcodeDocs = await BarcodeModel.find({
+  //       barcode: { $in: barcodes },
+  //     })
+  //       .session(session)
+  //       .exec();
+
+  //     if (barcodeDocs.length !== barcodes.length) {
+  //       throw new ApiError(
+  //         HttpStatusCode.NOT_FOUND,
+  //         "One or more barcodes not found"
+  //       );
+  //     }
+
+  //     // 2) Group by product+variant
+  //     type GroupKey = string; // `${productId}|${variantId}`
+  //     const groups = new Map<
+  //       GroupKey,
+  //       {
+  //         product: Types.ObjectId;
+  //         variant: Types.ObjectId;
+  //         docs: IBarcode[];
+  //         qty: number;
+  //       }
+  //     >();
+
+  //     for (const doc of barcodeDocs) {
+  //       const productId = (doc as any).product as Types.ObjectId;
+  //       const variantId = (doc as any).variant as Types.ObjectId;
+  //       const key = `${productId.toString()}|${variantId.toString()}`;
+  //       if (!groups.has(key)) {
+  //         groups.set(key, {
+  //           product: productId,
+  //           variant: variantId,
+  //           docs: [],
+  //           qty: 0,
+  //         });
+  //       }
+  //       const g = groups.get(key)!;
+  //       g.docs.push(doc);
+  //       g.qty += 1;
+  //     }
+
+  //     // 3) Build purchase items from groups (items array in purchase)
+  //     const items: any[] = []; // adapt to your purchaseItemSchema shape
+  //     let subtotal = 0; // sum(unit_cost * qty) based on defaults
+  //     // Use Array.from(groups) to avoid downlevelIteration error
+  //     for (const [, grp] of Array.from(groups)) {
+  //       // fetch defaults for unit_cost (may be null)
+  //       const defaults = (await DefaultsPurchaseModel.findOne({
+  //         product: grp.product,
+  //         variant: grp.variant,
+  //       })
+  //         .session(session)
+  //         .lean()
+  //         .exec()) as IDefaultsPurchase | null;
+
+  //       const unit_cost = defaults ? defaults.unit_cost : 0;
+  //       const itemTotal = unit_cost * grp.qty;
+  //       subtotal += itemTotal;
+
+  //       items.push({
+  //         product: grp.product,
+  //         variant: grp.variant,
+  //         qty: grp.qty,
+  //         unit_cost,
+  //         discount: 0,
+  //         tax: 0,
+  //         lot_number: null,
+  //         expiry_date: null,
+  //         // add other fields your purchaseItemSchema expects as needed
+  //       });
+  //     }
+
+  //     // No additional expenses in this flow; if required, accept as param and add.
+  //     const totalExpenses = 0;
+  //     const total_cost = subtotal + totalExpenses;
+
+  //     // 4) Get atomic purchase_number via CounterModel (one counter per location)
+  //     // CounterModel schema assumed: { _id: locationId (string/ObjectId), seq: Number }
+  //     const counter = await CounterModel.findOneAndUpdate(
+  //       { _id: location.toString() },
+  //       { $inc: { seq: 1 } },
+  //       { new: true, upsert: true, session }
+  //     ).exec();
+
+  //     const purchase_number = counter?.sequence as number;
+
+  //     // 5) Pre-generate purchaseId and create Purchase document
+  //     const purchaseId = new Types.ObjectId();
+  //     const purchaseData: Partial<IPurchase> = {
+  //       _id: purchaseId,
+  //       created_by,
+  //       received_by,
+  //       received_at: purchase_date,
+  //       location,
+  //       purchase_number,
+  //       purchase_date,
+  //       supplier: undefined, // supplier could be set if you want a supplier aggregated; left null
+  //       total_cost,
+  //       items,
+  //       expenses_applied: [],
+  //       attachments: [],
+  //       additional_note: "",
+  //       status: undefined, // will default per schema
+  //     };
+
+  //     const purchase = (await new PurchaseModel(purchaseData).save({
+  //       session,
+  //     })) as IPurchase;
+
+  //     // 6) For each group: upsert stock, create lot (pointing to purchaseId), update barcodes
+  //     const updatedBarcodes: IBarcode[] = [];
+
+  //     // Use Array.from(groups) here as well
+  //     for (const [, grp] of Array.from(groups)) {
+  //       // get defaults again for supplier/unit_cost (we already fetched earlier; fetch again or cache)
+  //       const defaults = (await DefaultsPurchaseModel.findOne({
+  //         product: grp.product,
+  //         variant: grp.variant,
+  //       })
+  //         .session(session)
+  //         .lean()
+  //         .exec()) as IDefaultsPurchase | null;
+
+  //       const unit_cost = defaults ? defaults.unit_cost : 0;
+  //       // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  //       const supplier = defaults
+  //         ? (defaults.supplier as Types.ObjectId | null)
+  //         : null;
+
+  //       // Upsert stock: StockService.findOneAndUpdateByPurchase must perform $inc upsert and return doc
+  //       const stockQuery = {
+  //         product: grp.product,
+  //         variant: grp.variant,
+  //         location,
+  //       };
+
+  //       const stock = await StockService.findOneAndUpdateByPurchase(
+  //         stockQuery,
+  //         {
+  //           product: grp.product,
+  //           variant: grp.variant,
+  //           location,
+  //           available_quantity: grp.qty,
+  //           total_received: grp.qty,
+  //         },
+  //         session
+  //       );
+
+  //       if (!stock || !(stock as any)._id) {
+  //         throw new ApiError(
+  //           HttpStatusCode.INTERNAL_SERVER_ERROR,
+  //           "Failed to create/update stock"
+  //         );
+  //       }
+
+  //       // Create lot referencing this purchase
+  //       const lot_number = `PUR-${purchase.purchase_number}-${String(grp.variant).slice(-4)}-${Date.now()}`;
+  //       const lotData = {
+  //         qty_available: grp.qty,
+  //         cost_per_unit: unit_cost,
+  //         received_at: purchase_date,
+  //         createdBy: created_by,
+  //         variant: grp.variant,
+  //         product: grp.product,
+  //         location,
+  //         source: {
+  //           type: "purchase" as const,
+  //           ref_id: purchase._id,
+  //         },
+  //         lot_number,
+  //         expiry_date: null,
+  //         qty_total: grp.qty,
+  //         qty_reserved: 0,
+  //         status: "active" as any,
+  //         notes: "",
+  //         stock: stock._id,
+  //       };
+
+  //       const lot = await LotService.createLot(lotData, session);
+  //       if (!lot || !(lot as any)._id) {
+  //         throw new ApiError(
+  //           HttpStatusCode.INTERNAL_SERVER_ERROR,
+  //           "Failed to create lot"
+  //         );
+  //       }
+
+  //       // Update each barcode in group: set lot, stock, is_used_barcode true, unshift updated_logs
+  //       for (const doc of grp.docs) {
+  //         const barcodeStr = String((doc as any).barcode);
+  //         const prevStatus = (doc as any).status;
+  //         const prevConditions = (doc as any).conditions;
+
+  //         const updateLog = {
+  //           ...updated_by,
+  //           admin_note: admin_note ?? undefined,
+  //           system_message: `Status changed to assigned on ${new Date().toISOString()}; assigned to lot ${lot._id} and stock ${stock._id}. Prev status: ${prevStatus}; prev conditions: ${prevConditions}`,
+  //         };
+
+  //         const updated = await BarcodeModel.findOneAndUpdate(
+  //           { barcode: barcodeStr },
+  //           {
+  //             $set: {
+  //               lot: lot._id,
+  //               stock: stock._id,
+  //               is_used_barcode: true,
+  //             },
+  //             $push: { updated_logs: { $each: [updateLog], $position: 0 } },
+  //           },
+  //           { new: true, session }
+  //         ).exec();
+
+  //         if (!updated) {
+  //           throw new ApiError(
+  //             HttpStatusCode.INTERNAL_SERVER_ERROR,
+  //             `Failed to update barcode ${barcodeStr}`
+  //           );
+  //         }
+  //         updatedBarcodes.push(updated as any);
+  //       }
+  //     }
+
+  //     // 7) Commit transaction
+  //     await session.commitTransaction();
+  //     return { purchase, updatedBarcodes };
+  //   } catch (err) {
+  //     await session.abortTransaction();
+  //     throw err;
+  //   } finally {
+  //     session.endSession();
+  //   }
+  // }
   async createPurchaseFromBarcodes(
     barcodes: string[],
     location: Types.ObjectId,
@@ -309,8 +580,12 @@ class Service {
       // 3) Build purchase items from groups (items array in purchase)
       const items: any[] = []; // adapt to your purchaseItemSchema shape
       let subtotal = 0; // sum(unit_cost * qty) based on defaults
-      // Use Array.from(groups) to avoid downlevelIteration error
-      for (const [, grp] of Array.from(groups)) {
+
+      // Collect supplier ids found in defaults to decide purchase.supplier
+      const supplierSet = new Set<string>();
+
+      // Use Array.from(groups.entries()) to avoid downlevelIteration error
+      for (const [, grp] of Array.from(groups.entries())) {
         // fetch defaults for unit_cost (may be null)
         const defaults = (await DefaultsPurchaseModel.findOne({
           product: grp.product,
@@ -321,6 +596,10 @@ class Service {
           .exec()) as IDefaultsPurchase | null;
 
         const unit_cost = defaults ? defaults.unit_cost : 0;
+        if (defaults && defaults.supplier) {
+          supplierSet.add(String(defaults.supplier));
+        }
+
         const itemTotal = unit_cost * grp.qty;
         subtotal += itemTotal;
 
@@ -349,7 +628,19 @@ class Service {
         { new: true, upsert: true, session }
       ).exec();
 
-      const purchase_number = counter?.sequence as number;
+      const purchase_number =
+        (counter as any)?.seq ?? (counter as any)?.sequence ?? 0;
+
+      // Decide purchase.supplier:
+      // - If exactly one distinct supplier found across groups, use it
+      // - Otherwise leave undefined (or change policy if you want)
+      let purchaseSupplier: Types.ObjectId | undefined = undefined;
+      if (supplierSet.size === 1) {
+        const [onlySupplier] = Array.from(supplierSet);
+        purchaseSupplier = new Types.ObjectId(onlySupplier);
+      } else {
+        purchaseSupplier = undefined;
+      }
 
       // 5) Pre-generate purchaseId and create Purchase document
       const purchaseId = new Types.ObjectId();
@@ -361,7 +652,7 @@ class Service {
         location,
         purchase_number,
         purchase_date,
-        supplier: undefined, // supplier could be set if you want a supplier aggregated; left null
+        supplier: purchaseSupplier ?? undefined,
         total_cost,
         items,
         expenses_applied: [],
@@ -377,8 +668,7 @@ class Service {
       // 6) For each group: upsert stock, create lot (pointing to purchaseId), update barcodes
       const updatedBarcodes: IBarcode[] = [];
 
-      // Use Array.from(groups) here as well
-      for (const [, grp] of Array.from(groups)) {
+      for (const [, grp] of Array.from(groups.entries())) {
         // get defaults again for supplier/unit_cost (we already fetched earlier; fetch again or cache)
         const defaults = (await DefaultsPurchaseModel.findOne({
           product: grp.product,
@@ -470,6 +760,8 @@ class Service {
                 lot: lot._id,
                 stock: stock._id,
                 is_used_barcode: true,
+                status: productBarcodeStatus.IN_STOCK,
+                conditions: productBarcodeCondition.NEW,
               },
               $push: { updated_logs: { $each: [updateLog], $position: 0 } },
             },

@@ -14,6 +14,13 @@ router.post(
   UniqueBarcodeController.crateBarcodeForStock
 );
 
+router.post(
+  "/create-purchase-from-barcodes",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.ORDER_CREATE),
+  UniqueBarcodeController.createPurchaseFromBarcodes
+);
+
 router.patch(
   "/update-barcode",
   JwtInstance.authenticate(Object.values(ROLES)),
