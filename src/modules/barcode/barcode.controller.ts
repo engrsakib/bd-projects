@@ -167,6 +167,73 @@ class Controller extends BaseController {
       });
     }
   );
+
+  createPurchaseFromBarcodes = this.catchAsync(
+    async (req: Request, res: Response) => {
+      const { barcodes, location, received_by, purchase_date, admin_note } =
+        req.body;
+
+      if (!barcodes || !Array.isArray(barcodes) || barcodes.length === 0) {
+        this.sendResponse(res, {
+          statusCode: 400,
+          success: false,
+          message: "Barcodes array is required",
+        });
+        return;
+      }
+
+      if (!location) {
+        this.sendResponse(res, {
+          statusCode: 400,
+          success: false,
+          message: "location is required",
+        });
+        return;
+      }
+
+      const user = req.user as any;
+      if (!user || !(user._id || user.id) || !user.name || !user.role) {
+        this.sendResponse(res, {
+          statusCode: 401,
+          success: false,
+          message: "Unauthorized: user info missing",
+        });
+        return;
+      }
+
+      // Build args for service according to its signature
+      const created_by = new Types.ObjectId(user._id ?? user.id);
+      const receivedBy = received_by
+        ? new Types.ObjectId(received_by)
+        : created_by;
+      const purchaseDate = purchase_date ? new Date(purchase_date) : new Date();
+      const updated_by = {
+        name: user.name,
+        role: user.role,
+        date: new Date(),
+      };
+
+      // Call service (location may be provided as string/ObjectId)
+      const locationId = new Types.ObjectId(location);
+
+      const result = await UniqueBarcodeService.createPurchaseFromBarcodes(
+        barcodes,
+        locationId,
+        created_by,
+        receivedBy,
+        purchaseDate,
+        updated_by,
+        admin_note
+      );
+
+      this.sendResponse(res, {
+        statusCode: 200,
+        success: true,
+        message: "Purchase created successfully from barcodes",
+        data: result,
+      });
+    }
+  );
 }
 
 export const UniqueBarcodeController = new Controller();
