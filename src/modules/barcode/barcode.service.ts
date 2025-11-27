@@ -214,7 +214,7 @@ class Service {
 
     if (!defualt_purchase) {
       throw new ApiError(
-        HttpStatusCode.NOT_FOUND,
+        HttpStatusCode.BAD_REQUEST,
         "Default purchase must be needed for barcode condition check"
       );
     }
@@ -223,6 +223,13 @@ class Service {
       throw new ApiError(
         HttpStatusCode.BAD_REQUEST,
         "Default purchase must have unit cost and supplier for barcode condition check"
+      );
+    }
+
+    if (barcodeDoc.is_used_barcode) {
+      throw new ApiError(
+        HttpStatusCode.BAD_REQUEST,
+        "Barcode has already been used"
       );
     }
 
