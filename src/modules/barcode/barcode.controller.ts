@@ -118,6 +118,12 @@ class Controller extends BaseController {
       page,
       limit,
       is_used_barcode,
+      status:
+        typeof req.query.status === "string" ? req.query.status : undefined,
+      conditions:
+        typeof req.query.conditions === "string"
+          ? req.query.conditions
+          : undefined,
     });
 
     this.sendResponse(res, {

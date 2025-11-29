@@ -122,10 +122,82 @@ class Service {
     }
   }
 
+  // async getBarcodesBySku(
+  //   sku: string,
+  //   barcode: string,
+  //   options?: { page?: number; limit?: number; is_used_barcode?: boolean; status?: string, conditions?: string }
+  // ): Promise<{
+  //   barcode: IBarcode[];
+  //   meta: { total: number; page: number; limit: number; totalPages: number };
+  // }> {
+  //   const page = Math.max(1, options?.page ?? 1);
+  //   const limit = Math.max(1, options?.limit ?? 10);
+  //   const skip = (page - 1) * limit;
+
+  //   // Build dynamic match object — only add keys if value is provided (truthy)
+  //   const match: Record<string, any> = {};
+  //   if (sku) match.sku = sku;
+  //   if (barcode) match.barcode = barcode;
+  //   if (options && typeof options.is_used_barcode !== "undefined") {
+  //     match.is_used_barcode = options.is_used_barcode;
+  //   }
+
+  //   // Aggregation pipeline with $facet to get total + paginated data in one query
+  //   const pipeline: any[] = [
+  //     { $match: match },
+  //     { $sort: { createdAt: -1 } },
+  //     {
+  //       $facet: {
+  //         metadata: [{ $count: "total" }],
+  //         data: [{ $skip: skip }, { $limit: limit }],
+  //       },
+  //     },
+  //     // Unwind metadata to make reading easier (optional but keeps shape consistent)
+  //     {
+  //       $unwind: {
+  //         path: "$metadata",
+  //         preserveNullAndEmptyArrays: true,
+  //       },
+  //     },
+  //     {
+  //       $project: {
+  //         data: 1,
+  //         total: { $ifNull: ["$metadata.total", 0] },
+  //       },
+  //     },
+  //   ];
+
+  //   const result = (await BarcodeModel.aggregate(pipeline).exec()) as Array<{
+  //     data: IBarcode[];
+  //     total: number;
+  //   }>;
+
+  //   const agg = result[0] ?? { data: [], total: 0 };
+
+  //   const total = agg.total ?? 0;
+  //   const totalPages = limit > 0 ? Math.ceil(total / limit) : 0;
+
+  //   return {
+  //     meta: {
+  //       total,
+  //       page,
+  //       limit,
+  //       totalPages,
+  //     },
+  //     barcode: agg.data ?? [],
+  //   };
+  // }
+
   async getBarcodesBySku(
     sku: string,
     barcode: string,
-    options?: { page?: number; limit?: number; is_used_barcode?: boolean }
+    options?: {
+      page?: number;
+      limit?: number;
+      is_used_barcode?: boolean;
+      status?: string;
+      conditions?: string;
+    }
   ): Promise<{
     barcode: IBarcode[];
     meta: { total: number; page: number; limit: number; totalPages: number };
@@ -134,22 +206,79 @@ class Service {
     const limit = Math.max(1, options?.limit ?? 10);
     const skip = (page - 1) * limit;
 
-    // Build dynamic match object — only add keys if value is provided (truthy)
+    // Build dynamic match object — only add keys if value is provided (non-empty)
     const match: Record<string, any> = {};
     if (sku) match.sku = sku;
     if (barcode) match.barcode = barcode;
     if (options && typeof options.is_used_barcode !== "undefined") {
       match.is_used_barcode = options.is_used_barcode;
     }
+    if (options && options.status) {
+      match.status = options.status;
+    }
+    if (options && options.conditions) {
+      match.conditions = options.conditions;
+    }
+
+    // Collection name for Variant model (use actual model import in file)
+    const variantColl = VariantModel.collection.name; // e.g. "variants"
 
     // Aggregation pipeline with $facet to get total + paginated data in one query
+    // and $lookup inside the data facet to "populate" variant (projecting only required fields)
     const pipeline: any[] = [
       { $match: match },
       { $sort: { createdAt: -1 } },
       {
         $facet: {
           metadata: [{ $count: "total" }],
-          data: [{ $skip: skip }, { $limit: limit }],
+          data: [
+            { $skip: skip },
+            { $limit: limit },
+
+            // Populate variant via $lookup (only for paged results)
+            {
+              $lookup: {
+                from: variantColl,
+                let: { variantId: "$variant" },
+                pipeline: [
+                  { $match: { $expr: { $eq: ["$_id", "$$variantId"] } } },
+                  // project only needed fields from variant
+                  {
+                    $project: {
+                      name: 1,
+                      /* add more fields if needed */
+                      image: 1,
+                      regular_price: 1,
+                      sale_price: 1,
+                      attribute_values: 1,
+                      attributes: 1,
+                    },
+                  },
+                ],
+                as: "variant",
+              },
+            },
+            // unwind variant so each doc has variant object (or null)
+            { $unwind: { path: "$variant", preserveNullAndEmptyArrays: true } },
+
+            // final projection for each document in data
+            {
+              $project: {
+                barcode: 1,
+                sku: 1,
+                status: 1,
+                conditions: 1,
+                is_used_barcode: 1,
+                updated_logs: 1,
+                createdAt: 1,
+                updatedAt: 1,
+                variant: 1, // populated variant object
+                product: 1, // leave as ObjectId or add lookup similarly if needed
+                lot: 1,
+                stock: 1,
+              },
+            },
+          ],
         },
       },
       // Unwind metadata to make reading easier (optional but keeps shape consistent)
