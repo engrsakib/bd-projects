@@ -344,26 +344,27 @@ class Service {
     if (!defualt_purchase) {
       throw new ApiError(
         HttpStatusCode.BAD_REQUEST,
-        "Default purchase must be needed for barcode condition check"
+        `You cannot set defult purchase for this sku: ${barcodeDoc.sku} because its variant has no default purchase configured.`
       );
     }
 
     if (!defualt_purchase.unit_cost || !defualt_purchase.supplier) {
       throw new ApiError(
         HttpStatusCode.BAD_REQUEST,
-        "Default purchase must have unit cost and supplier for barcode condition check"
+        `You cannot set defult purchase for this sku: ${barcodeDoc.sku} because its variant's default purchase is missing unit cost or supplier.`
       );
     }
 
     if (barcodeDoc.is_used_barcode) {
       throw new ApiError(
         HttpStatusCode.BAD_REQUEST,
-        "Barcode has already been used"
+        "Barcode has already been used an another product purchase"
       );
     }
 
     const result = {
       is_used_barcode: barcodeDoc.is_used_barcode || false,
+      sku: barcodeDoc.sku,
       status: barcodeDoc.status as productBarcodeStatus,
       conditions: barcodeDoc.conditions as productBarcodeCondition,
     };
