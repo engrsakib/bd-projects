@@ -673,35 +673,35 @@ class Service {
       }
 
       // ৩. পুরাতন order.items এর stock rollback + total_sold কমানো
-      for (const prevItem of order.items ?? []) {
-        const stock = await StockModel.findOne({
-          product: prevItem.product,
-          variant: prevItem.variant,
-        }).session(session);
+      // for (const prevItem of order.items ?? []) {
+      //   const stock = await StockModel.findOne({
+      //     product: prevItem.product,
+      //     variant: prevItem.variant,
+      //   }).session(session);
 
-        const lots = await LotModel.findOne({
-          variant: prevItem.variant,
-        }).session(session);
+      //   const lots = await LotModel.findOne({
+      //     variant: prevItem.variant,
+      //   }).session(session);
 
-        if (lots) {
-          // পূর্বে কাটাকাটা lot গুলো ফিরিয়ে দিন
-          lots.qty_available += prevItem.quantity;
-          await lots.save({ session });
-        }
+      //   if (lots) {
+      //     // পূর্বে কাটাকাটা lot গুলো ফিরিয়ে দিন
+      //     lots.qty_available += prevItem.quantity;
+      //     await lots.save({ session });
+      //   }
 
-        if (stock) {
-          // স্টকে quantity ফেরত দিন
-          await StockModel.findByIdAndUpdate(
-            stock._id,
-            { $inc: { available_quantity: prevItem.quantity } },
-            { session }
-          );
-          // total_sold কমান
-          stock.total_sold = (stock.total_sold || 0) - prevItem.quantity;
-          if (stock.total_sold < 0) stock.total_sold = 0; // নেগেটিভ হলে ০
-          await stock.save({ session });
-        }
-      }
+      //   if (stock) {
+      //     // স্টকে quantity ফেরত দিন
+      //     await StockModel.findByIdAndUpdate(
+      //       stock._id,
+      //       { $inc: { available_quantity: prevItem.quantity } },
+      //       { session }
+      //     );
+      //     // total_sold কমান
+      //     stock.total_sold = (stock.total_sold || 0) - prevItem.quantity;
+      //     if (stock.total_sold < 0) stock.total_sold = 0; // নেগেটিভ হলে ০
+      //     await stock.save({ session });
+      //   }
+      // }
 
       // ৪. নতুন/পরিবর্তিত আইটেমের জন্য stock allocate + total_sold বাড়ানো
       let total_price = 0;
