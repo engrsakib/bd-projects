@@ -12,6 +12,7 @@ import { LotModel } from "../lot/lot.model";
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import pLimit from "p-limit";
 import mongoose from "mongoose";
+import { OrderModel as preOrderModel } from "@/modules/preOrder/preOrder.model";
 
 class Service {
   // courier sevice integration
@@ -93,6 +94,7 @@ class Service {
               order: oid,
               status: ORDER_STATUS.HANDED_OVER_TO_COURIER,
               transfer_to_courier: true,
+              is_pre_order: false,
             },
           ],
           { session }
@@ -100,6 +102,123 @@ class Service {
 
         // mark order transferred
         await OrderModel.findByIdAndUpdate(
+          oid,
+          {
+            order_status: ORDER_STATUS.RTS,
+            transfer_to_courier: true,
+            courier: createdCourier[0]?._id,
+          },
+          { new: true, session }
+        );
+
+        couriers.push(createdCourier[0]);
+      }
+
+      await session.commitTransaction();
+      return {
+        message: "Orders transferred successfully",
+        count: couriers.length,
+        data: couriers,
+      };
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
+  }
+
+  async transferToCourierPreOrder(
+    order_id: string | string[],
+    note: string = "Order transferred to courier",
+    merchant: string
+  ) {
+    const session = await preOrderModel.startSession();
+    session.startTransaction();
+
+    try {
+      // ensure array
+      const orderIds = Array.isArray(order_id) ? order_id : [order_id];
+
+      const couriers = [];
+
+      for (const oid of orderIds) {
+        const order = await preOrderModel
+          .findById(oid)
+          .populate("user")
+          .session(session);
+
+        console.log(order, "pre order data");
+
+        if (!order) {
+          throw new ApiError(404, `Order (${oid}) not found`);
+        }
+
+        if (
+          [
+            ORDER_STATUS.CANCELLED,
+            ORDER_STATUS.FAILED,
+            ORDER_STATUS.DELIVERED,
+            ORDER_STATUS.RTS,
+            ORDER_STATUS.HANDED_OVER_TO_COURIER,
+          ].includes(order.order_status as ORDER_STATUS) ||
+          !merchant
+        ) {
+          throw new ApiError(
+            401,
+            `You can't transfer order (${oid}) with status '${order.order_status}'`
+          );
+        }
+
+        // courier payload
+        const courierPayload: TCourierPayload = {
+          invoice: order.invoice_number,
+          recipient_name: order.customer_name as string,
+          recipient_phone: order.customer_number as string,
+          recipient_address: `${order.delivery_address?.local_address}, Upazila: ${order.delivery_address?.thana}, District: ${order.delivery_address?.district}`,
+          cod_amount: order.payable_amount || 0,
+          ...(note && { note }),
+        };
+
+        // API
+        const courierRes: any =
+          await CourierMiddleware.transfer_single_order(courierPayload);
+
+        if (!courierRes?.statusCode && !courierRes?.status) {
+          throw new ApiError(400, "Failed to transfer order to courier");
+        }
+
+        // check exists
+        const existing = await CourierModel.findOne({ order: oid }).session(
+          session
+        );
+        if (existing) {
+          throw new ApiError(409, `Courier already exists for order ${oid}`);
+        }
+
+        // create courier
+        const createdCourier = await CourierModel.create(
+          [
+            {
+              merchant: merchant ?? MARCHANT.STEAD_FAST,
+              consignment_id: courierRes?.consignment?.consignment_id,
+              tracking_id: courierRes?.consignment?.tracking_code,
+              booking_date: courierRes?.consignment?.created_at
+                ? new Date(courierRes.consignment.created_at)
+                : new Date(),
+              courier_note: courierRes?.consignment?.note,
+              cod_amount: courierRes?.consignment?.cod_amount,
+              order: oid,
+              status: ORDER_STATUS.HANDED_OVER_TO_COURIER,
+              transfer_to_courier: true,
+              is_pre_order: true,
+            },
+          ],
+          { session }
+        );
+
+        // mark order transferred
+        await preOrderModel.findByIdAndUpdate(
           oid,
           {
             order_status: ORDER_STATUS.RTS,

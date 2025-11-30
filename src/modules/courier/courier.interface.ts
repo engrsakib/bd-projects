@@ -30,6 +30,7 @@ export interface ICourier {
   courier_note?: string;
   consignment_id?: string;
   transfer_to_courier: boolean;
+  is_pre_order?: boolean;
   delivery_man?: string;
   delivery_man_phone?: string;
   estimated_delivery_date?: Date;

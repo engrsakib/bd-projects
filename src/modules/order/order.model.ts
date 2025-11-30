@@ -110,6 +110,8 @@ const orderSchema = new Schema<IOrder>(
     transfer_to_courier: { type: Boolean, default: false },
     courier: { type: Schema.Types.ObjectId, ref: "Courier", default: null },
 
+    is_pre_order: { type: Boolean, default: false },
+
     // tracking dates
     order_at: { type: Date, default: new Date() },
 

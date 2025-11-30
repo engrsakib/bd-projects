@@ -223,7 +223,7 @@ class Service {
         merchantInvoiceNumber: params.invoice_number,
       };
 
-      console.log(payload, "bKash Create Payment Payload");
+      // console.log(payload, "bKash Create Payment Payload");
 
       const config: AxiosRequestConfig = {
         headers: {
@@ -240,7 +240,7 @@ class Service {
         config
       );
 
-      console.log("Bkash payment response", data);
+      // console.log("Bkash payment response", data);
 
       if (!data?.paymentID) {
         throw new ApiError(
@@ -282,7 +282,7 @@ class Service {
         config
       );
 
-      console.log("bkash execute data", executeResponse);
+      // console.log("bkash execute data", executeResponse);
       const data = { ...executeResponse };
 
       if (
@@ -338,12 +338,12 @@ class Service {
       const resultStatus: "success" | "failed" =
         mappedStatus === PAYMENT_STATUS.PAID ? "success" : "failed";
 
-      console.log("Bkash payment callback execution successful", {
-        paymentID,
-        transaction_id,
-        bkashStatus,
-        resultStatus,
-      });
+      // console.log("Bkash payment callback execution successful", {
+      //   paymentID,
+      //   transaction_id,
+      //   bkashStatus,
+      //   resultStatus,
+      // });
 
       return { status: resultStatus };
     } catch (error: any) {
@@ -381,7 +381,7 @@ class Service {
         payload,
         config
       );
-      console.log("refund data", data);
+      // console.log("refund data", data);
 
       if (!data?.transactionStatus) {
         throw new ApiError(

@@ -1,91 +1,106 @@
 import { Types } from "mongoose";
 import { DefaultsPurchaseModel } from "./defult-purchase.model";
 import { IDefaultsPurchase } from "./default-purchase.interface";
-import ApiError from "@/middlewares/error";
-import { HttpStatusCode } from "@/lib/httpStatus";
+
 import { VariantModel } from "../variant/variant.model";
 
 class Service {
-  async createPurchase(data: IDefaultsPurchase): Promise<IDefaultsPurchase> {
-    const session = await DefaultsPurchaseModel.startSession();
-    session.startTransaction();
-    try {
-      const variantId =
-        data.variant instanceof Types.ObjectId
-          ? data.variant
-          : new Types.ObjectId(String(data.variant));
-      const productId =
-        data.product instanceof Types.ObjectId
-          ? data.product
-          : new Types.ObjectId(String(data.product));
-      const supplierId =
-        data.supplier == null
-          ? null
-          : data.supplier instanceof Types.ObjectId
-            ? data.supplier
-            : new Types.ObjectId(String(data.supplier));
+  async createPurchases(
+    payload: any[]
+  ): Promise<{ successful: IDefaultsPurchase[]; failed: any[] }> {
+    const successful: IDefaultsPurchase[] = [];
+    const failed: any[] = [];
 
-      if (!variantId || !productId) {
-        throw new ApiError(
-          HttpStatusCode.BAD_REQUEST,
-          "variant and product are required"
-        );
-      }
+    // প্রতিটি আইটেম আলাদাভাবে প্রসেস করা হবে
+    for (const data of payload) {
+      const session = await DefaultsPurchaseModel.startSession();
+      session.startTransaction();
 
-      // Normalise numeric fields with defaults
-      const unit_cost = typeof data.unit_cost === "number" ? data.unit_cost : 0;
-      const discount = typeof data.discount === "number" ? data.discount : 0;
-      const tax = typeof data.tax === "number" ? data.tax : 0;
+      try {
+        // ১. আইডি ভ্যালিডেশন ও কনভার্শন
+        const variantId =
+          data.variant instanceof Types.ObjectId
+            ? data.variant
+            : new Types.ObjectId(String(data.variant));
 
-      // Try to find existing DefaultsPurchase by variant (unique constraint)
-      let defaults = await DefaultsPurchaseModel.findOne({
-        variant: variantId,
-      }).session(session);
+        const productId =
+          data.product instanceof Types.ObjectId
+            ? data.product
+            : new Types.ObjectId(String(data.product));
 
-      if (defaults) {
-        // Update existing
-        defaults.product = productId;
-        defaults.supplier = supplierId;
-        defaults.unit_cost = unit_cost;
-        defaults.discount = discount;
-        defaults.tax = tax;
-        await defaults.save({ session });
-      } else {
-        // Create new document (inside transaction)
-        const createdArr = await DefaultsPurchaseModel.create(
-          [
-            {
-              variant: variantId,
-              product: productId,
-              supplier: supplierId,
-              unit_cost,
-              discount,
-              tax,
-            },
-          ],
-          { session }
-        );
-        defaults = createdArr[0];
+        const supplierId =
+          data.supplier == null
+            ? null
+            : data.supplier instanceof Types.ObjectId
+              ? data.supplier
+              : new Types.ObjectId(String(data.supplier));
 
-        // Ensure Variant exists and set its default_purchase to the new DefaultsPurchase _id
-        const variantDoc =
-          await VariantModel.findById(variantId).session(session);
-        if (!variantDoc) {
-          // If variant missing, abort -> throw so transaction rolls back
-          throw new ApiError(HttpStatusCode.NOT_FOUND, "Variant not found");
+        if (!variantId || !productId) {
+          throw new Error("Variant and Product IDs are required");
         }
-        variantDoc.default_purchase = defaults._id as Types.ObjectId;
-        await variantDoc.save({ session });
-      }
 
-      await session.commitTransaction();
-      return defaults as IDefaultsPurchase;
-    } catch (error) {
-      await session.abortTransaction();
-      throw error;
-    } finally {
-      session.endSession();
+        // ২. নিউমেরিক ফিল্ড হ্যান্ডলিং
+        const unit_cost =
+          typeof data.unit_cost === "number" ? data.unit_cost : 0;
+        const discount = typeof data.discount === "number" ? data.discount : 0;
+        const tax = typeof data.tax === "number" ? data.tax : 0;
+
+        // ৩. লজিক: খোঁজা (Upsert Logic)
+        let defaults = await DefaultsPurchaseModel.findOne({
+          variant: variantId,
+        }).session(session);
+
+        if (defaults) {
+          // ক. আপডেট করা
+          defaults.product = productId;
+          defaults.supplier = supplierId;
+          defaults.unit_cost = unit_cost;
+          defaults.discount = discount;
+          defaults.tax = tax;
+          await defaults.save({ session });
+        } else {
+          // খ. নতুন তৈরি করা
+          const createdArr = await DefaultsPurchaseModel.create(
+            [
+              {
+                variant: variantId,
+                product: productId,
+                supplier: supplierId,
+                unit_cost,
+                discount,
+                tax,
+              },
+            ],
+            { session }
+          );
+          defaults = createdArr[0];
+
+          // ভ্যারিয়েন্টের সাথে লিঙ্ক করা
+          const variantDoc =
+            await VariantModel.findById(variantId).session(session);
+          if (!variantDoc) {
+            throw new Error(`Variant not found with ID: ${variantId}`);
+          }
+          variantDoc.default_purchase = defaults._id as Types.ObjectId;
+          await variantDoc.save({ session });
+        }
+
+        // সফল হলে কমিট এবং লিস্টে অ্যাড
+        await session.commitTransaction();
+        successful.push(defaults as IDefaultsPurchase);
+      } catch (error: any) {
+        // ফেইল করলে রোলব্যাক এবং ফেইল্ড লিস্টে অ্যাড
+        await session.abortTransaction();
+        failed.push({
+          data,
+          error: error.message || "Unknown Error",
+        });
+      } finally {
+        session.endSession();
+      }
     }
+
+    return { successful, failed };
   }
 }
 

@@ -1728,7 +1728,7 @@ class Service {
     ]);
 
     const orderStatusList: IOrderStatus[] = [
-      "arrived_international_warehouse",
+      "purchased_in_cny",
       "on_the_way_to_bd",
       "arrived_bd_warehouse",
       "inspection_in_progress",
@@ -2089,12 +2089,19 @@ class Service {
       }
 
       const previousStatus = order.order_status || "N/A";
+      this.validateStatusTransition(
+        previousStatus as ORDER_STATUS,
+        status as ORDER_STATUS
+      );
 
       if (
-        order.order_status === ORDER_STATUS.HANDED_OVER_TO_COURIER &&
+        order.order_status === ORDER_STATUS.RTS &&
         [
-          ORDER_STATUS.RTS,
+          ORDER_STATUS.CANCELLED,
           ORDER_STATUS.ACCEPTED,
+          ORDER_STATUS.ON_THE_WAY_TO_BD,
+          ORDER_STATUS.ARRIVED_BD_WAREHOUSE,
+          ORDER_STATUS.INSPECTION_IN_PROGRESS,
           ORDER_STATUS.PLACED,
           ORDER_STATUS.REJECTED,
         ].includes(status)
@@ -2386,6 +2393,111 @@ class Service {
 
     // Return consumption details
     return consumption;
+  }
+
+  private validateStatusTransition(
+    prev: ORDER_STATUS,
+    next: ORDER_STATUS
+  ): true {
+    const ALLOWED_NEXT: Record<ORDER_STATUS, ORDER_STATUS[]> = {
+      [ORDER_STATUS.INCOMPLETE]: [ORDER_STATUS.FAILED, ORDER_STATUS.REJECTED],
+
+      [ORDER_STATUS.FAILED]: [],
+
+      [ORDER_STATUS.PLACED]: [ORDER_STATUS.ACCEPTED, ORDER_STATUS.REJECTED],
+
+      [ORDER_STATUS.ACCEPTED]: [
+        ORDER_STATUS.REJECTED,
+        ORDER_STATUS.PURCHASED_IN_CNY,
+      ],
+
+      [ORDER_STATUS.PURCHASED_IN_CNY]: [
+        ORDER_STATUS.ARRIVED_BD_WAREHOUSE,
+        ORDER_STATUS.ON_THE_WAY_TO_BD,
+        ORDER_STATUS.REJECTED,
+      ],
+
+      [ORDER_STATUS.ARRIVED_BD_WAREHOUSE]: [
+        ORDER_STATUS.ON_THE_WAY_TO_BD,
+        ORDER_STATUS.REJECTED,
+      ],
+
+      [ORDER_STATUS.ON_THE_WAY_TO_BD]: [
+        ORDER_STATUS.ARRIVED_BD_WAREHOUSE,
+        ORDER_STATUS.REJECTED,
+      ],
+
+      [ORDER_STATUS.INSPECTION_IN_PROGRESS]: [],
+
+      [ORDER_STATUS.RTS]: [
+        ORDER_STATUS.HANDED_OVER_TO_COURIER,
+        ORDER_STATUS.IN_TRANSIT,
+        ORDER_STATUS.PENDING,
+        ORDER_STATUS.DELIVERED,
+        ORDER_STATUS.PENDING_RETURN,
+        ORDER_STATUS.CANCELLED,
+      ],
+
+      [ORDER_STATUS.HANDED_OVER_TO_COURIER]: [
+        ORDER_STATUS.IN_TRANSIT,
+        ORDER_STATUS.PENDING,
+        ORDER_STATUS.DELIVERED,
+        ORDER_STATUS.PENDING_RETURN,
+        ORDER_STATUS.CANCELLED,
+      ],
+
+      [ORDER_STATUS.IN_TRANSIT]: [
+        ORDER_STATUS.PENDING,
+        ORDER_STATUS.DELIVERED,
+        ORDER_STATUS.LOST,
+        ORDER_STATUS.CANCELLED,
+      ],
+
+      [ORDER_STATUS.PENDING]: [ORDER_STATUS.DELIVERED, ORDER_STATUS.CANCELLED],
+
+      [ORDER_STATUS.DELIVERED]: [
+        ORDER_STATUS.PENDING_RETURN,
+        ORDER_STATUS.EXCHANGE_REQUESTED,
+        ORDER_STATUS.PARTIAL,
+        ORDER_STATUS.CANCELLED,
+      ],
+
+      [ORDER_STATUS.PENDING_RETURN]: [ORDER_STATUS.RETURNED],
+
+      [ORDER_STATUS.RETURNED]: [],
+
+      [ORDER_STATUS.REJECTED]: [],
+
+      [ORDER_STATUS.CANCELLED]: [],
+
+      [ORDER_STATUS.EXCHANGE_REQUESTED]: [
+        ORDER_STATUS.EXCHANGED,
+        ORDER_STATUS.REJECTED,
+        ORDER_STATUS.ACCEPTED,
+      ],
+
+      [ORDER_STATUS.EXCHANGED]: [],
+
+      [ORDER_STATUS.PARTIAL]: [ORDER_STATUS.DELIVERED, ORDER_STATUS.REJECTED],
+
+      [ORDER_STATUS.UNKNOWN]: [],
+
+      [ORDER_STATUS.LOST]: [],
+    };
+
+    const allowed = ALLOWED_NEXT[prev];
+
+    if (!allowed) {
+      throw new Error(`Invalid previous status: ${prev}`);
+    }
+
+    if (!allowed.includes(next)) {
+      throw new Error(
+        `Status transition not allowed: ${prev} → ${next}. Allowed: ${allowed.join(", ")}`
+      );
+    }
+
+    return true;
   }
 }
 

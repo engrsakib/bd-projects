@@ -23,6 +23,7 @@ import { PermissionsRoutes } from "@/modules/permission/permission.route";
 import { WebhocksRoutes } from "@/modules/webhocks/webhocks.route";
 import { PreOrderRoutes } from "@/modules/preOrder/preOrder.routes";
 import { defaultPurchaseRoutes } from "@/modules/default-purchase/default-purchase.routes";
+import { UniqueBarcodeRoutes } from "@/modules/barcode/barcode.route";
 const router = Router();
 
 const moduleRoutes = [
@@ -45,6 +46,10 @@ const moduleRoutes = [
   {
     path: "/subcategory",
     route: SubCategoryRoutes,
+  },
+  {
+    path: "/barcode",
+    route: UniqueBarcodeRoutes,
   },
   {
     path: "/forget-password",

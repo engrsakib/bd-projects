@@ -160,6 +160,7 @@ class Service {
     const payload: IJWtPayload = {
       id: admin?._id.toString(),
       phone_number: admin?.phone_number as string,
+      name: admin?.name as string,
       role: admin?.role as string,
     };
     const { access_token, refresh_token } =
