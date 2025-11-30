@@ -55,42 +55,50 @@ class Service {
 
       // console.log(cartItems, "cart items");
 
+      let advance_payment_total_percentage = 0;
+
       // check stock availability [most important]
-      // for (const item of enrichedOrder.products) {
-      //   // console.log(item.variant, "for stock");
-      //   const stock = await StockModel.findOne(
-      //     {
-      //       product: item.product,
-      //       variant: item.variant,
-      //     },
-      //     null,
-      //     { session }
-      //   );
+      for (const item of enrichedOrder.products) {
+        // console.log(item.variant, "for stock");
+        // const stock = await StockModel.findOne(
+        //   {
+        //     product: item.product,
+        //     variant: item.variant,
+        //   },
+        //   null,
+        //   { session }
+        // );
 
-      //   if (!stock || stock.available_quantity < item.quantity) {
-      //     // await session.abortTransaction();
-      //     session.endSession();
-      //     throw new ApiError(
-      //       HttpStatusCode.BAD_REQUEST,
-      //       `Product ${item.product.name} is out of stock or does not have enough quantity`
-      //     );
-      //   }
+        // if (!stock || stock.available_quantity < item.quantity) {
+        //   // await session.abortTransaction();
+        //   session.endSession();
+        //   throw new ApiError(
+        //     HttpStatusCode.BAD_REQUEST,
+        //     `Product ${item.product.name} is out of stock or does not have enough quantity`
+        //   );
+        // }
 
-      //   // lot consumption (FIFO)
-      //   const consumedLots = await this.consumeLotsFIFO(
-      //     item.product,
-      //     item.variant,
-      //     item.quantity,
-      //     session
-      //   );
-      //   item.lots = consumedLots;
-      //   // console.log(consumedLots, "consumed lots `");
+        // // lot consumption (FIFO)
+        // const consumedLots = await this.consumeLotsFIFO(
+        //   item.product,
+        //   item.variant,
+        //   item.quantity,
+        //   session
+        // );
+        // item.lots = consumedLots;
+        // // console.log(consumedLots, "consumed lots `");
 
-      //   stock.available_quantity -= item.quantity;
-      //   stock.total_sold = (stock.total_sold || 0) + item.quantity;
-      //   item.total_sold = (item.total_sold || 0) + item.quantity;
-      //   await stock.save({ session });
-      // }
+        // stock.available_quantity -= item.quantity;
+        // stock.total_sold = (stock.total_sold || 0) + item.quantity;
+        // item.total_sold = (item.total_sold || 0) + item.quantity;
+        // await stock.save({ session });
+
+        const preOrderInfo = item.product.pre_order_product;
+        if (preOrderInfo && preOrderInfo.advance_payment_required) {
+          advance_payment_total_percentage +=
+            preOrderInfo.advance_payment_percentage;
+        }
+      }
 
       console.log(
         JSON.stringify(enrichedOrder.products, null, 2),
@@ -149,6 +157,13 @@ class Service {
         payload.total_amount -= data.discounts;
       }
 
+      let advance_payment;
+      if (advance_payment_total_percentage > 0) {
+        advance_payment = Number(
+          (payload.total_amount * advance_payment_total_percentage) / 100
+        );
+      }
+
       data.delivery_charge = this.calculateDeliveryCharge(
         data.delivery_address.division,
         data.delivery_address.district
@@ -161,10 +176,60 @@ class Service {
         payload.delivery_charge = data.delivery_charge;
       }
 
+      // if (data.payment_type === "cod") {
+      //   payload.payment_status = PAYMENT_STATUS.PENDING;
+      //   payload.payable_amount = payload.total_amount;
+      //   payload.order_status = ORDER_STATUS.PLACED;
+      // }
       if (data.payment_type === "cod") {
-        payload.payment_status = PAYMENT_STATUS.PENDING;
-        payload.payable_amount = payload.total_amount;
-        payload.order_status = ORDER_STATUS.PLACED;
+        const { payment_id, payment_url: bkash_payment_url } =
+          await BkashService.createPayment({
+            payable_amount: advance_payment || payload.total_amount,
+            invoice_number: payload.invoice_number,
+          });
+
+        payload.payment_id = payment_id;
+        payload.total_amount = Number(payload.total_amount.toFixed());
+
+        // console.log("order items:", payload.items, "order ends");
+
+        const createdOrders = await OrderModel.create([payload], { session });
+
+        if (!createdOrders || createdOrders.length <= 0) {
+          throw new ApiError(
+            HttpStatusCode.INTERNAL_SERVER_ERROR,
+            "Failed to create order"
+          );
+        }
+        // const createdOrder = createdOrders[0];
+        // console.log(createdOrder);
+
+        // 6. Clear cart (with session)
+        await CartService.clearCartAfterCheckout(
+          data.user_id as Types.ObjectId,
+          session
+        );
+
+        // 7. Commit transaction
+        await session.commitTransaction();
+        session.endSession();
+
+        const payment_url = bkash_payment_url;
+
+        const populatedOrders = await OrderModel.find({
+          _id: { $in: createdOrders.map((order) => order._id) },
+        })
+          .populate({
+            path: "items.product",
+            select: "name slug sku thumbnail description",
+          })
+          .populate({
+            path: "items.variant",
+            select:
+              "attributes attribute_values regular_price sale_price sku barcode image",
+          });
+
+        return { order: populatedOrders, payment_url };
       }
 
       if (data.payment_type === "bkash") {
@@ -219,7 +284,7 @@ class Service {
         return { order: populatedOrders, payment_url };
       }
 
-      payload.total_amount = Number(payload.total_amount.toFixed());
+      // payload.total_amount = Number(payload.total_amount.toFixed());
 
       // 5. Create order (with session)
       const createdOrders = await OrderModel.create([payload], { session });

@@ -2032,7 +2032,8 @@ class Service {
         previousStatus === ORDER_STATUS.LOST ||
         previousStatus === ORDER_STATUS.EXCHANGED ||
         previousStatus === ORDER_STATUS.INCOMPLETE ||
-        previousStatus === ORDER_STATUS.PARTIAL
+        previousStatus === ORDER_STATUS.PARTIAL ||
+        previousStatus === ORDER_STATUS.AWAITING_STOCK
       ) {
         throw new ApiError(
           HttpStatusCode.BAD_REQUEST,
