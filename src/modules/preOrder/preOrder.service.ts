@@ -28,6 +28,7 @@ import { VariantModel } from "../variant/variant.model";
 import { UserModel } from "../user/user.model";
 import { LotModel } from "../lot/lot.model";
 import { ReportParams } from "../order/order.interface";
+import pLimit from "p-limit";
 
 class Service {
   async placeOrder(
@@ -54,42 +55,50 @@ class Service {
 
       // console.log(cartItems, "cart items");
 
+      let advance_payment_total_percentage = 0;
+
       // check stock availability [most important]
-      // for (const item of enrichedOrder.products) {
-      //   // console.log(item.variant, "for stock");
-      //   const stock = await StockModel.findOne(
-      //     {
-      //       product: item.product,
-      //       variant: item.variant,
-      //     },
-      //     null,
-      //     { session }
-      //   );
+      for (const item of enrichedOrder.products) {
+        // console.log(item.variant, "for stock");
+        // const stock = await StockModel.findOne(
+        //   {
+        //     product: item.product,
+        //     variant: item.variant,
+        //   },
+        //   null,
+        //   { session }
+        // );
 
-      //   if (!stock || stock.available_quantity < item.quantity) {
-      //     // await session.abortTransaction();
-      //     session.endSession();
-      //     throw new ApiError(
-      //       HttpStatusCode.BAD_REQUEST,
-      //       `Product ${item.product.name} is out of stock or does not have enough quantity`
-      //     );
-      //   }
+        // if (!stock || stock.available_quantity < item.quantity) {
+        //   // await session.abortTransaction();
+        //   session.endSession();
+        //   throw new ApiError(
+        //     HttpStatusCode.BAD_REQUEST,
+        //     `Product ${item.product.name} is out of stock or does not have enough quantity`
+        //   );
+        // }
 
-      //   // lot consumption (FIFO)
-      //   const consumedLots = await this.consumeLotsFIFO(
-      //     item.product,
-      //     item.variant,
-      //     item.quantity,
-      //     session
-      //   );
-      //   item.lots = consumedLots;
-      //   // console.log(consumedLots, "consumed lots `");
+        // // lot consumption (FIFO)
+        // const consumedLots = await this.consumeLotsFIFO(
+        //   item.product,
+        //   item.variant,
+        //   item.quantity,
+        //   session
+        // );
+        // item.lots = consumedLots;
+        // // console.log(consumedLots, "consumed lots `");
 
-      //   stock.available_quantity -= item.quantity;
-      //   stock.total_sold = (stock.total_sold || 0) + item.quantity;
-      //   item.total_sold = (item.total_sold || 0) + item.quantity;
-      //   await stock.save({ session });
-      // }
+        // stock.available_quantity -= item.quantity;
+        // stock.total_sold = (stock.total_sold || 0) + item.quantity;
+        // item.total_sold = (item.total_sold || 0) + item.quantity;
+        // await stock.save({ session });
+
+        const preOrderInfo = item.product.pre_order_product;
+        if (preOrderInfo && preOrderInfo.advance_payment_required) {
+          advance_payment_total_percentage +=
+            preOrderInfo.advance_payment_percentage;
+        }
+      }
 
       console.log(
         JSON.stringify(enrichedOrder.products, null, 2),
@@ -148,6 +157,13 @@ class Service {
         payload.total_amount -= data.discounts;
       }
 
+      let advance_payment;
+      if (advance_payment_total_percentage > 0) {
+        advance_payment = Number(
+          (payload.total_amount * advance_payment_total_percentage) / 100
+        );
+      }
+
       data.delivery_charge = this.calculateDeliveryCharge(
         data.delivery_address.division,
         data.delivery_address.district
@@ -160,10 +176,60 @@ class Service {
         payload.delivery_charge = data.delivery_charge;
       }
 
+      // if (data.payment_type === "cod") {
+      //   payload.payment_status = PAYMENT_STATUS.PENDING;
+      //   payload.payable_amount = payload.total_amount;
+      //   payload.order_status = ORDER_STATUS.PLACED;
+      // }
       if (data.payment_type === "cod") {
-        payload.payment_status = PAYMENT_STATUS.PENDING;
-        payload.payable_amount = payload.total_amount;
-        payload.order_status = ORDER_STATUS.PLACED;
+        const { payment_id, payment_url: bkash_payment_url } =
+          await BkashService.createPayment({
+            payable_amount: advance_payment || payload.total_amount,
+            invoice_number: payload.invoice_number,
+          });
+
+        payload.payment_id = payment_id;
+        payload.total_amount = Number(payload.total_amount.toFixed());
+
+        // console.log("order items:", payload.items, "order ends");
+
+        const createdOrders = await OrderModel.create([payload], { session });
+
+        if (!createdOrders || createdOrders.length <= 0) {
+          throw new ApiError(
+            HttpStatusCode.INTERNAL_SERVER_ERROR,
+            "Failed to create order"
+          );
+        }
+        // const createdOrder = createdOrders[0];
+        // console.log(createdOrder);
+
+        // 6. Clear cart (with session)
+        await CartService.clearCartAfterCheckout(
+          data.user_id as Types.ObjectId,
+          session
+        );
+
+        // 7. Commit transaction
+        await session.commitTransaction();
+        session.endSession();
+
+        const payment_url = bkash_payment_url;
+
+        const populatedOrders = await OrderModel.find({
+          _id: { $in: createdOrders.map((order) => order._id) },
+        })
+          .populate({
+            path: "items.product",
+            select: "name slug sku thumbnail description",
+          })
+          .populate({
+            path: "items.variant",
+            select:
+              "attributes attribute_values regular_price sale_price sku barcode image",
+          });
+
+        return { order: populatedOrders, payment_url };
       }
 
       if (data.payment_type === "bkash") {
@@ -218,7 +284,7 @@ class Service {
         return { order: populatedOrders, payment_url };
       }
 
-      payload.total_amount = Number(payload.total_amount.toFixed());
+      // payload.total_amount = Number(payload.total_amount.toFixed());
 
       // 5. Create order (with session)
       const createdOrders = await OrderModel.create([payload], { session });
@@ -673,35 +739,35 @@ class Service {
       }
 
       // ৩. পুরাতন order.items এর stock rollback + total_sold কমানো
-      for (const prevItem of order.items ?? []) {
-        const stock = await StockModel.findOne({
-          product: prevItem.product,
-          variant: prevItem.variant,
-        }).session(session);
+      // for (const prevItem of order.items ?? []) {
+      //   const stock = await StockModel.findOne({
+      //     product: prevItem.product,
+      //     variant: prevItem.variant,
+      //   }).session(session);
 
-        const lots = await LotModel.findOne({
-          variant: prevItem.variant,
-        }).session(session);
+      //   const lots = await LotModel.findOne({
+      //     variant: prevItem.variant,
+      //   }).session(session);
 
-        if (lots) {
-          // পূর্বে কাটাকাটা lot গুলো ফিরিয়ে দিন
-          lots.qty_available += prevItem.quantity;
-          await lots.save({ session });
-        }
+      //   if (lots) {
+      //     // পূর্বে কাটাকাটা lot গুলো ফিরিয়ে দিন
+      //     lots.qty_available += prevItem.quantity;
+      //     await lots.save({ session });
+      //   }
 
-        if (stock) {
-          // স্টকে quantity ফেরত দিন
-          await StockModel.findByIdAndUpdate(
-            stock._id,
-            { $inc: { available_quantity: prevItem.quantity } },
-            { session }
-          );
-          // total_sold কমান
-          stock.total_sold = (stock.total_sold || 0) - prevItem.quantity;
-          if (stock.total_sold < 0) stock.total_sold = 0; // নেগেটিভ হলে ০
-          await stock.save({ session });
-        }
-      }
+      //   if (stock) {
+      //     // স্টকে quantity ফেরত দিন
+      //     await StockModel.findByIdAndUpdate(
+      //       stock._id,
+      //       { $inc: { available_quantity: prevItem.quantity } },
+      //       { session }
+      //     );
+      //     // total_sold কমান
+      //     stock.total_sold = (stock.total_sold || 0) - prevItem.quantity;
+      //     if (stock.total_sold < 0) stock.total_sold = 0; // নেগেটিভ হলে ০
+      //     await stock.save({ session });
+      //   }
+      // }
 
       // ৪. নতুন/পরিবর্তিত আইটেমের জন্য stock allocate + total_sold বাড়ানো
       let total_price = 0;
@@ -2196,6 +2262,189 @@ class Service {
     } finally {
       session.endSession();
     }
+  }
+
+  async updateOrdersStatusBulk(params: {
+    ids: string[];
+    userId: string;
+    status: ORDER_STATUS;
+    concurrency?: number;
+  }): Promise<{
+    updated: { order_id?: number; _id: string; order_status: ORDER_STATUS }[];
+    failed: {
+      orderId: string;
+      error: string;
+      order?: { order_id?: number; _id?: string; order_status?: ORDER_STATUS };
+    }[];
+  }> {
+    const { ids, status, userId, concurrency = 10 } = params;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      throw new ApiError(
+        HttpStatusCode.BAD_REQUEST,
+        "ids must be a non-empty array"
+      );
+    }
+
+    const limit = pLimit(concurrency);
+
+    const tasks = ids.map((id) =>
+      limit(async () => {
+        // Each order gets its own session/transaction
+        const session = await OrderModel.startSession();
+        session.startTransaction();
+        try {
+          const order = await OrderModel.findById(id).session(session);
+          if (!order) {
+            throw new ApiError(
+              HttpStatusCode.NOT_FOUND,
+              `Order not found: ${id}`
+            );
+          }
+
+          // const previousStatus = order.order_status || "N/A";
+          const previousStatus = order.order_status || "N/A";
+          this.validateStatusTransition(
+            previousStatus as ORDER_STATUS,
+            status as ORDER_STATUS
+          );
+
+          if (
+            order.order_status === ORDER_STATUS.HANDED_OVER_TO_COURIER &&
+            [
+              ORDER_STATUS.RTS,
+              ORDER_STATUS.ACCEPTED,
+              ORDER_STATUS.PLACED,
+            ].includes(status)
+          ) {
+            throw new ApiError(
+              HttpStatusCode.BAD_REQUEST,
+              `Cannot change status from handed_over_to_courier to ${status} for order ${id}`
+            );
+          }
+
+          const updated = await OrderModel.findOneAndUpdate(
+            { _id: id },
+            {
+              $set: { order_status: status },
+              $push: {
+                logs: {
+                  user: userId,
+                  time: new Date(),
+                  action: `ORDER_STATUS_UPDATED: ${previousStatus} -> ${status}`,
+                },
+              },
+            },
+            { new: true, session }
+          );
+
+          if (!updated) {
+            throw new ApiError(
+              HttpStatusCode.NOT_FOUND,
+              `Order was not found with id: ${id}`
+            );
+          }
+
+          // restore stock/lots for cancel/return/failed
+          if (
+            status === ORDER_STATUS.CANCELLED ||
+            status === ORDER_STATUS.RETURNED ||
+            status === ORDER_STATUS.FAILED
+          ) {
+            for (const item of updated.items ?? []) {
+              const stock = await StockModel.findOne(
+                { product: item.product, variant: item.variant },
+                null,
+                { session }
+              );
+              if (stock) {
+                stock.available_quantity += item.quantity;
+                await stock.save({ session });
+              }
+
+              const lotDoc = await LotModel.findOne(
+                { variant: item.variant },
+                null,
+                { session }
+              );
+              if (lotDoc) {
+                lotDoc.qty_available += item.quantity;
+                await lotDoc.save({ session });
+              }
+            }
+          }
+
+          await session.commitTransaction();
+          session.endSession();
+
+          // Return only requested fields for updated
+          return {
+            orderId: id,
+            ok: true,
+            order: {
+              order_id: (updated as IOrder).order_id,
+              _id: String(updated._id),
+              order_status: updated.order_status as ORDER_STATUS,
+            },
+          };
+        } catch (err: any) {
+          await session.abortTransaction();
+          session.endSession();
+          const message = err?.message || String(err);
+
+          // Try to fetch minimal order info if exists (outside transaction) to include in failed response
+          try {
+            const maybeOrder = await OrderModel.findById(id).select({
+              order_id: 1,
+              order_status: 1,
+            });
+            if (maybeOrder) {
+              return {
+                orderId: id,
+                ok: false,
+                error: message,
+                order: {
+                  order_id: (maybeOrder as any).order_id,
+                  _id: String(maybeOrder._id),
+                  order_status: (maybeOrder as any).order_status,
+                },
+              };
+            }
+          } catch {
+            // ignore fetch errors, will return without order info
+          }
+
+          return { orderId: id, ok: false, error: message };
+        }
+      })
+    );
+
+    const results = await Promise.all(tasks);
+
+    const updated: {
+      order_id?: number;
+      _id: string;
+      order_status: ORDER_STATUS;
+    }[] = [];
+    const failed: {
+      orderId: string;
+      error: string;
+      order?: { order_id?: number; _id?: string; order_status?: ORDER_STATUS };
+    }[] = [];
+
+    for (const r of results) {
+      if (r.ok)
+        updated.push(
+          r.order as {
+            order_id?: number;
+            _id: string;
+            order_status: ORDER_STATUS;
+          }
+        );
+      else failed.push({ orderId: r.orderId, error: r.error, order: r.order });
+    }
+
+    return { updated, failed };
   }
 
   async order_tracking(order_id: string) {

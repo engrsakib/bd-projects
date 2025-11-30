@@ -2032,7 +2032,8 @@ class Service {
         previousStatus === ORDER_STATUS.LOST ||
         previousStatus === ORDER_STATUS.EXCHANGED ||
         previousStatus === ORDER_STATUS.INCOMPLETE ||
-        previousStatus === ORDER_STATUS.PARTIAL
+        previousStatus === ORDER_STATUS.PARTIAL ||
+        previousStatus === ORDER_STATUS.AWAITING_STOCK
       ) {
         throw new ApiError(
           HttpStatusCode.BAD_REQUEST,
@@ -2224,6 +2225,21 @@ class Service {
           }
 
           const previousStatus = order.order_status || "N/A";
+          if (
+            previousStatus === ORDER_STATUS.CANCELLED ||
+            previousStatus === ORDER_STATUS.RETURNED ||
+            previousStatus === ORDER_STATUS.FAILED ||
+            previousStatus === ORDER_STATUS.LOST ||
+            previousStatus === ORDER_STATUS.EXCHANGED ||
+            previousStatus === ORDER_STATUS.INCOMPLETE ||
+            previousStatus === ORDER_STATUS.PARTIAL ||
+            previousStatus === ORDER_STATUS.AWAITING_STOCK
+          ) {
+            throw new ApiError(
+              HttpStatusCode.BAD_REQUEST,
+              `Cannot change status from ${previousStatus} to ${status}`
+            );
+          }
 
           if (
             order.order_status === ORDER_STATUS.HANDED_OVER_TO_COURIER &&
