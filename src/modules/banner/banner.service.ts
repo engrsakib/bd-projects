@@ -26,7 +26,7 @@ class Service {
   async getAvailableBanners(type: "normal" | "featured") {
     // if products length < 1
     const queries: any = {
-      "products.0": { $exists: true },
+      // "products.0": { $exists: true },
     };
     if (type) {
       queries.type = type;
