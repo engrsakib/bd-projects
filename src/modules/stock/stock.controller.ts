@@ -135,6 +135,73 @@ class Controller extends BaseController {
       data: result,
     });
   });
+
+  getAllStocksAdjustment = this.catchAsync(
+    async (req: Request, res: Response) => {
+      const filters = pick(req.query, [
+        "action",
+        "adjust_by",
+        "minTotalAmount",
+        "maxTotalAmount",
+        "startDate",
+        "endDate",
+        "search",
+      ]);
+
+      // Nested filters for products
+      const productFilters = pick(req.query, [
+        "products.product",
+        "products.sku",
+        "products.barcode",
+        "products.minQuantity",
+        "products.maxQuantity",
+        "products.minUnitPrice",
+        "products.maxUnitPrice",
+        "products.product_note",
+      ]);
+
+      // Handle attribute_values separately if needed, or pass via query object
+      // Assuming query parser handles nested objects for attribute_values
+
+      const options = pick(req.query, ["limit", "page", "sortBy", "order"]);
+
+      // Merge top-level and product-level filters
+      const finalFilters = {
+        ...filters,
+        products: { ...productFilters },
+        // attribute_values usually come as nested query params, ensure they are structured correctly
+        attribute_values: req.query.attribute_values,
+      };
+
+      const result = await StockService.getAllStocksAdjustment({
+        ...options,
+        filters: finalFilters,
+        search: req.query.search as string,
+      });
+
+      this.sendResponse(res, {
+        statusCode: HttpStatusCode.OK,
+        success: true,
+        message: "Stock adjustments retrieved successfully",
+        data: result,
+      });
+    }
+  );
 }
+
+const pick = <T extends Record<string, unknown>, k extends keyof T>(
+  obj: T,
+  keys: k[]
+): Partial<T> => {
+  const finalObj: Partial<T> = {};
+
+  for (const key of keys) {
+    if (obj && Object.hasOwnProperty.call(obj, key)) {
+      finalObj[key] = obj[key];
+    }
+  }
+
+  return finalObj;
+};
 
 export const StockController = new Controller();
