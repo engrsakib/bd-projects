@@ -2204,7 +2204,7 @@ class Service {
     if (!Array.isArray(ids) || ids.length === 0) {
       throw new ApiError(
         HttpStatusCode.BAD_REQUEST,
-        "ids must be a non-empty array"
+        "ids must be a non-empty array for bulk status update"
       );
     }
 
