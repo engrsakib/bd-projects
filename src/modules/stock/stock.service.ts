@@ -1067,7 +1067,7 @@ class Service {
       await session.abortTransaction();
       throw new ApiError(
         error.statusCode || 500,
-        error?.message || "Server error during stock adjustment"
+        error?.message || "Server error during stock adjustment addition"
       );
     } finally {
       session.endSession();
