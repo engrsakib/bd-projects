@@ -52,6 +52,7 @@ export type IOrderItem = {
   new_cod?: number;
   subtotal: number;
   total_sold?: number;
+  barcode?: string[];
   status?: IOrderStatus;
 };
 
