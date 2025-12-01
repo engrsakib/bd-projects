@@ -677,33 +677,257 @@ class Service {
   }
 
   // stock adjustment log can be added here
+  // async stocksAdjustment(payload: IAdjustStocks): Promise<IAdjustStocks> {
+  //   const session = await mongoose.startSession();
+  //   session.startTransaction();
+
+  //   try {
+  //     // Pre-generate adjustmentId for use in movement refs
+  //     const adjustmentId = new Types.ObjectId();
+
+  //     // Initialize total_cost which will become total_amount
+  //     let total_cost = 0;
+
+  //     // Loop through each product in the adjustment payload
+  //     for (const adjustItem of payload.products) {
+  //       const sku = adjustItem.selected_variant.sku;
+  //       const productId = adjustItem.product;
+  //       const quantity = adjustItem.quantity;
+
+  //       // console.log(barcode, "sku adjst")
+
+  //       // Find variant by barcode (assuming unique)
+  //       const variant = await VariantModel.findOne({sku: sku }).session(
+  //         session
+  //       );
+  //       if (!variant) {
+  //         throw new ApiError(, `Variant not found for sku ${sku}`);
+  //       }
+  //       const variantId = variant._id;
+
+  //       // Find stock record
+  //       const stock = await StockModel.findOne({
+  //         product: productId,
+  //         variant: variantId,
+  //       }).session(session);
+
+  //       if (!stock) {
+  //         throw new ApiError(
+  //           404,
+  //           `Stock not found for product ${productId} and variant ${variantId}`
+  //         );
+  //       }
+
+  //       let item_cost = 0;
+
+  //       if (payload.action === "DEDUCTION") {
+  //         // For DEDUCTION: Check sufficient stock
+  //         if (stock.available_quantity < quantity) {
+  //           throw new ApiError(
+  //             400,
+  //             `Insufficient stock for sku ${sku}. Available: ${stock?.available_quantity || 0}, Requested: ${quantity}`
+  //           );
+  //         }
+
+  //         // Find active, non-expired lots sorted by received_at ascending (FIFO - oldest first)
+  //         const lots = await LotModel.find({
+  //           stock: stock._id,
+  //           status: "active",
+  //           qty_available: { $gt: 0 },
+  //         })
+  //           .sort({ received_at: 1 }) // 1 for ascending, FIFO
+  //           .session(session);
+
+  //         let remaining = quantity;
+
+  //         // Process each lot in FIFO order
+  //         for (const lot of lots) {
+  //           if (remaining <= 0) break;
+  //           const alloc = Math.min(remaining, lot.qty_available);
+  //           item_cost += alloc * lot.cost_per_unit;
+
+  //           // Update lot qty_available and status if depleted
+  //           const update: any = {
+  //             $inc: { qty_available: -alloc },
+  //           };
+  //           if (alloc === lot.qty_available) {
+  //             update.status = "closed";
+  //           }
+  //           await LotModel.findByIdAndUpdate(lot._id, update, { session });
+
+  //           // Create inventory movement for each allocation (negative qty for deduction)
+  //           // await InventoryMovementModel.create(
+  //           //   [
+  //           //     {
+  //           //       type: "adjustment",
+  //           //       ref: adjustmentId, // Reference to the adjustment doc
+  //           //       variant: variantId,
+  //           //       product: productId,
+  //           //       qty: -alloc, // Negative for deduction (out)
+  //           //       cost_per_unit: lot.cost_per_unit,
+  //           //       lot: lot._id, // Source lot
+  //           //       note: `Adjustment Stock by ${payload.adjust_by}, action ${payload.action}, stock id ${adjustItem.stock}`,
+  //           //     },
+  //           //   ],
+  //           //   { session }
+  //           // );
+
+  //           remaining -= alloc;
+  //         }
+
+  //         // If still remaining after all lots, throw error
+  //         if (remaining > 0) {
+  //           throw new ApiError(
+  //             400,
+  //             `Insufficient available lots for sku ${sku} despite stock record`
+  //           );
+  //         }
+
+  //         // Update stock: reduce available_quantity and increase total_sold
+  //         await StockModel.findByIdAndUpdate(
+  //           stock._id,
+  //           {
+  //             $inc: {
+  //               available_quantity: -quantity,
+  //             },
+  //           },
+  //           { session }
+  //         );
+
+  //         // Calculate average unit_price and total_price for deduction (weighted average from lots)
+  //         adjustItem.unit_price = item_cost / quantity;
+  //         adjustItem.total_price = item_cost;
+  //       } else if (payload.action === "ADDITION") {
+  //         // For ADDITION: Find the last (newest) lot for this stock
+  //         const lastLot = await LotModel.findOne({
+  //           stock: stock._id,
+  //         })
+  //           .sort({ received_at: -1 }) // -1 for descending, newest first
+  //           .session(session);
+
+  //         if (!lastLot) {
+  //           throw new ApiError(
+  //             404,
+  //             `No lots found for stock ${stock._id}. Cannot add without existing lot.`
+  //           );
+  //         }
+
+  //         // If the last lot is closed, reopen it by setting status to active
+  //         if (lastLot.status === "closed") {
+  //           await LotModel.findByIdAndUpdate(
+  //             lastLot._id,
+  //             { status: "active" },
+  //             { session }
+  //           );
+  //         }
+
+  //         // Update the last lot: increase qty_available
+  //         await LotModel.findByIdAndUpdate(
+  //           lastLot._id,
+  //           {
+  //             $inc: { qty_available: quantity },
+  //           },
+  //           { session }
+  //         );
+
+  //         // Use the last lot's cost_per_unit for calculations (ignore payload unit_price)
+  //         const cost_per_unit = lastLot.cost_per_unit;
+  //         item_cost = quantity * cost_per_unit;
+
+  //         // Set unit_price and total_price based on last lot
+  //         adjustItem.unit_price = cost_per_unit;
+  //         adjustItem.total_price = item_cost;
+
+  //         // Create inventory movement for addition (positive qty)
+  //         // await InventoryMovementModel.create(
+  //         //   [
+  //         //     {
+  //         //       type: "adjustment",
+  //         //       ref: adjustmentId,
+  //         //       variant: variantId,
+  //         //       product: productId,
+
+  //         //       qty: quantity, // Positive for addition (in)
+  //         //       cost_per_unit: cost_per_unit,
+  //         //       lot: lastLot._id,
+  //         //       note: `Adjustment Stock by ${payload.adjust_by}, action ${payload.action}, stock id ${adjustItem.stock}`,
+  //         //     },
+  //         //   ],
+  //         //   { session }
+  //         // );
+
+  //         // Update stock: increase available_quantity (no total_sold for addition)
+  //         await StockModel.findByIdAndUpdate(
+  //           stock._id,
+  //           {
+  //             $inc: {
+  //               available_quantity: quantity,
+  //             },
+  //           },
+  //           { session }
+  //         );
+  //       } else {
+  //         // Invalid action
+  //         throw new ApiError(
+  //           400,
+  //           "Invalid action. Must be ADDITION or DEDUCTION"
+  //         );
+  //       }
+
+  //       // Add item_cost to total_cost
+  //       total_cost += item_cost;
+  //     }
+
+  //     // Set total_amount on payload
+  //     payload.total_amount = total_cost;
+  //     payload.activities_date = new Date();
+
+  //     // Create the AdjustedStocks document with pre-generated _id
+  //     const adjustmentDocs = await AdjustedStocks.create(
+  //       [{ ...payload, _id: adjustmentId }],
+  //       { session }
+  //     );
+  //     const adjustment = adjustmentDocs[0];
+
+  //     // Commit transaction
+  //     await session.commitTransaction();
+  //     return adjustment;
+  //   } catch (error: any) {
+  //     await session.abortTransaction();
+  //     throw new ApiError(
+  //       error.statusCode,
+  //       error?.message || "Server error during stock adjustment"
+  //     );
+  //   } finally {
+  //     session.endSession();
+  //   }
+  // }
+
   async stocksAdjustment(payload: IAdjustStocks): Promise<IAdjustStocks> {
     const session = await mongoose.startSession();
     session.startTransaction();
 
     try {
-      // Pre-generate adjustmentId for use in movement refs
       const adjustmentId = new Types.ObjectId();
-
-      // Initialize total_cost which will become total_amount
       let total_cost = 0;
 
-      // Loop through each product in the adjustment payload
       for (const adjustItem of payload.products) {
         const barcode = adjustItem.selected_variant.sku;
         const productId = adjustItem.product;
         const quantity = adjustItem.quantity;
 
-        // Find variant by barcode (assuming unique)
-        const variant = await VariantModel.findOne({ barcode }).session(
-          session
-        );
+        const variant = await VariantModel.findOne({
+          $or: [{ sku: barcode }, { barcode: barcode }],
+        }).session(session);
+
         if (!variant) {
-          throw new ApiError(404, `Variant not found for barcode ${barcode}`);
+          throw new ApiError(
+            404,
+            `Variant not found for identifier ${barcode}`
+          );
         }
         const variantId = variant._id;
 
-        // Find stock record
         const stock = await StockModel.findOne({
           product: productId,
           variant: variantId,
@@ -719,32 +943,30 @@ class Service {
         let item_cost = 0;
 
         if (payload.action === "DEDUCTION") {
-          // For DEDUCTION: Check sufficient stock
           if (stock.available_quantity < quantity) {
             throw new ApiError(
               400,
-              `Insufficient stock for barcode ${barcode}. Available: ${stock?.available_quantity || 0}, Requested: ${quantity}`
+              `Insufficient stock for identifier ${barcode}. Available: ${
+                stock?.available_quantity || 0
+              }, Requested: ${quantity}`
             );
           }
 
-          // Find active, non-expired lots sorted by received_at ascending (FIFO - oldest first)
           const lots = await LotModel.find({
             stock: stock._id,
             status: "active",
             qty_available: { $gt: 0 },
           })
-            .sort({ received_at: 1 }) // 1 for ascending, FIFO
+            .sort({ received_at: 1 })
             .session(session);
 
           let remaining = quantity;
 
-          // Process each lot in FIFO order
           for (const lot of lots) {
             if (remaining <= 0) break;
             const alloc = Math.min(remaining, lot.qty_available);
             item_cost += alloc * lot.cost_per_unit;
 
-            // Update lot qty_available and status if depleted
             const update: any = {
               $inc: { qty_available: -alloc },
             };
@@ -753,35 +975,16 @@ class Service {
             }
             await LotModel.findByIdAndUpdate(lot._id, update, { session });
 
-            // Create inventory movement for each allocation (negative qty for deduction)
-            // await InventoryMovementModel.create(
-            //   [
-            //     {
-            //       type: "adjustment",
-            //       ref: adjustmentId, // Reference to the adjustment doc
-            //       variant: variantId,
-            //       product: productId,
-            //       qty: -alloc, // Negative for deduction (out)
-            //       cost_per_unit: lot.cost_per_unit,
-            //       lot: lot._id, // Source lot
-            //       note: `Adjustment Stock by ${payload.adjust_by}, action ${payload.action}, stock id ${adjustItem.stock}`,
-            //     },
-            //   ],
-            //   { session }
-            // );
-
             remaining -= alloc;
           }
 
-          // If still remaining after all lots, throw error
           if (remaining > 0) {
             throw new ApiError(
               400,
-              `Insufficient available lots for barcode ${barcode} despite stock record`
+              `Insufficient available lots for identifier ${barcode} despite stock record`
             );
           }
 
-          // Update stock: reduce available_quantity and increase total_sold
           await StockModel.findByIdAndUpdate(
             stock._id,
             {
@@ -792,15 +995,13 @@ class Service {
             { session }
           );
 
-          // Calculate average unit_price and total_price for deduction (weighted average from lots)
           adjustItem.unit_price = item_cost / quantity;
           adjustItem.total_price = item_cost;
         } else if (payload.action === "ADDITION") {
-          // For ADDITION: Find the last (newest) lot for this stock
           const lastLot = await LotModel.findOne({
             stock: stock._id,
           })
-            .sort({ received_at: -1 }) // -1 for descending, newest first
+            .sort({ received_at: -1 })
             .session(session);
 
           if (!lastLot) {
@@ -810,7 +1011,6 @@ class Service {
             );
           }
 
-          // If the last lot is closed, reopen it by setting status to active
           if (lastLot.status === "closed") {
             await LotModel.findByIdAndUpdate(
               lastLot._id,
@@ -819,7 +1019,6 @@ class Service {
             );
           }
 
-          // Update the last lot: increase qty_available
           await LotModel.findByIdAndUpdate(
             lastLot._id,
             {
@@ -828,33 +1027,12 @@ class Service {
             { session }
           );
 
-          // Use the last lot's cost_per_unit for calculations (ignore payload unit_price)
           const cost_per_unit = lastLot.cost_per_unit;
           item_cost = quantity * cost_per_unit;
 
-          // Set unit_price and total_price based on last lot
           adjustItem.unit_price = cost_per_unit;
           adjustItem.total_price = item_cost;
 
-          // Create inventory movement for addition (positive qty)
-          // await InventoryMovementModel.create(
-          //   [
-          //     {
-          //       type: "adjustment",
-          //       ref: adjustmentId,
-          //       variant: variantId,
-          //       product: productId,
-
-          //       qty: quantity, // Positive for addition (in)
-          //       cost_per_unit: cost_per_unit,
-          //       lot: lastLot._id,
-          //       note: `Adjustment Stock by ${payload.adjust_by}, action ${payload.action}, stock id ${adjustItem.stock}`,
-          //     },
-          //   ],
-          //   { session }
-          // );
-
-          // Update stock: increase available_quantity (no total_sold for addition)
           await StockModel.findByIdAndUpdate(
             stock._id,
             {
@@ -865,35 +1043,30 @@ class Service {
             { session }
           );
         } else {
-          // Invalid action
           throw new ApiError(
             400,
             "Invalid action. Must be ADDITION or DEDUCTION"
           );
         }
 
-        // Add item_cost to total_cost
         total_cost += item_cost;
       }
 
-      // Set total_amount on payload
       payload.total_amount = total_cost;
       payload.activities_date = new Date();
 
-      // Create the AdjustedStocks document with pre-generated _id
       const adjustmentDocs = await AdjustedStocks.create(
         [{ ...payload, _id: adjustmentId }],
         { session }
       );
       const adjustment = adjustmentDocs[0];
 
-      // Commit transaction
       await session.commitTransaction();
       return adjustment;
     } catch (error: any) {
       await session.abortTransaction();
       throw new ApiError(
-        error.statusCode,
+        error.statusCode || 500,
         error?.message || "Server error during stock adjustment"
       );
     } finally {
