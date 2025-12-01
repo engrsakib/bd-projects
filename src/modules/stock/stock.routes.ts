@@ -45,6 +45,13 @@ router.patch(
   StockController.updateStock
 );
 
+router.post(
+  "/adjustment",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.STOCK_UPDATE),
+  StockController.stocksAdjustment
+);
+
 router.delete(
   "/:id",
   JwtInstance.authenticate(Object.values(ROLES)),
