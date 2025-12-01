@@ -138,7 +138,7 @@ class Controller extends BaseController {
 
   getAllStocksAdjustment = this.catchAsync(
     async (req: Request, res: Response) => {
-      const filters = pick(req.query, [
+      const filters = pickQueries(req.query, [
         "action",
         "adjust_by",
         "minTotalAmount",
@@ -149,7 +149,7 @@ class Controller extends BaseController {
       ]);
 
       // Nested filters for products
-      const productFilters = pick(req.query, [
+      const productFilters = pickQueries(req.query, [
         "products.product",
         "products.sku",
         "products.barcode",
@@ -163,7 +163,12 @@ class Controller extends BaseController {
       // Handle attribute_values separately if needed, or pass via query object
       // Assuming query parser handles nested objects for attribute_values
 
-      const options = pick(req.query, ["limit", "page", "sortBy", "order"]);
+      const options = pickQueries(req.query, [
+        "limit",
+        "page",
+        "sortBy",
+        "order",
+      ]);
 
       // Merge top-level and product-level filters
       const finalFilters = {
@@ -188,20 +193,5 @@ class Controller extends BaseController {
     }
   );
 }
-
-const pick = <T extends Record<string, unknown>, k extends keyof T>(
-  obj: T,
-  keys: k[]
-): Partial<T> => {
-  const finalObj: Partial<T> = {};
-
-  for (const key of keys) {
-    if (obj && Object.hasOwnProperty.call(obj, key)) {
-      finalObj[key] = obj[key];
-    }
-  }
-
-  return finalObj;
-};
 
 export const StockController = new Controller();
