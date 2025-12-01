@@ -5,6 +5,7 @@ import { HttpStatusCode } from "@/lib/httpStatus";
 import pickQueries from "@/shared/pickQueries";
 import { paginationFields } from "@/constants/paginationFields";
 import { stockFilterableFields } from "./stock.interface";
+import ApiError from "@/middlewares/error";
 
 class Controller extends BaseController {
   transferStocks = this.catchAsync(async (req: Request, res: Response) => {
@@ -108,6 +109,30 @@ class Controller extends BaseController {
       success: true,
       message: "Low stock products fetched successfully",
       data: report,
+    });
+  });
+
+  stocksAdjustment = this.catchAsync(async (req: Request, res: Response) => {
+    if (!req.body || !req.body.products || req.body.products.length === 0) {
+      throw new ApiError(
+        HttpStatusCode.BAD_REQUEST,
+        "Invalid payload: Products array is required"
+      );
+    }
+
+    const payload = {
+      ...req.body,
+
+      adjust_by: req.user ? req.user._id : req.body.adjust_by,
+    };
+
+    const result = await StockService.stocksAdjustment(payload);
+
+    this.sendResponse(res, {
+      statusCode: HttpStatusCode.CREATED,
+      success: true,
+      message: "Stock adjustment processed successfully",
+      data: result,
     });
   });
 }
