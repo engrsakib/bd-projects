@@ -97,7 +97,7 @@ const orderSchema = new Schema<IOrder>(
     },
     transaction_id: { type: String },
     payment_id: {
-      type: Schema.Types.ObjectId,
+      type: String,
       ref: "Transaction",
       required: false,
     },
