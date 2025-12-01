@@ -90,10 +90,12 @@ class Controller extends BaseController {
       const result =
         await DefaultsPurchaseService.getAllDefaultsPurchases(filters);
 
+      console.log(result, "defulat result");
+
       this.sendResponse(res, {
         statusCode: HttpStatusCode.OK,
         success: true,
-        message: "Default purchases retrieved successfully",
+        message: "ALL Default purchases retrieved successfully",
         data: result,
       });
     }

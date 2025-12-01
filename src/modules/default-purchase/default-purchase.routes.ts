@@ -14,4 +14,11 @@ router.put(
   DefaultsPurchaseController.createPurchase
 );
 
+router.get(
+  "/all",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.DEFAULTS_PURCHASE),
+  DefaultsPurchaseController.getAllDefaultsPurchases
+);
+
 export const defaultPurchaseRoutes = router;

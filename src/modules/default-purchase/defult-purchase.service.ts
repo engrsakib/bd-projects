@@ -115,6 +115,8 @@ class Service {
     const pipeline: PipelineStage[] = [];
     const matchStage: any = {};
 
+    console.log("tests s");
+
     // 1. Direct filters (Top level)
     if (product && Types.ObjectId.isValid(product)) {
       matchStage.product = new Types.ObjectId(product);
