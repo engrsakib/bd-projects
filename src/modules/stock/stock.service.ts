@@ -900,6 +900,613 @@ class Service {
       session.endSession();
     }
   }
-}
 
+  // async getAllStocksAdjustment(params: any) {
+  //   const page = Math.max(1, params.page ?? 1);
+  //   const limit = Math.max(1, Math.min(100, params.limit ?? 20));
+  //   const skip = (page - 1) * limit;
+  //   const sortBy = params.sortBy ?? "createdAt";
+  //   const order = params.order === "asc" ? 1 : -1;
+  //   const search =
+  //     typeof params.search === "string" && params.search.trim().length > 0
+  //       ? params.search.trim()
+  //       : null;
+  //   const filters = params.filters ?? {};
+
+  //   // Base top-level match
+  //   const matchTop: any = {};
+
+  //   if (filters.business_location) {
+  //     if (Types.ObjectId.isValid(filters.business_location))
+  //       matchTop.business_location = new Types.ObjectId(
+  //         filters.business_location
+  //       );
+  //   }
+  //   if (filters.action) matchTop.action = filters.action;
+  //   if (filters.adjust_by && Types.ObjectId.isValid(filters.adjust_by))
+  //     matchTop.adjust_by = new Types.ObjectId(filters.adjust_by);
+
+  //   if (filters.minTotalAmount != null || filters.maxTotalAmount != null) {
+  //     matchTop.total_amount = {};
+  //     if (filters.minTotalAmount != null)
+  //       matchTop.total_amount.$gte = filters.minTotalAmount;
+  //     if (filters.maxTotalAmount != null)
+  //       matchTop.total_amount.$lte = filters.maxTotalAmount;
+  //   }
+
+  //   if (filters.startDate || filters.endDate) {
+  //     matchTop.activities_date = {};
+  //     if (filters.startDate)
+  //       matchTop.activities_date.$gte = new Date(filters.startDate);
+  //     if (filters.endDate)
+  //       matchTop.activities_date.$lte = new Date(filters.endDate);
+  //   }
+
+  //   // Build product-level match that will be applied after unwind (if any product filters exist)
+  //   const productFilters = filters.products ?? {};
+  //   const productMatch: any = {};
+
+  //   if (
+  //     productFilters.product &&
+  //     Types.ObjectId.isValid(productFilters.product)
+  //   ) {
+  //     productMatch["products.product"] = new Types.ObjectId(
+  //       productFilters.product
+  //     );
+  //   }
+  //   if (productFilters.stock && Types.ObjectId.isValid(productFilters.stock)) {
+  //     productMatch["products.stock"] = new Types.ObjectId(productFilters.stock);
+  //   }
+  //   if (productFilters.sku) {
+  //     productMatch["products.selected_variant.sku"] = {
+  //       $regex: new RegExp(escapeRegex(productFilters.sku), "i"),
+  //     };
+  //   }
+  //   if (productFilters.barcode) {
+  //     productMatch["products.selected_variant.barcode"] = {
+  //       $regex: new RegExp(escapeRegex(productFilters.barcode), "i"),
+  //     };
+  //   }
+  //   if (
+  //     productFilters.minQuantity != null ||
+  //     productFilters.maxQuantity != null
+  //   ) {
+  //     productMatch["products.quantity"] = {};
+  //     if (productFilters.minQuantity != null)
+  //       productMatch["products.quantity"].$gte = productFilters.minQuantity;
+  //     if (productFilters.maxQuantity != null)
+  //       productMatch["products.quantity"].$lte = productFilters.maxQuantity;
+  //   }
+  //   if (
+  //     productFilters.minUnitPrice != null ||
+  //     productFilters.maxUnitPrice != null
+  //   ) {
+  //     productMatch["products.unit_price"] = {};
+  //     if (productFilters.minUnitPrice != null)
+  //       productMatch["products.unit_price"].$gte = productFilters.minUnitPrice;
+  //     if (productFilters.maxUnitPrice != null)
+  //       productMatch["products.unit_price"].$lte = productFilters.maxUnitPrice;
+  //   }
+  //   if (productFilters.product_note) {
+  //     productMatch["products.product_note"] = {
+  //       $regex: new RegExp(escapeRegex(productFilters.product_note), "i"),
+  //     };
+  //   }
+
+  //   // attribute_values map filters (e.g. { Size: "M" })
+  //   if (productFilters.attribute_values) {
+  //     for (const [k, v] of Object.entries(productFilters.attribute_values)) {
+  //       // attribute_values stored as Map -> key becomes a property
+  //       productMatch[`products.selected_variant.attribute_values.${k}`] = {
+  //         $regex: new RegExp(escapeRegex(v as string), "i"),
+  //       };
+  //     }
+  //   }
+
+  //   // Aggregation pipeline
+  //   const pipeline: any[] = [];
+
+  //   // initial top-level match
+  //   pipeline.push({ $match: matchTop });
+
+  //   // unwind products to enable product-level matching and lookups & searching across product name
+  //   pipeline.push({
+  //     $unwind: { path: "$products", preserveNullAndEmptyArrays: true }, // preserve docs with empty products
+  //   });
+
+  //   // If there are product-level filters, apply them now (matching at least one array element)
+  //   if (Object.keys(productMatch).length > 0) {
+  //     pipeline.push({ $match: productMatch });
+  //   }
+
+  //   // Lookup product document to get product name (useful for searching)
+  //   pipeline.push({
+  //     $lookup: {
+  //       from: "products",
+  //       localField: "products.product",
+  //       foreignField: "_id",
+  //       as: "products.product_doc",
+  //     },
+  //   });
+  //   // product_doc is an array; unwind to get single doc (preserve if not found)
+  //   pipeline.push({
+  //     $unwind: {
+  //       path: "$products.product_doc",
+  //       preserveNullAndEmptyArrays: true,
+  //     },
+  //   });
+  //   // --- Populate business_location ---
+
+  //   // --- Populate adjust_by ---
+  //   pipeline.push({
+  //     $lookup: {
+  //       from: "users",
+  //       localField: "adjust_by",
+  //       foreignField: "_id",
+  //       as: "adjust_by",
+  //     },
+  //   });
+  //   pipeline.push({
+  //     $unwind: { path: "$adjust_by", preserveNullAndEmptyArrays: true },
+  //   });
+
+  //   // ... the rest of the pipeline (product, variant, etc.)
+  //   // Build a searchable combined field (concatenate several fields)
+  //   const searchableFields = [
+  //     { $ifNull: ["$note", ""] },
+  //     { $ifNull: ["$products.product_doc.name", ""] },
+  //     { $ifNull: ["$products.selected_variant.sku", ""] },
+  //     { $ifNull: ["$products.selected_variant.barcode", ""] },
+  //     { $ifNull: ["$products.product_note", ""] },
+  //   ];
+
+  //   pipeline.push({
+  //     $addFields: {
+  //       __searchable: {
+  //         $trim: {
+  //           input: {
+  //             $reduce: {
+  //               input: searchableFields,
+  //               initialValue: "",
+  //               in: { $concat: ["$$value", " ", "$$this"] },
+  //             },
+  //           },
+  //         },
+  //       },
+  //     },
+  //   });
+
+  //   // If `search` is provided, apply it (case-insensitive regex on the combined field)
+  //   if (search) {
+  //     const regex = new RegExp(escapeRegex(search), "i");
+  //     pipeline.push({
+  //       $match: {
+  //         __searchable: { $regex: regex },
+  //       },
+  //     });
+  //   }
+
+  //   // Re-group back to original document shape: collect products back into array
+  //   pipeline.push({
+  //     $group: {
+  //       _id: "$_id",
+  //       doc: { $first: "$$ROOT" },
+  //       products: {
+  //         $push: {
+  //           $cond: [{ $ne: ["$products", null] }, "$products", "$$REMOVE"],
+  //         },
+  //       },
+  //     },
+  //   });
+
+  //   // Replace doc.products with reconstructed array and remove helper fields
+  //   pipeline.push({
+  //     $addFields: {
+  //       "doc.products": {
+  //         $cond: [
+  //           {
+  //             $and: [
+  //               { $isArray: "$products" },
+  //               { $gt: [{ $size: "$products" }, 0] },
+  //             ],
+  //           },
+  //           "$products",
+  //           [],
+  //         ],
+  //       },
+  //     },
+  //   });
+
+  //   // Project final document
+  //   pipeline.push({
+  //     $replaceRoot: { newRoot: "$doc" },
+  //   });
+
+  //   // Shape the output to the desired structure
+  //   pipeline.push({
+  //     $project: {
+  //       _id: 1,
+  //       business_location: {
+  //         _id: 1,
+  //         name: 1,
+  //         address: {
+  //           division: 1,
+  //           district: 1,
+  //           thana: 1,
+  //           local_address: 1,
+  //         },
+  //         type: 1,
+  //       },
+  //       products: {
+  //         $map: {
+  //           input: "$products",
+  //           as: "prod",
+  //           in: {
+  //             product: {
+  //               _id: "$$prod.product",
+  //               name: "$$prod.product_doc.name",
+  //               thumbnail: "$$prod.product_doc.thumbnail",
+  //               sku: "$$prod.product_doc.sku",
+  //             },
+  //             quantity: "$$prod.quantity",
+  //             selected_variant: {
+  //               attribute_values: "$$prod.selected_variant.attribute_values",
+  //               sku: "$$prod.selected_variant.sku",
+  //               image: "$$prod.selected_variant.image",
+  //               regular_price: "$$prod.selected_variant.regular_price",
+  //               sale_price: "$$prod.selected_variant.sale_price",
+  //               barcode: "$$prod.selected_variant.barcode",
+  //             },
+  //             unit_price: "$$prod.unit_price",
+  //             total_price: "$$prod.total_price",
+  //             product_note: "$$prod.product_note",
+  //             stock: "$$prod.stock",
+  //             _id: "$$prod._id",
+  //           },
+  //         },
+  //       },
+  //       note: 1,
+  //       action: 1,
+  //       total_amount: 1,
+  //       adjust_by: {
+  //         _id: 1,
+  //         phone_number: 1,
+  //         full_name: 1,
+  //         role: 1,
+  //       },
+  //       activities_date: 1,
+  //       createdAt: 1,
+  //       updatedAt: 1,
+  //     },
+  //   });
+
+  //   // Facet to get total count and paginated results
+  //   pipeline.push({
+  //     $facet: {
+  //       meta: [{ $count: "total" }],
+  //       data: [
+  //         { $sort: { [sortBy]: order, _id: 1 } },
+  //         { $skip: skip },
+  //         { $limit: limit },
+  //       ],
+  //     },
+  //   });
+
+  //   // Execute aggregation
+  //   const result = await AdjustedStocks.aggregate(pipeline).exec();
+
+  //   const meta = result[0]?.meta?.[0] ?? { total: 0 };
+  //   const docs = result[0]?.data ?? [];
+
+  //   const total = meta.total ?? 0;
+  //   const pages = Math.max(1, Math.ceil(total / limit));
+
+  //   return {
+  //     meta: {
+  //       total,
+  //       page,
+  //       limit,
+  //       pages,
+  //     },
+  //     data: docs,
+  //   };
+  // }
+
+  async getAllStocksAdjustment(params: any) {
+    const pageInput = Number(params.page);
+    const limitInput = Number(params.limit);
+
+    const page = Math.max(1, !isNaN(pageInput) ? pageInput : 1);
+    const limit = Math.max(
+      1,
+      Math.min(100, !isNaN(limitInput) ? limitInput : 20)
+    );
+
+    const skip = (page - 1) * limit;
+    const sortBy = params.sortBy ?? "createdAt";
+    const order = params.order === "asc" ? 1 : -1;
+    const search =
+      typeof params.search === "string" && params.search.trim().length > 0
+        ? params.search.trim()
+        : null;
+    const filters = params.filters ?? {};
+
+    const matchTop: any = {};
+
+    if (filters.action) matchTop.action = filters.action;
+    if (filters.adjust_by && Types.ObjectId.isValid(filters.adjust_by))
+      matchTop.adjust_by = new Types.ObjectId(filters.adjust_by);
+
+    if (filters.minTotalAmount != null || filters.maxTotalAmount != null) {
+      matchTop.total_amount = {};
+      if (filters.minTotalAmount != null)
+        matchTop.total_amount.$gte = Number(filters.minTotalAmount);
+      if (filters.maxTotalAmount != null)
+        matchTop.total_amount.$lte = Number(filters.maxTotalAmount);
+    }
+
+    if (filters.startDate || filters.endDate) {
+      matchTop.activities_date = {};
+      if (filters.startDate)
+        matchTop.activities_date.$gte = new Date(filters.startDate);
+      if (filters.endDate)
+        matchTop.activities_date.$lte = new Date(filters.endDate);
+    }
+
+    const productFilters = filters.products ?? {};
+    const productMatch: any = {};
+
+    if (
+      productFilters.product &&
+      Types.ObjectId.isValid(productFilters.product)
+    ) {
+      productMatch["products.product"] = new Types.ObjectId(
+        productFilters.product
+      );
+    }
+    if (productFilters.sku) {
+      productMatch["products.selected_variant.sku"] = {
+        $regex: new RegExp(
+          productFilters.sku.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+          "i"
+        ),
+      };
+    }
+    if (productFilters.barcode) {
+      productMatch["products.selected_variant.barcode"] = {
+        $regex: new RegExp(
+          productFilters.barcode.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+          "i"
+        ),
+      };
+    }
+    if (
+      productFilters.minQuantity != null ||
+      productFilters.maxQuantity != null
+    ) {
+      productMatch["products.quantity"] = {};
+      if (productFilters.minQuantity != null)
+        productMatch["products.quantity"].$gte = Number(
+          productFilters.minQuantity
+        );
+      if (productFilters.maxQuantity != null)
+        productMatch["products.quantity"].$lte = Number(
+          productFilters.maxQuantity
+        );
+    }
+    if (
+      productFilters.minUnitPrice != null ||
+      productFilters.maxUnitPrice != null
+    ) {
+      productMatch["products.unit_price"] = {};
+      if (productFilters.minUnitPrice != null)
+        productMatch["products.unit_price"].$gte = Number(
+          productFilters.minUnitPrice
+        );
+      if (productFilters.maxUnitPrice != null)
+        productMatch["products.unit_price"].$lte = Number(
+          productFilters.maxUnitPrice
+        );
+    }
+
+    if (productFilters.attribute_values) {
+      for (const [k, v] of Object.entries(productFilters.attribute_values)) {
+        productMatch[`products.selected_variant.attribute_values.${k}`] = {
+          $regex: new RegExp(
+            (v as string).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+            "i"
+          ),
+        };
+      }
+    }
+
+    const pipeline: any[] = [];
+
+    pipeline.push({ $match: matchTop });
+
+    pipeline.push({
+      $unwind: { path: "$products", preserveNullAndEmptyArrays: true },
+    });
+
+    if (Object.keys(productMatch).length > 0) {
+      pipeline.push({ $match: productMatch });
+    }
+
+    pipeline.push({
+      $lookup: {
+        from: "products",
+        localField: "products.product",
+        foreignField: "_id",
+        as: "products.product_doc",
+      },
+    });
+
+    pipeline.push({
+      $unwind: {
+        path: "$products.product_doc",
+        preserveNullAndEmptyArrays: true,
+      },
+    });
+
+    pipeline.push({
+      $lookup: {
+        from: "users",
+        localField: "adjust_by",
+        foreignField: "_id",
+        as: "adjust_by",
+      },
+    });
+
+    pipeline.push({
+      $unwind: { path: "$adjust_by", preserveNullAndEmptyArrays: true },
+    });
+
+    const searchableFields = [
+      { $ifNull: ["$notes", ""] },
+      { $ifNull: ["$reason", ""] },
+      { $ifNull: ["$products.product_doc.name", ""] },
+      { $ifNull: ["$products.selected_variant.sku", ""] },
+      { $ifNull: ["$products.selected_variant.barcode", ""] },
+    ];
+
+    pipeline.push({
+      $addFields: {
+        __searchable: {
+          $trim: {
+            input: {
+              $reduce: {
+                input: searchableFields,
+                initialValue: "",
+                in: { $concat: ["$$value", " ", "$$this"] },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (search) {
+      const regex = new RegExp(
+        search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+        "i"
+      );
+      pipeline.push({
+        $match: {
+          __searchable: { $regex: regex },
+        },
+      });
+    }
+
+    pipeline.push({
+      $group: {
+        _id: "$_id",
+        doc: { $first: "$$ROOT" },
+        products: {
+          $push: {
+            $cond: [{ $ne: ["$products", null] }, "$products", "$$REMOVE"],
+          },
+        },
+      },
+    });
+
+    pipeline.push({
+      $addFields: {
+        "doc.products": {
+          $cond: [
+            {
+              $and: [
+                { $isArray: "$products" },
+                { $gt: [{ $size: "$products" }, 0] },
+              ],
+            },
+            "$products",
+            [],
+          ],
+        },
+      },
+    });
+
+    pipeline.push({
+      $replaceRoot: { newRoot: "$doc" },
+    });
+
+    pipeline.push({
+      $project: {
+        _id: 1,
+        products: {
+          $map: {
+            input: "$products",
+            as: "prod",
+            in: {
+              product: {
+                _id: "$$prod.product",
+                name: "$$prod.product_doc.name",
+                thumbnail: "$$prod.product_doc.thumbnail",
+                sku: "$$prod.product_doc.sku",
+              },
+              quantity: "$$prod.quantity",
+              selected_variant: {
+                sku: "$$prod.selected_variant.sku",
+                attribute_values: "$$prod.selected_variant.attribute_values",
+                image: "$$prod.selected_variant.image",
+                regular_price: "$$prod.selected_variant.regular_price",
+                sale_price: "$$prod.selected_variant.sale_price",
+                barcode: "$$prod.selected_variant.barcode",
+              },
+              unit_price: "$$prod.unit_price",
+              total_price: "$$prod.total_price",
+              _id: "$$prod._id",
+            },
+          },
+        },
+        notes: 1,
+        reason: 1,
+        action: 1,
+        total_amount: 1,
+        adjust_by: {
+          _id: 1,
+          full_name: 1,
+          phone_number: 1,
+          role: 1,
+        },
+        activities_date: 1,
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    });
+
+    pipeline.push({
+      $facet: {
+        meta: [{ $count: "total" }],
+        data: [
+          { $sort: { [sortBy]: order, _id: 1 } },
+          { $skip: skip },
+          { $limit: limit },
+        ],
+      },
+    });
+
+    const result = await AdjustedStocks.aggregate(pipeline).exec();
+
+    const meta = result[0]?.meta?.[0] ?? { total: 0 };
+    const docs = result[0]?.data ?? [];
+
+    const total = meta.total ?? 0;
+    const pages = Math.max(1, Math.ceil(total / limit));
+
+    return {
+      meta: {
+        total,
+        page,
+        limit,
+        pages,
+      },
+      data: docs,
+    };
+  }
+}
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function escapeRegex(str: string) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 export const StockService = new Service();
