@@ -2,6 +2,7 @@ import BaseController from "@/shared/baseController";
 import { Request, Response } from "express";
 import { HttpStatusCode } from "@/lib/httpStatus";
 import { DefaultsPurchaseService } from "./defult-purchase.service";
+import pickQueries from "@/shared/pickQueries";
 
 class Controller extends BaseController {
   // createPurchase = this.catchAsync(async (req: Request, res: Response) => {
@@ -72,6 +73,33 @@ class Controller extends BaseController {
       data,
     });
   });
+
+  getAllDefaultsPurchases = this.catchAsync(
+    async (req: Request, res: Response) => {
+      const filters = pickQueries(req.query, [
+        "page",
+        "limit",
+        "sortBy",
+        "sortOrder",
+        "searchTerm",
+        "product",
+        "variant",
+        "supplier",
+      ]);
+
+      const result =
+        await DefaultsPurchaseService.getAllDefaultsPurchases(filters);
+
+      console.log(result, "defulat result");
+
+      this.sendResponse(res, {
+        statusCode: HttpStatusCode.OK,
+        success: true,
+        message: "ALL Default purchases retrieved successfully",
+        data: result,
+      });
+    }
+  );
 }
 
 export const DefaultsPurchaseController = new Controller();

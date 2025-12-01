@@ -1,6 +1,9 @@
-import { Types } from "mongoose";
+import { PipelineStage, Types } from "mongoose";
 import { DefaultsPurchaseModel } from "./defult-purchase.model";
-import { IDefaultsPurchase } from "./default-purchase.interface";
+import {
+  DefaultsPurchaseQuery,
+  IDefaultsPurchase,
+} from "./default-purchase.interface";
 
 import { VariantModel } from "../variant/variant.model";
 
@@ -92,6 +95,126 @@ class Service {
     }
 
     return { successful, failed };
+  }
+
+  async getAllDefaultsPurchases(query: DefaultsPurchaseQuery): Promise<{
+    meta: { page: number; limit: number; total: number; pages: number };
+    data: IDefaultsPurchase[];
+  }> {
+    const {
+      page = "1",
+      limit = "10",
+      sortBy = "createdAt",
+      sortOrder = "desc",
+      searchTerm,
+      product,
+      variant,
+      supplier,
+    } = query;
+
+    const pipeline: PipelineStage[] = [];
+    const matchStage: any = {};
+
+    console.log("tests s");
+
+    // 1. Direct filters (Top level)
+    if (product && Types.ObjectId.isValid(product)) {
+      matchStage.product = new Types.ObjectId(product);
+    }
+    if (variant && Types.ObjectId.isValid(variant)) {
+      matchStage.variant = new Types.ObjectId(variant);
+    }
+    if (supplier && Types.ObjectId.isValid(supplier)) {
+      matchStage.supplier = new Types.ObjectId(supplier);
+    }
+
+    // Apply initial match
+    if (Object.keys(matchStage).length > 0) {
+      pipeline.push({ $match: matchStage });
+    }
+
+    // 2. Lookups (Populate fields)
+    pipeline.push(
+      {
+        $lookup: {
+          from: "variants",
+          localField: "variant",
+          foreignField: "_id",
+          as: "variant",
+        },
+      },
+      { $unwind: { path: "$variant", preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: "products",
+          localField: "product",
+          foreignField: "_id",
+          as: "product",
+        },
+      },
+      { $unwind: { path: "$product", preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: "suppliers",
+          localField: "supplier",
+          foreignField: "_id",
+          as: "supplier",
+        },
+      },
+      { $unwind: { path: "$supplier", preserveNullAndEmptyArrays: true } }
+    );
+
+    // 3. Search Filter (SKU or Product Name)
+    if (searchTerm) {
+      const regex = new RegExp(
+        searchTerm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+        "i"
+      );
+      pipeline.push({
+        $match: {
+          $or: [
+            { "variant.sku": { $regex: regex } },
+            { "product.name": { $regex: regex } },
+          ],
+        },
+      });
+    }
+
+    // 4. Pagination & Sorting calculations
+    const _page = Math.max(Number(page), 1);
+    const _limit = Math.max(Number(limit), 1);
+    const _skip = (_page - 1) * _limit;
+    const _sortOrder = sortOrder === "asc" ? 1 : -1;
+
+    // 5. Facet for Data and Meta (Total Count)
+    pipeline.push({
+      $facet: {
+        meta: [{ $count: "total" }],
+        data: [
+          { $sort: { [sortBy]: _sortOrder } },
+          { $skip: _skip },
+          { $limit: _limit },
+        ],
+      },
+    });
+
+    // Execute Aggregation
+    const result = await DefaultsPurchaseModel.aggregate(pipeline).exec();
+
+    const meta = result[0]?.meta?.[0] ?? { total: 0 };
+    const data = result[0]?.data ?? [];
+    const total = meta.total ?? 0;
+    const pages = Math.max(1, Math.ceil(total / _limit));
+
+    return {
+      meta: {
+        total,
+        page: _page,
+        limit: _limit,
+        pages,
+      },
+      data,
+    };
   }
 }
 

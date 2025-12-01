@@ -13,3 +13,14 @@ export interface IDefaultsPurchase extends Document {
   createdAt?: Date;
   updatedAt?: Date;
 }
+
+export type DefaultsPurchaseQuery = {
+  page?: string;
+  limit?: string;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
+  searchTerm?: string;
+  product?: string;
+  variant?: string;
+  supplier?: string;
+};
