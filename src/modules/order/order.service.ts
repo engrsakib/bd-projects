@@ -93,7 +93,7 @@ class Service {
           continue;
         } else {
           // lot consumption (FIFO)
-          const consumedLots = await this.consumeLotsFIFO(
+          const consumedLots = await this.simulateConsumeLotsFIFO(
             item.product,
             item.variant,
             item.quantity,
@@ -349,7 +349,7 @@ class Service {
           continue;
         } else {
           // lot consumption (FIFO)
-          const consumedLots = await this.consumeLotsFIFO(
+          const consumedLots = await this.simulateConsumeLotsFIFO(
             item.product,
             item.variant,
             item.quantity,
@@ -538,7 +538,7 @@ class Service {
         }
 
         // lot consumption (FIFO)
-        const consumedLots = await this.consumeLotsFIFO(
+        const consumedLots = await this.simulateConsumeLotsFIFO(
           item.product,
           item.variant,
           item.quantity,
@@ -779,7 +779,7 @@ class Service {
         }
 
         // FIFO lots থেকে কাটছে, lots ডিটেইল সেট হচ্ছে
-        const consumedLots = await this.consumeLotsFIFO(
+        const consumedLots = await this.simulateConsumeLotsFIFO(
           item.product,
           item.variant,
           item.quantity,
@@ -2497,7 +2497,7 @@ class Service {
         }
 
         // lot consumption (FIFO)
-        const consumedLots = await this.consumeLotsFIFO(
+        const consumedLots = await this.simulateConsumeLotsFIFO(
           item.product._id ? (item.product as any)._id : item.product,
           item.variant._id ? (item.variant as any)._id : item.variant,
           item.quantity,
@@ -2648,7 +2648,7 @@ class Service {
     };
   }
 
-  private async consumeLotsFIFO(
+  private async simulateConsumeLotsFIFO(
     productId: string,
     variantId: string,
     requiredQty: number,
