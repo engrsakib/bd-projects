@@ -759,11 +759,12 @@ class Service {
 
         if (stock) {
           // স্টকে quantity ফেরত দিন
-          await GlobalStockModel.findByIdAndUpdate(
-            stock._id,
+          await GlobalStockModel.findOneAndUpdate(
+            { product: stock.product, variant: stock.variant },
             { $inc: { qty_reserved: -prevItem.quantity } },
             { session }
           );
+
           // total_sold কমান
           stock.total_sold = (stock.total_sold || 0) - prevItem.quantity;
           if (stock.total_sold < 0) stock.total_sold = 0; // নেগেটিভ হলে ০
