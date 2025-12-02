@@ -74,6 +74,9 @@ export type IOrder = {
 
   user_or_admin_model?: "User" | "Admin";
 
+  is_assigned_product_scan: boolean;
+  is_return_product_scan?: boolean;
+
   items?: IOrderItem[];
   orders_by: IOrderBy;
   products?: IOrderItem[];

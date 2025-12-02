@@ -14,6 +14,9 @@ import { PurchaseModel } from "../purchase/purchase.model";
 import { StockService } from "../stock/stock.service";
 import { LotService } from "../lot/lot.service";
 import { GlobalStockModel } from "../stock/globalStock.model";
+import { OrderModel } from "../order/order.model";
+import { StockModel } from "../stock/stock.model";
+import { LotModel } from "../lot/lot.model";
 
 class Service {
   async crateBarcodeForStock(
@@ -942,6 +945,439 @@ class Service {
     } catch (err) {
       await session.abortTransaction();
       throw err;
+    } finally {
+      session.endSession();
+    }
+  }
+
+  // async processOrderBarcodes(
+  //   orderId: string,
+  //   barcodes: string[],
+  //   updatedBy: { name: string; role: string; date: Date }
+  // ) {
+  //   const session = await mongoose.startSession();
+  //   session.startTransaction();
+
+  //   try {
+  //     // 1. Fetch Order
+  //     const order = await OrderModel.findById(orderId).session(session);
+  //     if (!order) {
+  //       throw new ApiError(HttpStatusCode.NOT_FOUND, "Order not found");
+  //     }
+
+  //     // 2. Fetch Barcodes
+  //     const barcodeDocs = await BarcodeModel.find({
+  //       barcode: { $in: barcodes },
+  //     }).session(session);
+
+  //     if (barcodeDocs.length !== barcodes.length) {
+  //       throw new ApiError(
+  //         HttpStatusCode.BAD_REQUEST,
+  //         "One or more barcodes not found"
+  //       );
+  //     }
+
+  //     // 3. Validate Barcodes (Must be IN_STOCK and not already used)
+  //     for (const doc of barcodeDocs) {
+  //       if (
+  //         doc.status !== productBarcodeStatus.IN_STOCK ||
+  //         doc.is_used_barcode
+  //       ) {
+  //         throw new ApiError(
+  //           HttpStatusCode.BAD_REQUEST,
+  //           `Barcode ${doc.barcode} is not available (Status: ${doc.status})`
+  //         );
+  //       }
+  //     }
+
+  //     // 4. Group barcodes by Variant (to optimize stock/lot updates)
+  //     // Map Key: `${productId}_${variantId}`
+  //     const groups = new Map<
+  //       string,
+  //       {
+  //         product: Types.ObjectId;
+  //         variant: Types.ObjectId;
+  //         barcodes: string[];
+  //         docs: typeof barcodeDocs;
+  //       }
+  //     >();
+
+  //     for (const doc of barcodeDocs) {
+  //       const key = `${doc.product.toString()}_${doc.variant.toString()}`;
+  //       if (!groups.has(key)) {
+  //         groups.set(key, {
+  //           product: doc.product as Types.ObjectId,
+  //           variant: doc.variant as Types.ObjectId,
+  //           barcodes: [],
+  //           docs: [],
+  //         });
+  //       }
+  //       const group = groups.get(key)!;
+  //       group.barcodes.push(doc.barcode);
+  //       group.docs.push(doc);
+  //     }
+
+  //     // 5. Process Each Group (Update Order, Barcode, Stock, Lot, GlobalStock)
+  //     for (const [key, group] of groups) {
+  //       const qty = group.barcodes.length;
+
+  //       // A. Update Order Items (Push barcodes to specific item)
+  //       const orderItem = order.items.find(
+  //         (item) =>
+  //           item.product.toString() === group.product.toString() &&
+  //           item.variant.toString() === group.variant.toString()
+  //       );
+
+  //       if (!orderItem) {
+  //         throw new ApiError(
+  //           HttpStatusCode.BAD_REQUEST,
+  //           `Order does not contain item for product ${group.product} variant ${group.variant}`
+  //         );
+  //       }
+
+  //       // Check if order item quantity matches barcode count
+  //       // (Optional: depending on business logic, you might want to allow partial assignment)
+  //       if (orderItem.barcode.length + qty > orderItem.quantity) {
+  //         throw new ApiError(
+  //           HttpStatusCode.BAD_REQUEST,
+  //           `Too many barcodes for item ${group.product}. Ordered: ${orderItem.quantity}, Already Assigned: ${orderItem.barcode.length}, New: ${qty}`
+  //         );
+  //       }
+
+  //       // Add barcodes to order item
+  //       orderItem.barcode.push(...group.barcodes);
+
+  //       // B. Update Barcode Documents (Status & Log)
+  //       const updateLog = {
+  //         name: updatedBy.name,
+  //         role: updatedBy.role,
+  //         date: updatedBy.date,
+  //         system_message: `Assigned to Order #${order.order_id} on ${new Date().toISOString()}`,
+  //       };
+
+  //       await BarcodeModel.updateMany(
+  //         { barcode: { $in: group.barcodes } },
+  //         {
+  //           $set: {
+  //             status: "assigned", // Or productBarcodeStatus.ASSIGNED
+  //             is_used_barcode: true,
+  //           },
+  //           $push: { updated_logs: { $each: [updateLog], $position: 0 } },
+  //         },
+  //         { session }
+  //       );
+
+  //       // C. Update Stock (Reduce available_quantity)
+  //       // Note: Assuming stock is tracked per location. We need to find the correct stock doc.
+  //       // Usually, barcode has a 'stock' reference or 'location'.
+  //       // We will iterate individual barcodes to find their specific stock & lot to be precise.
+
+  //       // Optimization: Group by Stock ID within this variant group to handle multi-location fulfillment if needed
+  //       const stockMap = new Map<string, number>();
+  //       const lotMap = new Map<string, number>();
+
+  //       for (const doc of group.docs) {
+  //         if (doc.stock) {
+  //           const sId = doc.stock.toString();
+  //           stockMap.set(sId, (stockMap.get(sId) || 0) + 1);
+  //         }
+  //         if (doc.lot) {
+  //           const lId = doc.lot.toString();
+  //           lotMap.set(lId, (lotMap.get(lId) || 0) + 1);
+  //         }
+  //       }
+
+  //       // C.1 Decrease Stock Available Quantity
+  //       for (const [stockId, count] of stockMap) {
+  //         await StockModel.findByIdAndUpdate(
+  //           stockId,
+  //           { $inc: { available_quantity: -count } },
+  //           { session }
+  //         );
+  //       }
+
+  //       // D. Decrease Lot Available Quantity
+  //       for (const [lotId, count] of lotMap) {
+  //         const lot = await LotModel.findById(lotId).session(session);
+  //         if (lot) {
+  //           let newStatus = lot.status;
+  //           // If lot becomes empty, close it
+  //           if (lot.qty_available - count <= 0) {
+  //             newStatus = "closed";
+  //           }
+
+  //           await LotModel.findByIdAndUpdate(
+  //             lotId,
+  //             {
+  //               $inc: { qty_available: -count },
+  //               $set: { status: newStatus },
+  //             },
+  //             { session }
+  //           );
+  //         }
+  //       }
+
+  //       // E. Update Global Stock (Reduce qty_reserved)
+  //       // Logic: When an order is placed, qty_reserved is usually increased.
+  //       // When barcodes are assigned/delivered, we reduce qty_reserved (fulfillment).
+  //       await GlobalStockModel.findOneAndUpdate(
+  //         { product: group.product, variant: group.variant },
+  //         { $inc: { qty_reserved: -qty } },
+  //         { session }
+  //       );
+  //     }
+
+  //     // 6. Save Order
+  //     await order.save({ session });
+
+  //     await session.commitTransaction();
+  //     return { success: true, message: "Barcodes assigned successfully" };
+  //   } catch (error) {
+  //     await session.abortTransaction();
+  //     throw error;
+  //   } finally {
+  //     session.endSession();
+  //   }
+  // }
+
+  async processOrderBarcodes(
+    orderId: string,
+    barcodes: string[],
+    updatedBy: { name: string; role: string; date: Date }
+  ) {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      // Validate & dedupe input barcodes
+      if (!Array.isArray(barcodes) || barcodes.length === 0) {
+        throw new ApiError(
+          HttpStatusCode.BAD_REQUEST,
+          "barcodes array is required"
+        );
+      }
+      // Check duplicates in input explicitly (fail fast)
+      const uniqSet = new Set(barcodes);
+      if (uniqSet.size !== barcodes.length) {
+        throw new ApiError(
+          HttpStatusCode.BAD_REQUEST,
+          "Duplicate barcodes provided in input"
+        );
+      }
+      const uniqBarcodes = Array.from(uniqSet);
+
+      // 1. Fetch Order
+      const order = await OrderModel.findOne({ order_id: orderId }).session(
+        session
+      );
+      if (!order) {
+        throw new ApiError(HttpStatusCode.NOT_FOUND, "Order not found");
+      }
+
+      // 2. Fetch Barcodes (initial read to get product/variant/stock/lot info)
+      const barcodeDocs = await BarcodeModel.find({
+        barcode: { $in: uniqBarcodes },
+      })
+        .session(session)
+        .exec();
+
+      if (barcodeDocs.length !== uniqBarcodes.length) {
+        throw new ApiError(
+          HttpStatusCode.BAD_REQUEST,
+          "One or more barcodes not found"
+        );
+      }
+
+      // 3. Validate initial state quickly (optional) but final claim is done atomically below.
+      for (const doc of barcodeDocs) {
+        if (!doc.is_used_barcode) {
+          throw new ApiError(
+            HttpStatusCode.BAD_REQUEST,
+            `Barcode ${doc.barcode} is not used for any product yet`
+          );
+        }
+        // We allow status check but claim will enforce it atomically
+        if (doc.status !== productBarcodeStatus.IN_STOCK) {
+          throw new ApiError(
+            HttpStatusCode.BAD_REQUEST,
+            `Barcode ${doc.barcode} is not in stock (status: ${doc.status})`
+          );
+        }
+      }
+
+      // 4. Group barcodes by Variant (product+variant) for order mapping and stock/lot batching
+      const groups = new Map<
+        string,
+        {
+          product: Types.ObjectId;
+          variant: Types.ObjectId;
+          barcodes: string[];
+          docs: typeof barcodeDocs;
+        }
+      >();
+
+      for (const doc of barcodeDocs) {
+        const key = `${doc.product.toString()}_${doc.variant.toString()}`;
+        if (!groups.has(key)) {
+          groups.set(key, {
+            product: doc.product as Types.ObjectId,
+            variant: doc.variant as Types.ObjectId,
+            barcodes: [],
+            docs: [],
+          });
+        }
+        const group = groups.get(key)!;
+        group.barcodes.push(doc.barcode);
+        group.docs.push(doc);
+      }
+
+      // 5. For each group: claim barcodes atomically, then update stocks/lots/global stock, and update order item
+      for (const [, group] of Array.from(groups.entries())) {
+        const qty = group.barcodes.length;
+
+        if (qty === 0) {
+          continue; // skip empty groups (should not happen)
+        }
+
+        // A. Find matching order item
+        const orderItem = (order.items ?? []).find(
+          (item) =>
+            item.product.toString() === group.product.toString() &&
+            item.variant.toString() === group.variant.toString()
+        );
+
+        if (!orderItem) {
+          throw new ApiError(
+            HttpStatusCode.BAD_REQUEST,
+            `Order does not contain item for product ${group.product} variant ${group.variant}`
+          );
+        }
+
+        // Ensure not exceeding ordered quantity
+        const alreadyAssigned = Array.isArray(orderItem.barcode)
+          ? orderItem.barcode.length
+          : 0;
+        if (alreadyAssigned + qty > orderItem.quantity) {
+          throw new ApiError(
+            HttpStatusCode.BAD_REQUEST,
+            `Too many barcodes for item ${group.product}. Ordered: ${orderItem.quantity}, Already Assigned: ${alreadyAssigned}, New: ${qty}`
+          );
+        }
+
+        // B. Atomically claim each barcode (ensures no race with other processes)
+        // Use per-barcode findOneAndUpdate with precondition { status: IN_STOCK, is_used_barcode: false }
+        const claimedDocs: Array<(typeof barcodeDocs)[number]> = [];
+        for (const doc of group.docs) {
+          const prevStatus = doc.status;
+          const prevConditions = (doc as any).conditions;
+          const updateLog = {
+            name: updatedBy.name,
+            role: updatedBy.role,
+            date: updatedBy.date,
+            system_message: `Assigned to Order #${order.order_id} on ${new Date().toISOString()}; Prev status: ${prevStatus}; Prev conditions: ${prevConditions}`,
+          };
+
+          const claimed = await BarcodeModel.findOneAndUpdate(
+            {
+              barcode: doc.barcode,
+              status: productBarcodeStatus.IN_STOCK,
+              is_used_barcode: true,
+            },
+            {
+              $set: {
+                status: productBarcodeStatus.ASSIGNED,
+                is_used_barcode: true,
+              },
+              $push: { updated_logs: { $each: [updateLog], $position: 0 } },
+            },
+            { session, new: true }
+          ).exec();
+
+          if (!claimed) {
+            // If any barcode cannot be claimed atomically, abort overall operation
+            throw new ApiError(
+              HttpStatusCode.BAD_REQUEST,
+              `Failed to claim barcode ${doc.barcode} (may be already assigned or out of stock)`
+            );
+          }
+          claimedDocs.push(claimed);
+        }
+
+        // C. Update Order item in-memory (we'll save order at the end of group processing)
+        orderItem.barcode = orderItem.barcode ?? [];
+        orderItem.barcode.push(...group.barcodes);
+
+        // D. Aggregate stock and lot counts from claimed docs
+        const stockMap = new Map<string, number>();
+        const lotMap = new Map<string, number>();
+        for (const d of claimedDocs) {
+          if (d.stock) {
+            const sId = d.stock.toString();
+            stockMap.set(sId, (stockMap.get(sId) || 0) + 1);
+          }
+          if (d.lot) {
+            const lId = d.lot.toString();
+            lotMap.set(lId, (lotMap.get(lId) || 0) + 1);
+          }
+        }
+
+        // E. Decrease Stock Available Quantity atomically with precondition (no negative)
+        for (const [stockId, count] of Array.from(stockMap.entries())) {
+          const updatedStock = await StockModel.findOneAndUpdate(
+            { _id: stockId, available_quantity: { $gte: count } },
+            { $inc: { available_quantity: -count } },
+            { session, new: true }
+          ).exec();
+
+          if (!updatedStock) {
+            throw new ApiError(
+              HttpStatusCode.BAD_REQUEST,
+              `Insufficient stock for stockId ${stockId} while fulfilling order`
+            );
+          }
+        }
+
+        // F. Decrease Lot qty_available atomically and set status to 'closed' if becomes zero
+        for (const [lotId, count] of Array.from(lotMap.entries())) {
+          const updatedLot = await LotModel.findOneAndUpdate(
+            { _id: lotId, qty_available: { $gte: count } },
+            { $inc: { qty_available: -count } },
+            { session, new: true }
+          ).exec();
+
+          if (!updatedLot) {
+            throw new ApiError(
+              HttpStatusCode.BAD_REQUEST,
+              `Insufficient lot quantity for lot ${lotId}`
+            );
+          }
+
+          // If after decrement qty_available is 0, set status closed
+          if ((updatedLot.qty_available ?? 0) === 0) {
+            await LotModel.findByIdAndUpdate(
+              lotId,
+              { $set: { status: "closed" } },
+              { session }
+            );
+          }
+        }
+
+        // G. Update Global Stock (reduce qty_reserved)
+        await GlobalStockModel.findOneAndUpdate(
+          { product: group.product, variant: group.variant },
+          { $inc: { qty_reserved: -qty } },
+          { session }
+        );
+      }
+      order.is_assigned_product_scan = true;
+      // 6. Save Order (all item barcode arrays updated in-memory)
+      await order.save({ session });
+
+      await session.commitTransaction();
+      return { success: true, message: "Barcodes assigned successfully" };
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
     } finally {
       session.endSession();
     }

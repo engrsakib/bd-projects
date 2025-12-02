@@ -136,6 +136,9 @@ const orderSchema = new Schema<IOrder>(
       },
     ],
 
+    is_assigned_product_scan: { type: Boolean, default: false },
+    is_return_product_scan: { type: Boolean, default: false },
+
     previous_order: {
       type: Schema.Types.ObjectId,
       ref: "Order",

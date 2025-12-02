@@ -4,6 +4,8 @@ import { Request, Response } from "express";
 import { Types } from "mongoose";
 import { UniqueBarcodeService } from "./barcode.service";
 import { productBarcodeCondition, productBarcodeStatus } from "./barcode.enum";
+import { HttpStatusCode } from "@/lib/httpStatus";
+import ApiError from "@/middlewares/error";
 
 class Controller extends BaseController {
   crateBarcodeForStock = this.catchAsync(
@@ -236,6 +238,48 @@ class Controller extends BaseController {
         statusCode: 200,
         success: true,
         message: "Purchase created successfully from barcodes",
+        data: result,
+      });
+    }
+  );
+
+  processOrderBarcodes = this.catchAsync(
+    async (req: Request, res: Response) => {
+      const { order_id: orderId } = req.params;
+      const { barcodes } = req.body;
+
+      console.log(orderId, "order id");
+      if (!orderId) {
+        throw new ApiError(HttpStatusCode.BAD_REQUEST, "Order ID is required");
+      }
+      if (!barcodes || !Array.isArray(barcodes) || barcodes.length === 0) {
+        throw new ApiError(
+          HttpStatusCode.BAD_REQUEST,
+          "Barcodes array is required"
+        );
+      }
+
+      const user = req.user as any;
+      if (!user) {
+        throw new ApiError(HttpStatusCode.UNAUTHORIZED, "User not authorized");
+      }
+
+      const updatedBy = {
+        name: user.name || "Unknown Staff",
+        role: user.role,
+        date: new Date(),
+      };
+
+      const result = await UniqueBarcodeService.processOrderBarcodes(
+        orderId,
+        barcodes,
+        updatedBy
+      );
+
+      this.sendResponse(res, {
+        statusCode: HttpStatusCode.OK,
+        success: true,
+        message: "Barcodes assigned and stock updated successfully",
         data: result,
       });
     }

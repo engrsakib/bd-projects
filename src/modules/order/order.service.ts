@@ -24,6 +24,7 @@ import {
 } from "./order.enums";
 import { ProductModel } from "../product/product.model";
 import { OrderQuery } from "@/interfaces/common.interface";
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { StockModel } from "../stock/stock.model";
 import { VariantModel } from "../variant/variant.model";
 import { UserModel } from "../user/user.model";
@@ -143,7 +144,7 @@ class Service {
         customer_secondary_number: data.customer_secondary_number,
         customer_email: data.customer_email,
         orders_by: order_by,
-
+        is_assigned_product_scan: false,
         items,
 
         total_items,
@@ -398,6 +399,7 @@ class Service {
         customer_secondary_number: data.customer_secondary_number,
         customer_email: data.customer_email,
         orders_by: order_by,
+        is_assigned_product_scan: false,
 
         items,
         total_items,
@@ -596,6 +598,7 @@ class Service {
         customer_secondary_number: prevOrder.customer_secondary_number,
         customer_email: prevOrder.customer_email,
         orders_by: order_by,
+        is_assigned_product_scan: false,
 
         items,
         total_items,
@@ -2146,7 +2149,10 @@ class Service {
   }
 
   async cancleOrder(order_id: string, user_id: string): Promise<IOrder | null> {
+    // throw new Error("");
+
     const order = await OrderModel.findOne({ order_id: order_id });
+
     if (!order) {
       throw new ApiError(
         HttpStatusCode.NOT_FOUND,
@@ -2470,7 +2476,7 @@ class Service {
           continue;
         }
 
-        const stock = await StockModel.findOne(
+        const stock = await GlobalStockModel.findOne(
           {
             product: item.product,
             variant: item.variant,
@@ -2479,7 +2485,11 @@ class Service {
           { session }
         );
 
-        if (!stock || stock.available_quantity < item.quantity) {
+        if (
+          !stock ||
+          Math.abs(stock.available_quantity - stock.qty_reserved) <
+            item.quantity
+        ) {
           // await session.abortTransaction();
 
           // Guard: item.product may be an ObjectId; fallback to its string form if name is not available
@@ -2509,7 +2519,7 @@ class Service {
         })) as any;
         // console.log(consumedLots, "consumed lots `");
 
-        stock.available_quantity -= item.quantity;
+        stock.qty_reserved += item.quantity;
         stock.total_sold = (stock.total_sold || 0) + item.quantity;
         item.total_sold = (item.total_sold || 0) + item.quantity;
         item.status = ORDER_STATUS.PLACED;

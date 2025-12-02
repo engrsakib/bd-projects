@@ -49,4 +49,11 @@ router.get(
   UniqueBarcodeController.getBarcodeDetails
 );
 
+router.post(
+  "/:order_id/process-order-barcodes",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.ORDER_UPDATE),
+  UniqueBarcodeController.processOrderBarcodes
+);
+
 export const UniqueBarcodeRoutes = router;
