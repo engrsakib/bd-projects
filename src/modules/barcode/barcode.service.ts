@@ -816,7 +816,7 @@ class Service {
           ? (defaults.supplier as Types.ObjectId | null)
           : null;
 
-        // Upsert stock: StockService.findOneAndUpdateByPurchase must perform $inc upsert and return doc
+        // Upsert stock: StockService.findOneAndUpdateByPurchase must perform $inc upsert and return doc data
         const stockQuery = {
           product: grp.product,
           variant: grp.variant,
