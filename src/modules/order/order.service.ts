@@ -343,7 +343,10 @@ class Service {
         // console.log(stock.available_quantity, "available qnt");
         // console.log(item.quantity, "item qnt");
 
-        if (stock.available_quantity < item.quantity) {
+        if (
+          Math.abs(stock.qty_reserved - stock.available_quantity) <
+          item.quantity
+        ) {
           total_stock_issue = true;
           item.status = ORDER_STATUS.AWAITING_STOCK;
           continue;
@@ -358,7 +361,7 @@ class Service {
           item.lots = consumedLots;
           // console.log(consumedLots, "consumed lots `");
 
-          stock.available_quantity -= item.quantity;
+          stock.qty_reserved += item.quantity;
           stock.total_sold = (stock.total_sold || 0) + item.quantity;
           item.total_sold = (item.total_sold || 0) + item.quantity;
           await stock.save({ session });
@@ -546,7 +549,7 @@ class Service {
         );
         item.lots = consumedLots;
 
-        stock.available_quantity -= item.quantity;
+        stock.qty_reserved += item.quantity;
         stock.total_sold = (stock.total_sold || 0) + item.quantity;
         item.total_sold = (item.total_sold || 0) + item.quantity;
         await stock.save({ session });
