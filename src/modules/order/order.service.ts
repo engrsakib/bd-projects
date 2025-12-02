@@ -61,7 +61,7 @@ class Service {
       // check stock availability [most important]
       for (const item of enrichedOrder.products) {
         // console.log(item.variant, "for stock");
-        const stock = await StockModel.findOne(
+        const stock = await GlobalStockModel.findOne(
           {
             product: item.product,
             variant: item.variant,
@@ -523,7 +523,7 @@ class Service {
       for (const item of enrichedOrder.products) {
         // console.log(item.variant, "for stock");
 
-        const stock = await StockModel.findOne(
+        const stock = await GlobalStockModel.findOne(
           {
             product: item.product,
             variant: item.variant,
@@ -742,7 +742,7 @@ class Service {
         //   continue;
         // }
 
-        const stock = await StockModel.findOne({
+        const stock = await GlobalStockModel.findOne({
           product: prevItem.product,
           variant: prevItem.variant,
         }).session(session);
@@ -759,7 +759,7 @@ class Service {
 
         if (stock) {
           // স্টকে quantity ফেরত দিন
-          await StockModel.findByIdAndUpdate(
+          await GlobalStockModel.findByIdAndUpdate(
             stock._id,
             { $inc: { qty_reserved: -prevItem.quantity } },
             { session }
@@ -774,7 +774,7 @@ class Service {
       // ৪. নতুন/পরিবর্তিত আইটেমের জন্য stock allocate + total_sold বাড়ানো
       let total_price = 0;
       for (const item of enrichedOrder.products) {
-        const stock = await StockModel.findOne(
+        const stock = await GlobalStockModel.findOne(
           { product: item.product, variant: item.variant },
           null,
           { session }
@@ -2101,7 +2101,7 @@ class Service {
             continue; // skip stock restore for items that were never in stock
           }
 
-          const stock = await StockModel.findOne(
+          const stock = await GlobalStockModel.findOne(
             {
               product: item.product,
               variant: item.variant,
@@ -2111,22 +2111,8 @@ class Service {
           );
 
           if (stock) {
-            stock.available_quantity += item.quantity;
+            stock.qty_reserved -= item.quantity;
             await stock.save({ session });
-          }
-
-          const lots = await LotModel.findOne(
-            {
-              variant: item.variant,
-            },
-            null,
-            { session }
-          );
-
-          if (lots) {
-            // পূর্বে কাটাকাটা lot গুলো ফিরিয়ে দিন
-            lots.qty_available += item.quantity;
-            await lots.save({ session });
           }
 
           // restore lots
@@ -2299,25 +2285,25 @@ class Service {
             status === ORDER_STATUS.FAILED
           ) {
             for (const item of updated.items ?? []) {
-              const stock = await StockModel.findOne(
+              const stock = await GlobalStockModel.findOne(
                 { product: item.product, variant: item.variant },
                 null,
                 { session }
               );
               if (stock) {
-                stock.available_quantity += item.quantity;
+                stock.qty_reserved -= item.quantity;
                 await stock.save({ session });
               }
 
-              const lotDoc = await LotModel.findOne(
-                { variant: item.variant },
-                null,
-                { session }
-              );
-              if (lotDoc) {
-                lotDoc.qty_available += item.quantity;
-                await lotDoc.save({ session });
-              }
+              // const lotDoc = await LotModel.findOne(
+              //   { variant: item.variant },
+              //   null,
+              //   { session }
+              // );
+              // if (lotDoc) {
+              //   lotDoc.qty_available += item.quantity;
+              //   await lotDoc.save({ session });
+              // }
             }
           }
 
