@@ -531,7 +531,11 @@ class Service {
           { session }
         );
 
-        if (!stock || stock.available_quantity < item.quantity) {
+        if (
+          !stock ||
+          Math.abs(stock.qty_reserved - stock.available_quantity) <
+            item.quantity
+        ) {
           // await session.abortTransaction();
 
           throw new ApiError(
@@ -742,21 +746,21 @@ class Service {
           variant: prevItem.variant,
         }).session(session);
 
-        const lots = await LotModel.findOne({
-          variant: prevItem.variant,
-        }).session(session);
+        // const lots = await LotModel.findOne({
+        //   variant: prevItem.variant,
+        // }).session(session);
 
-        if (lots) {
-          // পূর্বে কাটাকাটা lot গুলো ফিরিয়ে দিন
-          lots.qty_available += prevItem.quantity;
-          await lots.save({ session });
-        }
+        // if (lots) {
+        //   // পূর্বে কাটাকাটা lot গুলো ফিরিয়ে দিন
+        //   lots.qty_reserved -= prevItem.quantity;
+        //   await lots.save({ session });
+        // }
 
         if (stock) {
           // স্টকে quantity ফেরত দিন
           await StockModel.findByIdAndUpdate(
             stock._id,
-            { $inc: { available_quantity: prevItem.quantity } },
+            { $inc: { qty_reserved: -prevItem.quantity } },
             { session }
           );
           // total_sold কমান
@@ -774,7 +778,11 @@ class Service {
           null,
           { session }
         );
-        if (!stock || stock.available_quantity < item.quantity) {
+        if (
+          !stock ||
+          Math.abs(stock.qty_reserved - stock.available_quantity) <
+            item.quantity
+        ) {
           throw new ApiError(
             HttpStatusCode.BAD_REQUEST,
             `Product ${item.product.name ?? item.product} is out of stock`
@@ -794,7 +802,7 @@ class Service {
         total_price += item.subtotal;
 
         // স্টক কমাও
-        stock.available_quantity -= item.quantity;
+        stock.qty_reserved += item.quantity;
         // total_sold বাড়াও
         stock.total_sold = (stock.total_sold || 0) + item.quantity;
         await stock.save({ session });

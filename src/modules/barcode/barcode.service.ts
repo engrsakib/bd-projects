@@ -13,6 +13,7 @@ import { CounterModel } from "@/common/models/counter.model";
 import { PurchaseModel } from "../purchase/purchase.model";
 import { StockService } from "../stock/stock.service";
 import { LotService } from "../lot/lot.service";
+import { GlobalStockModel } from "../stock/globalStock.model";
 
 class Service {
   async crateBarcodeForStock(
@@ -372,34 +373,6 @@ class Service {
     return result;
   }
 
-  // async createPurchaseByBarcodes(
-  //   barcodes: string[]
-  // ): Promise<IBarcode[]> {
-  //   const session = await mongoose.startSession();
-  //   session.startTransaction();
-  //   try {
-  //     const barcodeDocs = await BarcodeModel.find({
-  //       barcode: { $in: barcodes },
-  //     }).session(session);
-  //     if (barcodeDocs.length !== barcodes.length) {
-  //       throw new ApiError(
-  //         HttpStatusCode.NOT_FOUND,
-  //         "One or more barcodes not found"
-  //       );
-  //     }
-
-  //     // Additional logic for creating purchase can be added here
-
-  //     await session.commitTransaction();
-  //     return barcodeDocs;
-  //   } catch (error) {
-  //     await session.abortTransaction();
-  //     throw error;
-  //   } finally {
-  //     session.endSession();
-  //   }
-  // }
-
   // async createPurchaseFromBarcodes(
   //   barcodes: string[],
   //   location: Types.ObjectId,
@@ -465,8 +438,12 @@ class Service {
   //     // 3) Build purchase items from groups (items array in purchase)
   //     const items: any[] = []; // adapt to your purchaseItemSchema shape
   //     let subtotal = 0; // sum(unit_cost * qty) based on defaults
-  //     // Use Array.from(groups) to avoid downlevelIteration error
-  //     for (const [, grp] of Array.from(groups)) {
+
+  //     // Collect supplier ids found in defaults to decide purchase.supplier
+  //     const supplierSet = new Set<string>();
+
+  //     // Use Array.from(groups.entries()) to avoid downlevelIteration error
+  //     for (const [, grp] of Array.from(groups.entries())) {
   //       // fetch defaults for unit_cost (may be null)
   //       const defaults = (await DefaultsPurchaseModel.findOne({
   //         product: grp.product,
@@ -477,6 +454,10 @@ class Service {
   //         .exec()) as IDefaultsPurchase | null;
 
   //       const unit_cost = defaults ? defaults.unit_cost : 0;
+  //       if (defaults && defaults.supplier) {
+  //         supplierSet.add(String(defaults.supplier));
+  //       }
+
   //       const itemTotal = unit_cost * grp.qty;
   //       subtotal += itemTotal;
 
@@ -505,7 +486,19 @@ class Service {
   //       { new: true, upsert: true, session }
   //     ).exec();
 
-  //     const purchase_number = counter?.sequence as number;
+  //     const purchase_number =
+  //       (counter as any)?.seq ?? (counter as any)?.sequence ?? 0;
+
+  //     // Decide purchase.supplier:
+  //     // - If exactly one distinct supplier found across groups, use it
+  //     // - Otherwise leave undefined (or change policy if you want)
+  //     let purchaseSupplier: Types.ObjectId | undefined = undefined;
+  //     if (supplierSet.size === 1) {
+  //       const [onlySupplier] = Array.from(supplierSet);
+  //       purchaseSupplier = new Types.ObjectId(onlySupplier);
+  //     } else {
+  //       purchaseSupplier = undefined;
+  //     }
 
   //     // 5) Pre-generate purchaseId and create Purchase document
   //     const purchaseId = new Types.ObjectId();
@@ -517,7 +510,7 @@ class Service {
   //       location,
   //       purchase_number,
   //       purchase_date,
-  //       supplier: undefined, // supplier could be set if you want a supplier aggregated; left null
+  //       supplier: purchaseSupplier ?? undefined,
   //       total_cost,
   //       items,
   //       expenses_applied: [],
@@ -533,8 +526,7 @@ class Service {
   //     // 6) For each group: upsert stock, create lot (pointing to purchaseId), update barcodes
   //     const updatedBarcodes: IBarcode[] = [];
 
-  //     // Use Array.from(groups) here as well
-  //     for (const [, grp] of Array.from(groups)) {
+  //     for (const [, grp] of Array.from(groups.entries())) {
   //       // get defaults again for supplier/unit_cost (we already fetched earlier; fetch again or cache)
   //       const defaults = (await DefaultsPurchaseModel.findOne({
   //         product: grp.product,
@@ -626,6 +618,8 @@ class Service {
   //               lot: lot._id,
   //               stock: stock._id,
   //               is_used_barcode: true,
+  //               status: productBarcodeStatus.IN_STOCK,
+  //               conditions: productBarcodeCondition.NEW,
   //             },
   //             $push: { updated_logs: { $each: [updateLog], $position: 0 } },
   //           },
@@ -652,6 +646,7 @@ class Service {
   //     session.endSession();
   //   }
   // }
+
   async createPurchaseFromBarcodes(
     barcodes: string[],
     location: Types.ObjectId,
@@ -821,7 +816,7 @@ class Service {
           ? (defaults.supplier as Types.ObjectId | null)
           : null;
 
-        // Upsert stock: StockService.findOneAndUpdateByPurchase must perform $inc upsert and return doc
+        // Upsert stock: StockService.findOneAndUpdateByPurchase must perform $inc upsert and return doc data
         const stockQuery = {
           product: grp.product,
           variant: grp.variant,
@@ -846,6 +841,32 @@ class Service {
             "Failed to create/update stock"
           );
         }
+
+        // ==========================================
+        //  Update Global Stock Logic
+        // ==========================================
+        await GlobalStockModel.findOneAndUpdate(
+          {
+            product: grp.product,
+            variant: grp.variant,
+          },
+          {
+            $inc: {
+              available_quantity: grp.qty,
+              qty_total: grp.qty,
+            },
+            $setOnInsert: {
+              qty_reserved: 0,
+              total_sold: 0,
+            },
+          },
+          {
+            upsert: true,
+            new: true,
+            session,
+          }
+        );
+        // ==========================================
 
         // Create lot referencing this purchase
         const lot_number = `PUR-${purchase.purchase_number}-${String(grp.variant).slice(-4)}-${Date.now()}`;
