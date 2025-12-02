@@ -84,13 +84,16 @@ class Service {
         // console.log(stock.available_quantity, "available qnt");
         // console.log(item.quantity, "item qnt");
 
-        if (stock.available_quantity < item.quantity) {
+        if (
+          Math.abs(stock.qty_reserved - stock.available_quantity) <
+          item.quantity
+        ) {
           total_stock_issue = true;
           item.status = ORDER_STATUS.AWAITING_STOCK;
           continue;
         } else {
           // lot consumption (FIFO)
-          const consumedLots = await this.consumeLotsFIFO(
+          const consumedLots = await this.simulateConsumeLotsFIFO(
             item.product,
             item.variant,
             item.quantity,
@@ -100,7 +103,7 @@ class Service {
           item.lots = consumedLots;
           // console.log(consumedLots, "consumed lots `");
 
-          stock.available_quantity -= item.quantity;
+          stock.qty_reserved += item.quantity;
           stock.total_sold = (stock.total_sold || 0) + item.quantity;
           item.total_sold = (item.total_sold || 0) + item.quantity;
           await stock.save({ session });
@@ -346,7 +349,7 @@ class Service {
           continue;
         } else {
           // lot consumption (FIFO)
-          const consumedLots = await this.consumeLotsFIFO(
+          const consumedLots = await this.simulateConsumeLotsFIFO(
             item.product,
             item.variant,
             item.quantity,
@@ -535,7 +538,7 @@ class Service {
         }
 
         // lot consumption (FIFO)
-        const consumedLots = await this.consumeLotsFIFO(
+        const consumedLots = await this.simulateConsumeLotsFIFO(
           item.product,
           item.variant,
           item.quantity,
@@ -776,7 +779,7 @@ class Service {
         }
 
         // FIFO lots থেকে কাটছে, lots ডিটেইল সেট হচ্ছে
-        const consumedLots = await this.consumeLotsFIFO(
+        const consumedLots = await this.simulateConsumeLotsFIFO(
           item.product,
           item.variant,
           item.quantity,
@@ -2494,7 +2497,7 @@ class Service {
         }
 
         // lot consumption (FIFO)
-        const consumedLots = await this.consumeLotsFIFO(
+        const consumedLots = await this.simulateConsumeLotsFIFO(
           item.product._id ? (item.product as any)._id : item.product,
           item.variant._id ? (item.variant as any)._id : item.variant,
           item.quantity,
@@ -2645,7 +2648,7 @@ class Service {
     };
   }
 
-  private async consumeLotsFIFO(
+  private async simulateConsumeLotsFIFO(
     productId: string,
     variantId: string,
     requiredQty: number,
@@ -2679,7 +2682,7 @@ class Service {
         lot.qty_available -= remaining;
         remaining = 0;
       }
-      await lot.save({ session });
+      // await lot.save({ session });
 
       consumption.push({
         lotId: lot._id.toString(),
