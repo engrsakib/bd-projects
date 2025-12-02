@@ -6,4 +6,5 @@ export type IGlobalStock = {
   available_quantity: number;
   total_sold?: number;
   qty_reserved: number; // cart/reservation (optional)
+  qty_total: number;
 };
