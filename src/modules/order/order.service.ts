@@ -61,7 +61,7 @@ class Service {
       // check stock availability [most important]
       for (const item of enrichedOrder.products) {
         // console.log(item.variant, "for stock");
-        const stock = await StockModel.findOne(
+        const stock = await GlobalStockModel.findOne(
           {
             product: item.product,
             variant: item.variant,
@@ -523,7 +523,7 @@ class Service {
       for (const item of enrichedOrder.products) {
         // console.log(item.variant, "for stock");
 
-        const stock = await StockModel.findOne(
+        const stock = await GlobalStockModel.findOne(
           {
             product: item.product,
             variant: item.variant,
@@ -742,7 +742,7 @@ class Service {
         //   continue;
         // }
 
-        const stock = await StockModel.findOne({
+        const stock = await GlobalStockModel.findOne({
           product: prevItem.product,
           variant: prevItem.variant,
         }).session(session);
@@ -759,7 +759,7 @@ class Service {
 
         if (stock) {
           // স্টকে quantity ফেরত দিন
-          await StockModel.findByIdAndUpdate(
+          await GlobalStockModel.findByIdAndUpdate(
             stock._id,
             { $inc: { qty_reserved: -prevItem.quantity } },
             { session }
@@ -774,7 +774,7 @@ class Service {
       // ৪. নতুন/পরিবর্তিত আইটেমের জন্য stock allocate + total_sold বাড়ানো
       let total_price = 0;
       for (const item of enrichedOrder.products) {
-        const stock = await StockModel.findOne(
+        const stock = await GlobalStockModel.findOne(
           { product: item.product, variant: item.variant },
           null,
           { session }
