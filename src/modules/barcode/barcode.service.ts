@@ -1200,7 +1200,7 @@ class Service {
         if (doc.status !== productBarcodeStatus.IN_STOCK) {
           throw new ApiError(
             HttpStatusCode.BAD_REQUEST,
-            `Barcode ${doc.barcode} is not in stock (status: ${doc.status})`
+            `Barcode ${doc.barcode} sku ${doc.sku} is not in stock (status: ${doc.status})`
           );
         }
       }
