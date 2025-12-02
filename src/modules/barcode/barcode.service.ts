@@ -1369,7 +1369,7 @@ class Service {
           { session }
         );
       }
-
+      order.is_assigned_product_scan = true;
       // 6. Save Order (all item barcode arrays updated in-memory)
       await order.save({ session });
 
