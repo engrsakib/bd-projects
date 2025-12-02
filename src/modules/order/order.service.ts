@@ -29,6 +29,7 @@ import { VariantModel } from "../variant/variant.model";
 import { UserModel } from "../user/user.model";
 import { LotModel } from "../lot/lot.model";
 import pLimit from "p-limit";
+import { GlobalStockModel } from "../stock/globalStock.model";
 
 class Service {
   async placeOrder(
@@ -317,7 +318,7 @@ class Service {
       // check stock availability [most important]
       for (const item of enrichedOrder.products) {
         // console.log(item.variant, "for stock");
-        const stock = await StockModel.findOne(
+        const stock = await GlobalStockModel.findOne(
           {
             product: item.product,
             variant: item.variant,
@@ -326,7 +327,7 @@ class Service {
           { session }
         );
 
-        console.log(stock, "stocks data");
+        // console.log(stock, "stocks data");
 
         if (!stock) {
           // await session.abortTransaction();
