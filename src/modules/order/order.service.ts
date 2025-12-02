@@ -144,7 +144,7 @@ class Service {
         customer_secondary_number: data.customer_secondary_number,
         customer_email: data.customer_email,
         orders_by: order_by,
-
+        is_assigned_product_scan: false,
         items,
 
         total_items,
@@ -399,6 +399,7 @@ class Service {
         customer_secondary_number: data.customer_secondary_number,
         customer_email: data.customer_email,
         orders_by: order_by,
+        is_assigned_product_scan: false,
 
         items,
         total_items,
@@ -597,6 +598,7 @@ class Service {
         customer_secondary_number: prevOrder.customer_secondary_number,
         customer_email: prevOrder.customer_email,
         orders_by: order_by,
+        is_assigned_product_scan: false,
 
         items,
         total_items,
