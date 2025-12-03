@@ -1170,6 +1170,7 @@ class Service {
       const order = await OrderModel.findOne({ order_id: orderId }).session(
         session
       );
+
       if (!order) {
         throw new ApiError(HttpStatusCode.NOT_FOUND, "Order not found");
       }
@@ -1184,7 +1185,7 @@ class Service {
       if (barcodeDocs.length !== uniqBarcodes.length) {
         throw new ApiError(
           HttpStatusCode.BAD_REQUEST,
-          "One or more barcodes not found"
+          "Duplicate barcodes provided in input"
         );
       }
 
@@ -1193,14 +1194,14 @@ class Service {
         if (!doc.is_used_barcode) {
           throw new ApiError(
             HttpStatusCode.BAD_REQUEST,
-            `Barcode ${doc.barcode} is not used for any product yet`
+            `Barcode ${doc.barcode} - sku ${doc.sku} is not assigned for any product yet`
           );
         }
         // We allow status check but claim will enforce it atomically
         if (doc.status !== productBarcodeStatus.IN_STOCK) {
           throw new ApiError(
             HttpStatusCode.BAD_REQUEST,
-            `Barcode ${doc.barcode} sku ${doc.sku} is not in stock (status: ${doc.status})`
+            `Barcode ${doc.barcode} - sku ${doc.sku} is not in stock (status: ${doc.status})`
           );
         }
       }
@@ -1249,7 +1250,7 @@ class Service {
         if (!orderItem) {
           throw new ApiError(
             HttpStatusCode.BAD_REQUEST,
-            `Order does not contain item for product ${group.product} variant ${group.variant}`
+            `The order doesn’t include any item with the specified barcode ${group.barcodes.join(", ")}. Product ID: ${group.product}, Variant ID: ${group.variant}`
           );
         }
 
