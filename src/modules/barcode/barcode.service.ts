@@ -1076,15 +1076,15 @@ class Service {
         }
 
         // Ensure not exceeding ordered quantity
-        const alreadyAssigned = Array.isArray(orderItem.barcode)
-          ? orderItem.barcode.length
-          : 0;
-        if (alreadyAssigned + qty > orderItem.quantity) {
-          throw new ApiError(
-            HttpStatusCode.BAD_REQUEST,
-            `Too many barcodes for item ${group.product}. Ordered: ${orderItem.quantity}, Already Assigned: ${alreadyAssigned}, New: ${qty}`
-          );
-        }
+        // const alreadyAssigned = Array.isArray(orderItem.barcode)
+        //   ? orderItem.barcode.length
+        //   : 0;
+        // if (alreadyAssigned + qty > orderItem.quantity) {
+        //   throw new ApiError(
+        //     HttpStatusCode.BAD_REQUEST,
+        //     `Too many barcodes for item ${group.product}. Ordered: ${orderItem.quantity}, Already Assigned: ${alreadyAssigned}, New: ${qty}`
+        //   );
+        // }
 
         // B. Atomically claim each barcode (ensures no race with other processes)
         // Use per-barcode findOneAndUpdate with precondition { status: IN_STOCK, is_used_barcode: false }

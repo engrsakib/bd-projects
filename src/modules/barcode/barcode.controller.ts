@@ -285,6 +285,48 @@ class Controller extends BaseController {
     }
   );
 
+  processReturnBarcodes = this.catchAsync(
+    async (req: Request, res: Response) => {
+      const { order_id: orderId } = req.params;
+      const { barcodes } = req.body;
+
+      console.log(orderId, "order id from return");
+      if (!orderId) {
+        throw new ApiError(HttpStatusCode.BAD_REQUEST, "Order ID is required");
+      }
+      if (!barcodes || !Array.isArray(barcodes) || barcodes.length === 0) {
+        throw new ApiError(
+          HttpStatusCode.BAD_REQUEST,
+          "Barcodes array is required"
+        );
+      }
+
+      const user = req.user as any;
+      if (!user) {
+        throw new ApiError(HttpStatusCode.UNAUTHORIZED, "User not authorized");
+      }
+
+      const updatedBy = {
+        name: user.name || "Unknown Staff",
+        role: user.role,
+        date: new Date(),
+      };
+
+      const result = await UniqueBarcodeService.processReturnBarcodes(
+        orderId,
+        barcodes,
+        updatedBy
+      );
+
+      this.sendResponse(res, {
+        statusCode: HttpStatusCode.OK,
+        success: true,
+        message: "Barcodes assigned and stock updated successfully",
+        data: result,
+      });
+    }
+  );
+
   checkIsBarcodeExistsAndReadyForUse = this.catchAsync(
     async (req: Request, res: Response) => {
       const { order_id } = req.params;
