@@ -287,11 +287,11 @@ class Controller extends BaseController {
 
   checkIsBarcodeExistsAndReadyForUse = this.catchAsync(
     async (req: Request, res: Response) => {
-      const { id: orderId } = req.params;
-      const { barcode } = req.query;
+      const { order_id } = req.params;
+      const { barcode, check_for } = req.query;
 
       // 1. Validation
-      if (!orderId) {
+      if (!order_id) {
         throw new ApiError(HttpStatusCode.BAD_REQUEST, "Order ID is required");
       }
       if (!barcode || typeof barcode !== "string") {
@@ -300,12 +300,19 @@ class Controller extends BaseController {
           "Barcode is required and must be a string"
         );
       }
+      if (!check_for || typeof check_for !== "string") {
+        throw new ApiError(
+          HttpStatusCode.BAD_REQUEST,
+          "check_for is required and must be a string"
+        );
+      }
 
       // 2. Call Service
       const result =
         await UniqueBarcodeService.checkIsBarcodeExistsAndReadyForUse(
-          orderId,
-          barcode
+          order_id,
+          barcode,
+          check_for
         );
 
       // 3. Send Response

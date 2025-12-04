@@ -5,7 +5,11 @@ import { IBarcode } from "./barcode.interface";
 import { VariantModel } from "../variant/variant.model";
 import { BarcodeService } from "@/lib/barcode";
 import { BarcodeModel } from "./barcode.model";
-import { productBarcodeCondition, productBarcodeStatus } from "./barcode.enum";
+import {
+  checkFor,
+  productBarcodeCondition,
+  productBarcodeStatus,
+} from "./barcode.enum";
 import { IPurchase } from "../purchase/purchase.interface";
 import { DefaultsPurchaseModel } from "../default-purchase/defult-purchase.model";
 import { IDefaultsPurchase } from "../default-purchase/default-purchase.interface";
@@ -312,20 +316,21 @@ class Service {
 
   async checkIsBarcodeExistsAndReadyForUse(
     orderId: number | string,
-    barcode: string | number
+    barcode: string,
+    check_for: string
   ): Promise<{
     is_used_barcode: boolean;
     status: productBarcodeStatus;
     conditions: productBarcodeCondition;
-    sku: string; // Add sku to return type
+    barcode: string;
+    sku: string;
   }> {
     if (!barcode || typeof barcode !== "string") {
       throw new ApiError(HttpStatusCode.BAD_REQUEST, "barcode is required");
     }
 
-    // 1) Find barcode doc with populated variant to get SKU
     const barcodeDoc = await BarcodeModel.findOne({ barcode })
-      .populate("variant") // Populate variant to access sku
+      .populate("variant")
       .lean()
       .exec();
 
@@ -333,62 +338,82 @@ class Service {
       throw new ApiError(HttpStatusCode.NOT_FOUND, "Barcode not found");
     }
 
-    // Check if barcode status is In-Stock
-    if (barcodeDoc.status !== productBarcodeStatus.IN_STOCK) {
+    if (
+      check_for === checkFor.ASSIGEN &&
+      barcodeDoc.status !== productBarcodeStatus.IN_STOCK
+    ) {
       throw new ApiError(
         HttpStatusCode.BAD_REQUEST,
-        `Barcode status is ${barcodeDoc.status}, expected In-Stock`
+        `Barcode status is ${barcodeDoc.status}, not ready for use`
       );
     }
 
-    // 2) Find order
-    const order = await OrderModel.findById(orderId).lean().exec();
+    console.log(check_for, "check for");
+
+    if (
+      check_for === checkFor.RETURNED &&
+      barcodeDoc.status !== productBarcodeStatus.ASSIGNED
+    ) {
+      throw new ApiError(
+        HttpStatusCode.BAD_REQUEST,
+        `Barcode status is ${barcodeDoc.status}, not ready for returning`
+      );
+    }
+
+    const order = await OrderModel.findOne({ order_id: orderId })
+      .populate({
+        path: "items.variant",
+        select: "sku",
+      })
+      .lean()
+      .exec();
+
     if (!order) {
       throw new ApiError(HttpStatusCode.NOT_FOUND, "Order not found");
     }
 
-    // 3) Check barcode belongs to a matching order item and that item still needs assignment
+    const targetSku = (barcodeDoc as IBarcode)?.sku;
+    // console.log(targetSku,"sku data from barcode");
+    const targetProductId = String(barcodeDoc.product);
+
     const matchesOrderItem = (order.items || []).some((item: any) => {
-      // Check if item has variant populated or if it is just an ID
-      // This part depends on how order items are structured/populated.
-      // Assuming item.variant is an ObjectId reference to Variant model.
+      const isProductMatch = String(item.product) === targetProductId;
 
-      // Strict check: product and variant IDs must match
-      const sameProduct = String(item.product) === String(barcodeDoc.product);
-      const sameVariant =
-        String(item.variant) === String((barcodeDoc.variant as any)._id);
+      const itemSku = item.variant?.sku;
+      // console.log(itemSku, "sku data from order item");
+      const isSkuMatch = itemSku === targetSku;
 
-      // Check if SKU from barcode matches SKU expected in order item (redundant if variant ID matches, but safe)
-      // Since we matched variant ID, SKU match is implicit.
-      // But if you want explicit SKU check from order item (if stored there):
-      // const orderItemSku = item.sku; // If SKU is stored in order item
-      // const barcodeSku = (barcodeDoc.variant as any).sku;
-      // const sameSku = orderItemSku === barcodeSku;
+      // console.log(isSkuMatch,"sku match")
 
-      const alreadyAssigned = Array.isArray(item.barcode)
-        ? item.barcode.length
-        : 0;
-      const needsMore =
-        typeof item.quantity === "number"
-          ? alreadyAssigned < item.quantity
-          : true;
+      // গ. কোয়ান্টিটি চেক (আর কতগুলো বাকি আছে)
+      // const alreadyAssigned = Array.isArray(item.barcode)
+      //   ? item.barcode.length
+      //   : 0;
+      // const needsMore =
+      //   typeof item.quantity === "number"
+      //     ? alreadyAssigned < item.quantity
+      //     : true;
 
-      return sameProduct && sameVariant && needsMore;
+      // console.log(isProductMatch,  isSkuMatch, needsMore, "final match result");
+
+      // সব শর্ত সত্য হতে হবে
+      return isProductMatch && isSkuMatch;
     });
 
     if (!matchesOrderItem) {
       throw new ApiError(
         HttpStatusCode.BAD_REQUEST,
-        "Barcode is not applicable for this order (product/variant mismatch or item already fully assigned)"
+        `Barcode (${barcode}) SKU: '${targetSku}' does not match any pending item in this order.`
       );
     }
 
-    // 4) Return required info along with SKU
+    // ৬. সফল হলে রিটার্ন করা
     return {
       is_used_barcode: Boolean(barcodeDoc.is_used_barcode),
       status: barcodeDoc.status as productBarcodeStatus,
       conditions: barcodeDoc.conditions as productBarcodeCondition,
-      sku: (barcodeDoc.variant as any).sku, // Return the SKU found in the barcode's variant
+      barcode: barcodeDoc.barcode,
+      sku: targetSku,
     };
   }
 
