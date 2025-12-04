@@ -98,7 +98,7 @@ class Service {
       const updateLog = {
         ...updated_by,
         admin_note: admin_note ?? undefined,
-        system_message: `Status changed from ${barcodeDoc.status} to ${status} on ${new Date().toISOString()} and conditions set from ${barcodeDoc.conditions} to ${conditions}`,
+        system_message: `Status changed from ${barcodeDoc.status} to ${status ? status : barcodeDoc.status} on ${new Date().toISOString()} and conditions set from ${barcodeDoc.conditions} to ${conditions ? conditions : barcodeDoc.conditions}`,
       };
 
       if (!Array.isArray(barcodeDoc.updated_logs)) {
@@ -106,8 +106,8 @@ class Service {
       }
       barcodeDoc.updated_logs.unshift(updateLog);
 
-      barcodeDoc.status = status;
-      barcodeDoc.conditions = conditions;
+      barcodeDoc.status = status ? status : barcodeDoc.status;
+      barcodeDoc.conditions = conditions ? conditions : barcodeDoc.conditions;
 
       await barcodeDoc.save({ session });
 

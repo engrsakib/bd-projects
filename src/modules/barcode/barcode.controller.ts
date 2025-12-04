@@ -40,14 +40,14 @@ class Controller extends BaseController {
   updateBarcodeStatus = this.catchAsync(async (req: Request, res: Response) => {
     const { barcode, status, conditions, admin_note } = req.body;
 
-    if (!barcode || !status) {
-      this.sendResponse(res, {
-        statusCode: 400,
-        success: false,
-        message: "Barcode and status are required",
-      });
-      return;
-    }
+    // if (!barcode || !status) {
+    //   this.sendResponse(res, {
+    //     statusCode: 400,
+    //     success: false,
+    //     message: "Barcode and status are required",
+    //   });
+    //   return;
+    // }
 
     const user = req.user as { name?: string; role?: string } | undefined;
     if (!user || !user.name || !user.role) {
