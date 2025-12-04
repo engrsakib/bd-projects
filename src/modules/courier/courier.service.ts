@@ -798,16 +798,6 @@ class Service {
           `Product: ${product}, Variant: ${variant}, Status: ${status}, Quantity: ${quantity}`
         );
 
-        // const lots = await LotModel.findOne({
-        //   variant: variant,
-        // }).session(session);
-
-        // if (lots) {
-        //   lots.qty_available += quantity;
-        //   await lots.save({ session });
-        // }
-
-        // const stock = await StockModel.findOne(
         //   {
         //     product: product,
         //     variant: variant,
