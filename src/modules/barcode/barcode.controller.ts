@@ -284,6 +284,39 @@ class Controller extends BaseController {
       });
     }
   );
+
+  checkIsBarcodeExistsAndReadyForUse = this.catchAsync(
+    async (req: Request, res: Response) => {
+      const { id: orderId } = req.params;
+      const { barcode } = req.query;
+
+      // 1. Validation
+      if (!orderId) {
+        throw new ApiError(HttpStatusCode.BAD_REQUEST, "Order ID is required");
+      }
+      if (!barcode || typeof barcode !== "string") {
+        throw new ApiError(
+          HttpStatusCode.BAD_REQUEST,
+          "Barcode is required and must be a string"
+        );
+      }
+
+      // 2. Call Service
+      const result =
+        await UniqueBarcodeService.checkIsBarcodeExistsAndReadyForUse(
+          orderId,
+          barcode
+        );
+
+      // 3. Send Response
+      this.sendResponse(res, {
+        statusCode: HttpStatusCode.OK,
+        success: true,
+        message: "Barcode is valid and ready for use",
+        data: result,
+      });
+    }
+  );
 }
 
 export const UniqueBarcodeController = new Controller();

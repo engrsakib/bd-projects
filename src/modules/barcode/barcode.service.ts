@@ -311,8 +311,8 @@ class Service {
   }
 
   async checkIsBarcodeExistsAndReadyForUse(
-    orderId: string,
-    barcode: string
+    orderId: number | string,
+    barcode: string | number
   ): Promise<{
     is_used_barcode: boolean;
     status: productBarcodeStatus;
