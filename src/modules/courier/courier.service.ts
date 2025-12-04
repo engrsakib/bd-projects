@@ -7,7 +7,9 @@ import { ORDER_STATUS } from "../order/order.enums";
 import CourierModel from "./courier.model";
 import { HttpStatusCode } from "@/lib/httpStatus";
 import { IOrder, IOrderStatus } from "../order/order.interface";
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { StockModel } from "../stock/stock.model";
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { LotModel } from "../lot/lot.model";
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import pLimit from "p-limit";
@@ -618,40 +620,7 @@ class Service {
       order.order_status = ORDER_STATUS.RETURNED;
 
       // stock update logic here
-      const pairs = this.extractProductVariantQuantity(order);
 
-      for (const { product, variant, quantity, lot } of pairs) {
-        // Stock check, deduct, or update operations
-
-        // console.log(product, "product", variant, "variant", quantity, "quantity", lot, "product variant quantity");
-
-        if (!product || !variant || !lot) {
-          throw new ApiError(400, "Invalid product, variant, or lot data");
-        }
-        console.log(lot, "lots data");
-        const stock = await StockModel.findOne(
-          {
-            product: product,
-            variant: variant,
-          },
-          null,
-          { session }
-        );
-        if (!stock) {
-          throw new ApiError(404, "Stock record not found");
-        }
-        stock.available_quantity += quantity;
-        // lot update
-        const lotRecord = await LotModel.findById(lot as string).session(
-          session
-        );
-        if (!lotRecord) {
-          throw new ApiError(404, "Lot records not found");
-        }
-        lotRecord.qty_available += quantity;
-        await stock.save({ session });
-        await lotRecord.save({ session });
-      }
       (await order.save()).$session();
       await session.commitTransaction();
       return order;
@@ -829,28 +798,28 @@ class Service {
           `Product: ${product}, Variant: ${variant}, Status: ${status}, Quantity: ${quantity}`
         );
 
-        const lots = await LotModel.findOne({
-          variant: variant,
-        }).session(session);
+        // const lots = await LotModel.findOne({
+        //   variant: variant,
+        // }).session(session);
 
-        if (lots) {
-          lots.qty_available += quantity;
-          await lots.save({ session });
-        }
+        // if (lots) {
+        //   lots.qty_available += quantity;
+        //   await lots.save({ session });
+        // }
 
-        const stock = await StockModel.findOne(
-          {
-            product: product,
-            variant: variant,
-          },
-          null,
-          { session }
-        );
-        if (!stock) {
-          throw new ApiError(404, "Stock record not found");
-        }
-        stock.available_quantity += quantity;
-        await stock.save({ session });
+        // const stock = await StockModel.findOne(
+        //   {
+        //     product: product,
+        //     variant: variant,
+        //   },
+        //   null,
+        //   { session }
+        // );
+        // if (!stock) {
+        //   throw new ApiError(404, "Stock record not found");
+        // }
+        // stock.available_quantity += quantity;
+        // await stock.save({ session });
       }
 
       // stock update logic here
