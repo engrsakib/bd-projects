@@ -1250,7 +1250,7 @@ class Service {
         if (!orderItem) {
           throw new ApiError(
             HttpStatusCode.BAD_REQUEST,
-            `The order doesn’t include any item with the specified barcode ${group.barcodes.join(", ")}. Product ID: ${group.product}, Variant ID: ${group.variant}`
+            `The order doesn’t include any item with the specified barcode ${group.barcodes.join(", ")} sku ${group.docs[0]?.sku}. Product ID: ${group.product}, Variant ID: ${group.variant}`
           );
         }
 
