@@ -231,6 +231,34 @@ class Controller extends BaseController {
       });
     }
   );
+
+  updateOrderStatusBulk = this.catchAsync(
+    async (req: Request, res: Response) => {
+      const { ids, status } = req.body;
+      if (!ids || !status) {
+        return this.sendResponse(res, {
+          statusCode: HttpStatusCode.BAD_REQUEST,
+          success: false,
+          message: "Order IDs and Status are required",
+        });
+      }
+
+      const concurrency = Math.min(ids.length, 5);
+      const params = {
+        ids,
+        userId: req.user?.id as string,
+        status,
+        concurrency,
+      };
+      const data = await OrderService.updateOrdersStatusBulk(params);
+      this.sendResponse(res, {
+        statusCode: HttpStatusCode.OK,
+        success: true,
+        message: "Order status updated successfully",
+        data,
+      });
+    }
+  );
 }
 
 export const OrderController = new Controller();
