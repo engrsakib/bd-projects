@@ -35,6 +35,13 @@ router.patch(
 );
 
 router.patch(
+  "/update-order-status/bulk",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.ORDER_UPDATE),
+  OrderController.updateOrderStatusBulk
+);
+
+router.patch(
   "/update-order-status",
   JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.ORDER_UPDATE),
