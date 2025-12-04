@@ -25,3 +25,8 @@ export enum productBarcodeCondition {
   PHYSICALLY_DAMAGED = "physically_damaged",
   SCRAP = "scrap",
 }
+
+export enum checkFor {
+  ASSIGEN = "assign",
+  RETURNED = "returned",
+}

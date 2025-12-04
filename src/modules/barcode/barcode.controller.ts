@@ -284,6 +284,88 @@ class Controller extends BaseController {
       });
     }
   );
+
+  processReturnBarcodes = this.catchAsync(
+    async (req: Request, res: Response) => {
+      const { order_id: orderId } = req.params;
+      const { barcodes } = req.body;
+
+      console.log(orderId, "order id from return");
+      if (!orderId) {
+        throw new ApiError(HttpStatusCode.BAD_REQUEST, "Order ID is required");
+      }
+      if (!barcodes || !Array.isArray(barcodes) || barcodes.length === 0) {
+        throw new ApiError(
+          HttpStatusCode.BAD_REQUEST,
+          "Barcodes array is required"
+        );
+      }
+
+      const user = req.user as any;
+      if (!user) {
+        throw new ApiError(HttpStatusCode.UNAUTHORIZED, "User not authorized");
+      }
+
+      const updatedBy = {
+        name: user.name || "Unknown Staff",
+        role: user.role,
+        date: new Date(),
+      };
+
+      const result = await UniqueBarcodeService.processReturnBarcodes(
+        orderId,
+        barcodes,
+        updatedBy
+      );
+
+      this.sendResponse(res, {
+        statusCode: HttpStatusCode.OK,
+        success: true,
+        message: "Barcodes assigned and stock updated successfully",
+        data: result,
+      });
+    }
+  );
+
+  checkIsBarcodeExistsAndReadyForUse = this.catchAsync(
+    async (req: Request, res: Response) => {
+      const { order_id } = req.params;
+      const { barcode, check_for } = req.query;
+
+      // 1. Validation
+      if (!order_id) {
+        throw new ApiError(HttpStatusCode.BAD_REQUEST, "Order ID is required");
+      }
+      if (!barcode || typeof barcode !== "string") {
+        throw new ApiError(
+          HttpStatusCode.BAD_REQUEST,
+          "Barcode is required and must be a string"
+        );
+      }
+      if (!check_for || typeof check_for !== "string") {
+        throw new ApiError(
+          HttpStatusCode.BAD_REQUEST,
+          "check_for is required and must be a string"
+        );
+      }
+
+      // 2. Call Service
+      const result =
+        await UniqueBarcodeService.checkIsBarcodeExistsAndReadyForUse(
+          order_id,
+          barcode,
+          check_for
+        );
+
+      // 3. Send Response
+      this.sendResponse(res, {
+        statusCode: HttpStatusCode.OK,
+        success: true,
+        message: "Barcode is valid and ready for use",
+        data: result,
+      });
+    }
+  );
 }
 
 export const UniqueBarcodeController = new Controller();
