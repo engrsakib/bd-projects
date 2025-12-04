@@ -126,72 +126,6 @@ class Service {
     }
   }
 
-  // async getBarcodesBySku(
-  //   sku: string,
-  //   barcode: string,
-  //   options?: { page?: number; limit?: number; is_used_barcode?: boolean; status?: string, conditions?: string }
-  // ): Promise<{
-  //   barcode: IBarcode[];
-  //   meta: { total: number; page: number; limit: number; totalPages: number };
-  // }> {
-  //   const page = Math.max(1, options?.page ?? 1);
-  //   const limit = Math.max(1, options?.limit ?? 10);
-  //   const skip = (page - 1) * limit;
-
-  //   // Build dynamic match object — only add keys if value is provided (truthy)
-  //   const match: Record<string, any> = {};
-  //   if (sku) match.sku = sku;
-  //   if (barcode) match.barcode = barcode;
-  //   if (options && typeof options.is_used_barcode !== "undefined") {
-  //     match.is_used_barcode = options.is_used_barcode;
-  //   }
-
-  //   // Aggregation pipeline with $facet to get total + paginated data in one query
-  //   const pipeline: any[] = [
-  //     { $match: match },
-  //     { $sort: { createdAt: -1 } },
-  //     {
-  //       $facet: {
-  //         metadata: [{ $count: "total" }],
-  //         data: [{ $skip: skip }, { $limit: limit }],
-  //       },
-  //     },
-  //     // Unwind metadata to make reading easier (optional but keeps shape consistent)
-  //     {
-  //       $unwind: {
-  //         path: "$metadata",
-  //         preserveNullAndEmptyArrays: true,
-  //       },
-  //     },
-  //     {
-  //       $project: {
-  //         data: 1,
-  //         total: { $ifNull: ["$metadata.total", 0] },
-  //       },
-  //     },
-  //   ];
-
-  //   const result = (await BarcodeModel.aggregate(pipeline).exec()) as Array<{
-  //     data: IBarcode[];
-  //     total: number;
-  //   }>;
-
-  //   const agg = result[0] ?? { data: [], total: 0 };
-
-  //   const total = agg.total ?? 0;
-  //   const totalPages = limit > 0 ? Math.ceil(total / limit) : 0;
-
-  //   return {
-  //     meta: {
-  //       total,
-  //       page,
-  //       limit,
-  //       totalPages,
-  //     },
-  //     barcode: agg.data ?? [],
-  //   };
-  // }
-
   async getBarcodesBySku(
     sku: string,
     barcode: string,
@@ -376,279 +310,87 @@ class Service {
     return result;
   }
 
-  // async createPurchaseFromBarcodes(
-  //   barcodes: string[],
-  //   location: Types.ObjectId,
-  //   created_by: Types.ObjectId,
-  //   received_by: Types.ObjectId,
-  //   purchase_date: Date = new Date(),
-  //   updated_by: { name: string; role: string; date: Date },
-  //   admin_note?: string
-  // ): Promise<{ purchase: IPurchase; updatedBarcodes: IBarcode[] }> {
-  //   if (!Array.isArray(barcodes) || barcodes.length === 0) {
-  //     throw new ApiError(
-  //       HttpStatusCode.BAD_REQUEST,
-  //       "barcodes must be a non-empty array"
-  //     );
-  //   }
+  async checkIsBarcodeExistsAndReadyForUse(
+    orderId: string,
+    barcode: string
+  ): Promise<{
+    is_used_barcode: boolean;
+    status: productBarcodeStatus;
+    conditions: productBarcodeCondition;
+    sku: string; // Add sku to return type
+  }> {
+    if (!barcode || typeof barcode !== "string") {
+      throw new ApiError(HttpStatusCode.BAD_REQUEST, "barcode is required");
+    }
 
-  //   const session = await mongoose.startSession();
-  //   session.startTransaction();
-  //   try {
-  //     // 1) Load barcode documents
-  //     const barcodeDocs = await BarcodeModel.find({
-  //       barcode: { $in: barcodes },
-  //     })
-  //       .session(session)
-  //       .exec();
+    // 1) Find barcode doc with populated variant to get SKU
+    const barcodeDoc = await BarcodeModel.findOne({ barcode })
+      .populate("variant") // Populate variant to access sku
+      .lean()
+      .exec();
 
-  //     if (barcodeDocs.length !== barcodes.length) {
-  //       throw new ApiError(
-  //         HttpStatusCode.NOT_FOUND,
-  //         "One or more barcodes not found"
-  //       );
-  //     }
+    if (!barcodeDoc) {
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "Barcode not found");
+    }
 
-  //     // 2) Group by product+variant
-  //     type GroupKey = string; // `${productId}|${variantId}`
-  //     const groups = new Map<
-  //       GroupKey,
-  //       {
-  //         product: Types.ObjectId;
-  //         variant: Types.ObjectId;
-  //         docs: IBarcode[];
-  //         qty: number;
-  //       }
-  //     >();
+    // Check if barcode status is In-Stock
+    if (barcodeDoc.status !== productBarcodeStatus.IN_STOCK) {
+      throw new ApiError(
+        HttpStatusCode.BAD_REQUEST,
+        `Barcode status is ${barcodeDoc.status}, expected In-Stock`
+      );
+    }
 
-  //     for (const doc of barcodeDocs) {
-  //       const productId = (doc as any).product as Types.ObjectId;
-  //       const variantId = (doc as any).variant as Types.ObjectId;
-  //       const key = `${productId.toString()}|${variantId.toString()}`;
-  //       if (!groups.has(key)) {
-  //         groups.set(key, {
-  //           product: productId,
-  //           variant: variantId,
-  //           docs: [],
-  //           qty: 0,
-  //         });
-  //       }
-  //       const g = groups.get(key)!;
-  //       g.docs.push(doc);
-  //       g.qty += 1;
-  //     }
+    // 2) Find order
+    const order = await OrderModel.findById(orderId).lean().exec();
+    if (!order) {
+      throw new ApiError(HttpStatusCode.NOT_FOUND, "Order not found");
+    }
 
-  //     // 3) Build purchase items from groups (items array in purchase)
-  //     const items: any[] = []; // adapt to your purchaseItemSchema shape
-  //     let subtotal = 0; // sum(unit_cost * qty) based on defaults
+    // 3) Check barcode belongs to a matching order item and that item still needs assignment
+    const matchesOrderItem = (order.items || []).some((item: any) => {
+      // Check if item has variant populated or if it is just an ID
+      // This part depends on how order items are structured/populated.
+      // Assuming item.variant is an ObjectId reference to Variant model.
 
-  //     // Collect supplier ids found in defaults to decide purchase.supplier
-  //     const supplierSet = new Set<string>();
+      // Strict check: product and variant IDs must match
+      const sameProduct = String(item.product) === String(barcodeDoc.product);
+      const sameVariant =
+        String(item.variant) === String((barcodeDoc.variant as any)._id);
 
-  //     // Use Array.from(groups.entries()) to avoid downlevelIteration error
-  //     for (const [, grp] of Array.from(groups.entries())) {
-  //       // fetch defaults for unit_cost (may be null)
-  //       const defaults = (await DefaultsPurchaseModel.findOne({
-  //         product: grp.product,
-  //         variant: grp.variant,
-  //       })
-  //         .session(session)
-  //         .lean()
-  //         .exec()) as IDefaultsPurchase | null;
+      // Check if SKU from barcode matches SKU expected in order item (redundant if variant ID matches, but safe)
+      // Since we matched variant ID, SKU match is implicit.
+      // But if you want explicit SKU check from order item (if stored there):
+      // const orderItemSku = item.sku; // If SKU is stored in order item
+      // const barcodeSku = (barcodeDoc.variant as any).sku;
+      // const sameSku = orderItemSku === barcodeSku;
 
-  //       const unit_cost = defaults ? defaults.unit_cost : 0;
-  //       if (defaults && defaults.supplier) {
-  //         supplierSet.add(String(defaults.supplier));
-  //       }
+      const alreadyAssigned = Array.isArray(item.barcode)
+        ? item.barcode.length
+        : 0;
+      const needsMore =
+        typeof item.quantity === "number"
+          ? alreadyAssigned < item.quantity
+          : true;
 
-  //       const itemTotal = unit_cost * grp.qty;
-  //       subtotal += itemTotal;
+      return sameProduct && sameVariant && needsMore;
+    });
 
-  //       items.push({
-  //         product: grp.product,
-  //         variant: grp.variant,
-  //         qty: grp.qty,
-  //         unit_cost,
-  //         discount: 0,
-  //         tax: 0,
-  //         lot_number: null,
-  //         expiry_date: null,
-  //         // add other fields your purchaseItemSchema expects as needed
-  //       });
-  //     }
+    if (!matchesOrderItem) {
+      throw new ApiError(
+        HttpStatusCode.BAD_REQUEST,
+        "Barcode is not applicable for this order (product/variant mismatch or item already fully assigned)"
+      );
+    }
 
-  //     // No additional expenses in this flow; if required, accept as param and add.
-  //     const totalExpenses = 0;
-  //     const total_cost = subtotal + totalExpenses;
-
-  //     // 4) Get atomic purchase_number via CounterModel (one counter per location)
-  //     // CounterModel schema assumed: { _id: locationId (string/ObjectId), seq: Number }
-  //     const counter = await CounterModel.findOneAndUpdate(
-  //       { _id: location.toString() },
-  //       { $inc: { seq: 1 } },
-  //       { new: true, upsert: true, session }
-  //     ).exec();
-
-  //     const purchase_number =
-  //       (counter as any)?.seq ?? (counter as any)?.sequence ?? 0;
-
-  //     // Decide purchase.supplier:
-  //     // - If exactly one distinct supplier found across groups, use it
-  //     // - Otherwise leave undefined (or change policy if you want)
-  //     let purchaseSupplier: Types.ObjectId | undefined = undefined;
-  //     if (supplierSet.size === 1) {
-  //       const [onlySupplier] = Array.from(supplierSet);
-  //       purchaseSupplier = new Types.ObjectId(onlySupplier);
-  //     } else {
-  //       purchaseSupplier = undefined;
-  //     }
-
-  //     // 5) Pre-generate purchaseId and create Purchase document
-  //     const purchaseId = new Types.ObjectId();
-  //     const purchaseData: Partial<IPurchase> = {
-  //       _id: purchaseId,
-  //       created_by,
-  //       received_by,
-  //       received_at: purchase_date,
-  //       location,
-  //       purchase_number,
-  //       purchase_date,
-  //       supplier: purchaseSupplier ?? undefined,
-  //       total_cost,
-  //       items,
-  //       expenses_applied: [],
-  //       attachments: [],
-  //       additional_note: "",
-  //       status: undefined, // will default per schema
-  //     };
-
-  //     const purchase = (await new PurchaseModel(purchaseData).save({
-  //       session,
-  //     })) as IPurchase;
-
-  //     // 6) For each group: upsert stock, create lot (pointing to purchaseId), update barcodes
-  //     const updatedBarcodes: IBarcode[] = [];
-
-  //     for (const [, grp] of Array.from(groups.entries())) {
-  //       // get defaults again for supplier/unit_cost (we already fetched earlier; fetch again or cache)
-  //       const defaults = (await DefaultsPurchaseModel.findOne({
-  //         product: grp.product,
-  //         variant: grp.variant,
-  //       })
-  //         .session(session)
-  //         .lean()
-  //         .exec()) as IDefaultsPurchase | null;
-
-  //       const unit_cost = defaults ? defaults.unit_cost : 0;
-  //       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  //       const supplier = defaults
-  //         ? (defaults.supplier as Types.ObjectId | null)
-  //         : null;
-
-  //       // Upsert stock: StockService.findOneAndUpdateByPurchase must perform $inc upsert and return doc
-  //       const stockQuery = {
-  //         product: grp.product,
-  //         variant: grp.variant,
-  //         location,
-  //       };
-
-  //       const stock = await StockService.findOneAndUpdateByPurchase(
-  //         stockQuery,
-  //         {
-  //           product: grp.product,
-  //           variant: grp.variant,
-  //           location,
-  //           available_quantity: grp.qty,
-  //           total_received: grp.qty,
-  //         },
-  //         session
-  //       );
-
-  //       if (!stock || !(stock as any)._id) {
-  //         throw new ApiError(
-  //           HttpStatusCode.INTERNAL_SERVER_ERROR,
-  //           "Failed to create/update stock"
-  //         );
-  //       }
-
-  //       // Create lot referencing this purchase
-  //       const lot_number = `PUR-${purchase.purchase_number}-${String(grp.variant).slice(-4)}-${Date.now()}`;
-  //       const lotData = {
-  //         qty_available: grp.qty,
-  //         cost_per_unit: unit_cost,
-  //         received_at: purchase_date,
-  //         createdBy: created_by,
-  //         variant: grp.variant,
-  //         product: grp.product,
-  //         location,
-  //         source: {
-  //           type: "purchase" as const,
-  //           ref_id: purchase._id,
-  //         },
-  //         lot_number,
-  //         expiry_date: null,
-  //         qty_total: grp.qty,
-  //         qty_reserved: 0,
-  //         status: "active" as any,
-  //         notes: "",
-  //         stock: stock._id,
-  //       };
-
-  //       const lot = await LotService.createLot(lotData, session);
-  //       if (!lot || !(lot as any)._id) {
-  //         throw new ApiError(
-  //           HttpStatusCode.INTERNAL_SERVER_ERROR,
-  //           "Failed to create lot"
-  //         );
-  //       }
-
-  //       // Update each barcode in group: set lot, stock, is_used_barcode true, unshift updated_logs
-  //       for (const doc of grp.docs) {
-  //         const barcodeStr = String((doc as any).barcode);
-  //         const prevStatus = (doc as any).status;
-  //         const prevConditions = (doc as any).conditions;
-
-  //         const updateLog = {
-  //           ...updated_by,
-  //           admin_note: admin_note ?? undefined,
-  //           system_message: `Status changed to assigned on ${new Date().toISOString()}; assigned to lot ${lot._id} and stock ${stock._id}. Prev status: ${prevStatus}; prev conditions: ${prevConditions}`,
-  //         };
-
-  //         const updated = await BarcodeModel.findOneAndUpdate(
-  //           { barcode: barcodeStr },
-  //           {
-  //             $set: {
-  //               lot: lot._id,
-  //               stock: stock._id,
-  //               is_used_barcode: true,
-  //               status: productBarcodeStatus.IN_STOCK,
-  //               conditions: productBarcodeCondition.NEW,
-  //             },
-  //             $push: { updated_logs: { $each: [updateLog], $position: 0 } },
-  //           },
-  //           { new: true, session }
-  //         ).exec();
-
-  //         if (!updated) {
-  //           throw new ApiError(
-  //             HttpStatusCode.INTERNAL_SERVER_ERROR,
-  //             `Failed to update barcode ${barcodeStr}`
-  //           );
-  //         }
-  //         updatedBarcodes.push(updated as any);
-  //       }
-  //     }
-
-  //     // 7) Commit transaction
-  //     await session.commitTransaction();
-  //     return { purchase, updatedBarcodes };
-  //   } catch (err) {
-  //     await session.abortTransaction();
-  //     throw err;
-  //   } finally {
-  //     session.endSession();
-  //   }
-  // }
+    // 4) Return required info along with SKU
+    return {
+      is_used_barcode: Boolean(barcodeDoc.is_used_barcode),
+      status: barcodeDoc.status as productBarcodeStatus,
+      conditions: barcodeDoc.conditions as productBarcodeCondition,
+      sku: (barcodeDoc.variant as any).sku, // Return the SKU found in the barcode's variant
+    };
+  }
 
   async createPurchaseFromBarcodes(
     barcodes: string[],
@@ -949,196 +691,6 @@ class Service {
       session.endSession();
     }
   }
-
-  // async processOrderBarcodes(
-  //   orderId: string,
-  //   barcodes: string[],
-  //   updatedBy: { name: string; role: string; date: Date }
-  // ) {
-  //   const session = await mongoose.startSession();
-  //   session.startTransaction();
-
-  //   try {
-  //     // 1. Fetch Order
-  //     const order = await OrderModel.findById(orderId).session(session);
-  //     if (!order) {
-  //       throw new ApiError(HttpStatusCode.NOT_FOUND, "Order not found");
-  //     }
-
-  //     // 2. Fetch Barcodes
-  //     const barcodeDocs = await BarcodeModel.find({
-  //       barcode: { $in: barcodes },
-  //     }).session(session);
-
-  //     if (barcodeDocs.length !== barcodes.length) {
-  //       throw new ApiError(
-  //         HttpStatusCode.BAD_REQUEST,
-  //         "One or more barcodes not found"
-  //       );
-  //     }
-
-  //     // 3. Validate Barcodes (Must be IN_STOCK and not already used)
-  //     for (const doc of barcodeDocs) {
-  //       if (
-  //         doc.status !== productBarcodeStatus.IN_STOCK ||
-  //         doc.is_used_barcode
-  //       ) {
-  //         throw new ApiError(
-  //           HttpStatusCode.BAD_REQUEST,
-  //           `Barcode ${doc.barcode} is not available (Status: ${doc.status})`
-  //         );
-  //       }
-  //     }
-
-  //     // 4. Group barcodes by Variant (to optimize stock/lot updates)
-  //     // Map Key: `${productId}_${variantId}`
-  //     const groups = new Map<
-  //       string,
-  //       {
-  //         product: Types.ObjectId;
-  //         variant: Types.ObjectId;
-  //         barcodes: string[];
-  //         docs: typeof barcodeDocs;
-  //       }
-  //     >();
-
-  //     for (const doc of barcodeDocs) {
-  //       const key = `${doc.product.toString()}_${doc.variant.toString()}`;
-  //       if (!groups.has(key)) {
-  //         groups.set(key, {
-  //           product: doc.product as Types.ObjectId,
-  //           variant: doc.variant as Types.ObjectId,
-  //           barcodes: [],
-  //           docs: [],
-  //         });
-  //       }
-  //       const group = groups.get(key)!;
-  //       group.barcodes.push(doc.barcode);
-  //       group.docs.push(doc);
-  //     }
-
-  //     // 5. Process Each Group (Update Order, Barcode, Stock, Lot, GlobalStock)
-  //     for (const [key, group] of groups) {
-  //       const qty = group.barcodes.length;
-
-  //       // A. Update Order Items (Push barcodes to specific item)
-  //       const orderItem = order.items.find(
-  //         (item) =>
-  //           item.product.toString() === group.product.toString() &&
-  //           item.variant.toString() === group.variant.toString()
-  //       );
-
-  //       if (!orderItem) {
-  //         throw new ApiError(
-  //           HttpStatusCode.BAD_REQUEST,
-  //           `Order does not contain item for product ${group.product} variant ${group.variant}`
-  //         );
-  //       }
-
-  //       // Check if order item quantity matches barcode count
-  //       // (Optional: depending on business logic, you might want to allow partial assignment)
-  //       if (orderItem.barcode.length + qty > orderItem.quantity) {
-  //         throw new ApiError(
-  //           HttpStatusCode.BAD_REQUEST,
-  //           `Too many barcodes for item ${group.product}. Ordered: ${orderItem.quantity}, Already Assigned: ${orderItem.barcode.length}, New: ${qty}`
-  //         );
-  //       }
-
-  //       // Add barcodes to order item
-  //       orderItem.barcode.push(...group.barcodes);
-
-  //       // B. Update Barcode Documents (Status & Log)
-  //       const updateLog = {
-  //         name: updatedBy.name,
-  //         role: updatedBy.role,
-  //         date: updatedBy.date,
-  //         system_message: `Assigned to Order #${order.order_id} on ${new Date().toISOString()}`,
-  //       };
-
-  //       await BarcodeModel.updateMany(
-  //         { barcode: { $in: group.barcodes } },
-  //         {
-  //           $set: {
-  //             status: "assigned", // Or productBarcodeStatus.ASSIGNED
-  //             is_used_barcode: true,
-  //           },
-  //           $push: { updated_logs: { $each: [updateLog], $position: 0 } },
-  //         },
-  //         { session }
-  //       );
-
-  //       // C. Update Stock (Reduce available_quantity)
-  //       // Note: Assuming stock is tracked per location. We need to find the correct stock doc.
-  //       // Usually, barcode has a 'stock' reference or 'location'.
-  //       // We will iterate individual barcodes to find their specific stock & lot to be precise.
-
-  //       // Optimization: Group by Stock ID within this variant group to handle multi-location fulfillment if needed
-  //       const stockMap = new Map<string, number>();
-  //       const lotMap = new Map<string, number>();
-
-  //       for (const doc of group.docs) {
-  //         if (doc.stock) {
-  //           const sId = doc.stock.toString();
-  //           stockMap.set(sId, (stockMap.get(sId) || 0) + 1);
-  //         }
-  //         if (doc.lot) {
-  //           const lId = doc.lot.toString();
-  //           lotMap.set(lId, (lotMap.get(lId) || 0) + 1);
-  //         }
-  //       }
-
-  //       // C.1 Decrease Stock Available Quantity
-  //       for (const [stockId, count] of stockMap) {
-  //         await StockModel.findByIdAndUpdate(
-  //           stockId,
-  //           { $inc: { available_quantity: -count } },
-  //           { session }
-  //         );
-  //       }
-
-  //       // D. Decrease Lot Available Quantity
-  //       for (const [lotId, count] of lotMap) {
-  //         const lot = await LotModel.findById(lotId).session(session);
-  //         if (lot) {
-  //           let newStatus = lot.status;
-  //           // If lot becomes empty, close it
-  //           if (lot.qty_available - count <= 0) {
-  //             newStatus = "closed";
-  //           }
-
-  //           await LotModel.findByIdAndUpdate(
-  //             lotId,
-  //             {
-  //               $inc: { qty_available: -count },
-  //               $set: { status: newStatus },
-  //             },
-  //             { session }
-  //           );
-  //         }
-  //       }
-
-  //       // E. Update Global Stock (Reduce qty_reserved)
-  //       // Logic: When an order is placed, qty_reserved is usually increased.
-  //       // When barcodes are assigned/delivered, we reduce qty_reserved (fulfillment).
-  //       await GlobalStockModel.findOneAndUpdate(
-  //         { product: group.product, variant: group.variant },
-  //         { $inc: { qty_reserved: -qty } },
-  //         { session }
-  //       );
-  //     }
-
-  //     // 6. Save Order
-  //     await order.save({ session });
-
-  //     await session.commitTransaction();
-  //     return { success: true, message: "Barcodes assigned successfully" };
-  //   } catch (error) {
-  //     await session.abortTransaction();
-  //     throw error;
-  //   } finally {
-  //     session.endSession();
-  //   }
-  // }
 
   async processOrderBarcodes(
     orderId: string,
