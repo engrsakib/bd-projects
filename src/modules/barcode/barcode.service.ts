@@ -21,6 +21,7 @@ import { GlobalStockModel } from "../stock/globalStock.model";
 import { OrderModel } from "../order/order.model";
 import { StockModel } from "../stock/stock.model";
 import { LotModel } from "../lot/lot.model";
+import { ORDER_STATUS } from "../order/order.enums";
 
 class Service {
   async crateBarcodeForStock(
@@ -986,6 +987,7 @@ class Service {
         );
       }
       const uniqBarcodes = Array.from(uniqSet);
+      let allItemsCounted = 0;
 
       // 1. Fetch Order
       const order = await OrderModel.findOne({ order_id: orderId }).session(
@@ -994,6 +996,13 @@ class Service {
 
       if (!order) {
         throw new ApiError(HttpStatusCode.NOT_FOUND, "Order not found");
+      }
+
+      if (order.items) {
+        allItemsCounted = order.items.reduce(
+          (total, item) => total + (item.quantity || 0),
+          0
+        );
       }
 
       // 2. Fetch Barcodes (initial read to get product/variant/stock/lot info)
@@ -1185,6 +1194,10 @@ class Service {
         }
       }
       order.is_return_product_scan = true;
+      order.order_status =
+        allItemsCounted === uniqBarcodes.length
+          ? ORDER_STATUS.RETURNED
+          : ORDER_STATUS.PARTIAL;
       // 6. Save Order (all item barcode arrays updated in-memory)
       await order.save({ session });
 
