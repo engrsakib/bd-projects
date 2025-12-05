@@ -13,6 +13,7 @@ import {
 import { IPurchase } from "../purchase/purchase.interface";
 import { DefaultsPurchaseModel } from "../default-purchase/defult-purchase.model";
 import { IDefaultsPurchase } from "../default-purchase/default-purchase.interface";
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { CounterModel } from "@/common/models/counter.model";
 import { PurchaseModel } from "../purchase/purchase.model";
 import { StockService } from "../stock/stock.service";
@@ -525,14 +526,11 @@ class Service {
 
       // 4) Get atomic purchase_number via CounterModel (one counter per location)
       // CounterModel schema assumed: { _id: locationId (string/ObjectId), seq: Number }
-      const counter = await CounterModel.findOneAndUpdate(
-        { _id: location.toString() },
-        { $inc: { seq: 1 } },
-        { new: true, upsert: true, session }
-      ).exec();
 
       const purchase_number =
-        (counter as any)?.seq ?? (counter as any)?.sequence ?? 0;
+        (await PurchaseModel.countDocuments({
+          location: location,
+        }).session(session)) + 1;
 
       // Decide purchase.supplier:
       // - If exactly one distinct supplier found across groups, use it
