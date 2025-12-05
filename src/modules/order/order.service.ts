@@ -700,7 +700,8 @@ class Service {
         order.order_status === ORDER_STATUS.PENDING_RETURN ||
         order.order_status === ORDER_STATUS.EXCHANGED ||
         order.order_status === ORDER_STATUS.PARTIAL ||
-        order.order_status === ORDER_STATUS.FAILED
+        order.order_status === ORDER_STATUS.FAILED ||
+        order.order_status === ORDER_STATUS.AWAITING_STOCK
       ) {
         throw new ApiError(
           HttpStatusCode.BAD_REQUEST,
@@ -720,7 +721,7 @@ class Service {
 
       // ৩. পুরাতন order.items এর stock rollback + total_sold কমানো
       for (const prevItem of order.items ?? []) {
-        // if (prevItem.status === ORDER_STATUS.AWAITING_STOCK) {
+        // if (order.order_status === ORDER_STATUS.AWAITING_STOCK) {
         //   continue;
         // }
 
