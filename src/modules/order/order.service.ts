@@ -57,57 +57,50 @@ class Service {
 
       // console.log(cartItems, "cart items");
 
-      const stockCriteria = enrichedOrder.products.map(
-        (item: { product: Types.ObjectId; variant: Types.ObjectId }) => ({
-          product: item.product,
-          variant: item.variant,
-        })
-      );
-
-      const allStocks = await GlobalStockModel.find({
-        $or: stockCriteria,
-      }).session(session);
-
       let total_stock_issue = false;
 
       for (const item of enrichedOrder.products) {
-        const stock = allStocks.find(
-          (s) =>
-            s.product.toString() === item.product.toString() &&
-            s.variant.toString() === item.variant.toString()
+        const stock = await GlobalStockModel.findOne(
+          {
+            product: item.product,
+            variant: item.variant,
+          },
+          null,
+          { session }
         );
 
-        if (
-          !stock ||
-          stock.available_quantity - stock.qty_reserved < item.quantity
-        ) {
+        if (!stock) {
+          total_stock_issue = true;
+          break;
+        }
+
+        if (stock.available_quantity - stock.qty_reserved < item.quantity) {
           total_stock_issue = true;
           break;
         }
       }
 
-      for (const item of enrichedOrder.products) {
-        const stock = allStocks.find(
-          (s) =>
-            s.product.toString() === item.product.toString() &&
-            s.variant.toString() === item.variant.toString()
-        );
-
-        if (stock && total_stock_issue === false) {
-          const consumedLots = await this.simulateConsumeLotsFIFO(
-            item.product,
-            item.variant,
-            item.quantity,
-            session
+      if (total_stock_issue === false) {
+        for (const item of enrichedOrder.products) {
+          const stock = await GlobalStockModel.findOne(
+            {
+              product: item.product,
+              variant: item.variant,
+            },
+            null,
+            { session }
           );
-          item.lots = consumedLots;
 
-          stock.qty_reserved += item.quantity;
-          stock.total_sold = (stock.total_sold || 0) + item.quantity;
-          item.total_sold = (item.total_sold || 0) + item.quantity;
+          // console.log(stock,"stocks")
 
-          // শুধু এখানে DB Write হবে
-          await stock.save({ session });
+          if (stock && total_stock_issue === false) {
+            // ✅ স্টক আপডেট (যেহেতু সব স্টক আছে)
+            stock.qty_reserved += item.quantity;
+            stock.total_sold = (stock.total_sold || 0) + item.quantity;
+            item.total_sold = (item.total_sold || 0) + item.quantity;
+
+            await stock.save({ session });
+          }
         }
       }
 
@@ -311,57 +304,50 @@ class Service {
         );
       }
 
-      const stockCriteria = enrichedOrder.products.map(
-        (item: { product: Types.ObjectId; variant: Types.ObjectId }) => ({
-          product: item.product,
-          variant: item.variant,
-        })
-      );
-
-      const allStocks = await GlobalStockModel.find({
-        $or: stockCriteria,
-      }).session(session);
-
       let total_stock_issue = false;
 
       for (const item of enrichedOrder.products) {
-        const stock = allStocks.find(
-          (s) =>
-            s.product.toString() === item.product.toString() &&
-            s.variant.toString() === item.variant.toString()
+        const stock = await GlobalStockModel.findOne(
+          {
+            product: item.product,
+            variant: item.variant,
+          },
+          null,
+          { session }
         );
 
-        if (
-          !stock ||
-          stock.available_quantity - stock.qty_reserved < item.quantity
-        ) {
+        if (!stock) {
+          total_stock_issue = true;
+          break;
+        }
+
+        if (stock.available_quantity - stock.qty_reserved < item.quantity) {
           total_stock_issue = true;
           break;
         }
       }
 
-      for (const item of enrichedOrder.products) {
-        const stock = allStocks.find(
-          (s) =>
-            s.product.toString() === item.product.toString() &&
-            s.variant.toString() === item.variant.toString()
-        );
-
-        if (stock && total_stock_issue === false) {
-          const consumedLots = await this.simulateConsumeLotsFIFO(
-            item.product,
-            item.variant,
-            item.quantity,
-            session
+      if (total_stock_issue === false) {
+        for (const item of enrichedOrder.products) {
+          const stock = await GlobalStockModel.findOne(
+            {
+              product: item.product,
+              variant: item.variant,
+            },
+            null,
+            { session }
           );
-          item.lots = consumedLots;
 
-          stock.qty_reserved += item.quantity;
-          stock.total_sold = (stock.total_sold || 0) + item.quantity;
-          item.total_sold = (item.total_sold || 0) + item.quantity;
+          // console.log(stock,"stocks")
 
-          // শুধু এখানে DB Write হবে
-          await stock.save({ session });
+          if (stock && total_stock_issue === false) {
+            // ✅ স্টক আপডেট (যেহেতু সব স্টক আছে)
+            stock.qty_reserved += item.quantity;
+            stock.total_sold = (stock.total_sold || 0) + item.quantity;
+            item.total_sold = (item.total_sold || 0) + item.quantity;
+
+            await stock.save({ session });
+          }
         }
       }
 
@@ -714,7 +700,8 @@ class Service {
         order.order_status === ORDER_STATUS.PENDING_RETURN ||
         order.order_status === ORDER_STATUS.EXCHANGED ||
         order.order_status === ORDER_STATUS.PARTIAL ||
-        order.order_status === ORDER_STATUS.FAILED
+        order.order_status === ORDER_STATUS.FAILED ||
+        order.order_status === ORDER_STATUS.AWAITING_STOCK
       ) {
         throw new ApiError(
           HttpStatusCode.BAD_REQUEST,
@@ -734,7 +721,7 @@ class Service {
 
       // ৩. পুরাতন order.items এর stock rollback + total_sold কমানো
       for (const prevItem of order.items ?? []) {
-        // if (prevItem.status === ORDER_STATUS.AWAITING_STOCK) {
+        // if (order.order_status === ORDER_STATUS.AWAITING_STOCK) {
         //   continue;
         // }
 
@@ -2724,9 +2711,9 @@ class Service {
       });
     }
 
-    if (remaining > 0) {
-      throw new Error("Insufficient lots stock!");
-    }
+    // if (remaining > 0) {
+    //   throw new Error("Insufficient lots stock!");
+    // }
 
     // Return consumption details
     return consumption;
