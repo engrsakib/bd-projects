@@ -57,54 +57,56 @@ class Service {
 
       // console.log(cartItems, "cart items");
 
+      const stockCriteria = enrichedOrder.products.map(
+        (item: { product: Types.ObjectId; variant: Types.ObjectId }) => ({
+          product: item.product,
+          variant: item.variant,
+        })
+      );
+
+      const allStocks = await GlobalStockModel.find({
+        $or: stockCriteria,
+      }).session(session);
+
       let total_stock_issue = false;
 
-      // check stock availability [most important]
       for (const item of enrichedOrder.products) {
-        // console.log(item.variant, "for stock");
-        const stock = await GlobalStockModel.findOne(
-          {
-            product: item.product,
-            variant: item.variant,
-          },
-          null,
-          { session }
+        const stock = allStocks.find(
+          (s) =>
+            s.product.toString() === item.product.toString() &&
+            s.variant.toString() === item.variant.toString()
         );
 
-        if (!stock) {
-          // await session.abortTransaction();
-          // throw new ApiError(
-          //   HttpStatusCode.BAD_REQUEST,
-          //   `Product ${item.product.name} is out of stock or does not have enough quantity for this order`
-          // );
-
+        if (
+          !stock ||
+          stock.available_quantity - stock.qty_reserved < item.quantity
+        ) {
           total_stock_issue = true;
-          item.status = ORDER_STATUS.AWAITING_STOCK;
-          continue;
+          break;
         }
+      }
 
-        // console.log(stock.available_quantity, "available qnt");
-        // console.log(item.quantity, "item qnt");
+      for (const item of enrichedOrder.products) {
+        const stock = allStocks.find(
+          (s) =>
+            s.product.toString() === item.product.toString() &&
+            s.variant.toString() === item.variant.toString()
+        );
 
-        if (stock.available_quantity - stock.qty_reserved < item.quantity) {
-          total_stock_issue = true;
-          item.status = ORDER_STATUS.AWAITING_STOCK;
-          continue;
-        } else {
-          // lot consumption (FIFO)
+        if (stock && total_stock_issue === false) {
           const consumedLots = await this.simulateConsumeLotsFIFO(
             item.product,
             item.variant,
             item.quantity,
             session
           );
-
           item.lots = consumedLots;
-          // console.log(consumedLots, "consumed lots `");
 
           stock.qty_reserved += item.quantity;
           stock.total_sold = (stock.total_sold || 0) + item.quantity;
           item.total_sold = (item.total_sold || 0) + item.quantity;
+
+          // শুধু এখানে DB Write হবে
           await stock.save({ session });
         }
       }
