@@ -345,10 +345,7 @@ class Service {
         // console.log(stock.available_quantity, "available qnt");
         // console.log(item.quantity, "item qnt");
 
-        if (
-          Math.abs(stock.qty_reserved - stock.available_quantity) <
-          item.quantity
-        ) {
+        if (stock.qty_reserved - stock.available_quantity < item.quantity) {
           total_stock_issue = true;
           item.status = ORDER_STATUS.AWAITING_STOCK;
           continue;
@@ -2471,9 +2468,9 @@ class Service {
 
       for (const item of order.items || []) {
         // console.log(item.variant, "for stock");
-        if (String(item.status) !== String(ORDER_STATUS.AWAITING_STOCK)) {
-          continue;
-        }
+        // if (String(item.status) !== String(ORDER_STATUS.AWAITING_STOCK)) {
+        //   continue;
+        // }
 
         const stock = await GlobalStockModel.findOne(
           {
@@ -2486,21 +2483,14 @@ class Service {
 
         if (
           !stock ||
-          Math.abs(stock.available_quantity - stock.qty_reserved) <
-            item.quantity
+          stock.available_quantity - stock.qty_reserved < item.quantity
         ) {
           // await session.abortTransaction();
 
-          // Guard: item.product may be an ObjectId; fallback to its string form if name is not available
-          const productName =
-            item.product &&
-            typeof item.product === "object" &&
-            "name" in item.product
-              ? (item.product as any).name
-              : String(item.product);
+          // Guard: item.product may be an ObjectId; fallback to its string form if name is not availabl
           throw new ApiError(
             HttpStatusCode.BAD_REQUEST,
-            `Product ${productName} is Insufficient stock`
+            `Produc is Insufficient stock`
           );
         }
 
@@ -2524,6 +2514,8 @@ class Service {
         item.status = ORDER_STATUS.PLACED;
         await stock.save({ session });
       }
+      console.log("return ob");
+      // return ;
 
       // update status and log
       order.order_status = ORDER_STATUS.ACCEPTED;
