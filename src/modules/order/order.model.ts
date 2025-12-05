@@ -31,6 +31,7 @@ const orderItemSchema = new Schema<IOrderItem>({
   price: { type: Number, required: true },
   new_cod: { type: Number, default: 0, required: false },
   subtotal: { type: Number, required: true },
+  barcode: { type: [String], default: [] },
   status: {
     type: String,
     enum: Object.values(ORDER_STATUS),
@@ -98,7 +99,7 @@ const orderSchema = new Schema<IOrder>(
     },
     transaction_id: { type: String },
     payment_id: {
-      type: Schema.Types.ObjectId,
+      type: String,
       ref: "Transaction",
       required: false,
     },
@@ -135,6 +136,9 @@ const orderSchema = new Schema<IOrder>(
         },
       },
     ],
+
+    is_assigned_product_scan: { type: Boolean, default: false },
+    is_return_product_scan: { type: Boolean, default: false },
 
     previous_order: {
       type: Schema.Types.ObjectId,

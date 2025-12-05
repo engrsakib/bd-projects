@@ -46,6 +46,7 @@ export type IPreOrderItem = {
   new_cod?: number;
   total_sold?: number;
   subtotal: number;
+  barcode?: string[];
   status?: IPreOrderStatus;
 };
 

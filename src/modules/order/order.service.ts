@@ -24,11 +24,13 @@ import {
 } from "./order.enums";
 import { ProductModel } from "../product/product.model";
 import { OrderQuery } from "@/interfaces/common.interface";
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { StockModel } from "../stock/stock.model";
 import { VariantModel } from "../variant/variant.model";
 import { UserModel } from "../user/user.model";
 import { LotModel } from "../lot/lot.model";
 import pLimit from "p-limit";
+import { GlobalStockModel } from "../stock/globalStock.model";
 
 class Service {
   async placeOrder(
@@ -60,7 +62,7 @@ class Service {
       // check stock availability [most important]
       for (const item of enrichedOrder.products) {
         // console.log(item.variant, "for stock");
-        const stock = await StockModel.findOne(
+        const stock = await GlobalStockModel.findOne(
           {
             product: item.product,
             variant: item.variant,
@@ -84,13 +86,16 @@ class Service {
         // console.log(stock.available_quantity, "available qnt");
         // console.log(item.quantity, "item qnt");
 
-        if (stock.available_quantity < item.quantity) {
+        if (
+          Math.abs(stock.qty_reserved - stock.available_quantity) <
+          item.quantity
+        ) {
           total_stock_issue = true;
           item.status = ORDER_STATUS.AWAITING_STOCK;
           continue;
         } else {
           // lot consumption (FIFO)
-          const consumedLots = await this.consumeLotsFIFO(
+          const consumedLots = await this.simulateConsumeLotsFIFO(
             item.product,
             item.variant,
             item.quantity,
@@ -100,7 +105,7 @@ class Service {
           item.lots = consumedLots;
           // console.log(consumedLots, "consumed lots `");
 
-          stock.available_quantity -= item.quantity;
+          stock.qty_reserved += item.quantity;
           stock.total_sold = (stock.total_sold || 0) + item.quantity;
           item.total_sold = (item.total_sold || 0) + item.quantity;
           await stock.save({ session });
@@ -139,7 +144,7 @@ class Service {
         customer_secondary_number: data.customer_secondary_number,
         customer_email: data.customer_email,
         orders_by: order_by,
-
+        is_assigned_product_scan: false,
         items,
 
         total_items,
@@ -314,7 +319,7 @@ class Service {
       // check stock availability [most important]
       for (const item of enrichedOrder.products) {
         // console.log(item.variant, "for stock");
-        const stock = await StockModel.findOne(
+        const stock = await GlobalStockModel.findOne(
           {
             product: item.product,
             variant: item.variant,
@@ -323,7 +328,7 @@ class Service {
           { session }
         );
 
-        console.log(stock, "stocks data");
+        // console.log(stock, "stocks data");
 
         if (!stock) {
           // await session.abortTransaction();
@@ -340,13 +345,13 @@ class Service {
         // console.log(stock.available_quantity, "available qnt");
         // console.log(item.quantity, "item qnt");
 
-        if (stock.available_quantity < item.quantity) {
+        if (stock.qty_reserved - stock.available_quantity < item.quantity) {
           total_stock_issue = true;
           item.status = ORDER_STATUS.AWAITING_STOCK;
           continue;
         } else {
           // lot consumption (FIFO)
-          const consumedLots = await this.consumeLotsFIFO(
+          const consumedLots = await this.simulateConsumeLotsFIFO(
             item.product,
             item.variant,
             item.quantity,
@@ -355,7 +360,7 @@ class Service {
           item.lots = consumedLots;
           // console.log(consumedLots, "consumed lots `");
 
-          stock.available_quantity -= item.quantity;
+          stock.qty_reserved += item.quantity;
           stock.total_sold = (stock.total_sold || 0) + item.quantity;
           item.total_sold = (item.total_sold || 0) + item.quantity;
           await stock.save({ session });
@@ -391,6 +396,7 @@ class Service {
         customer_secondary_number: data.customer_secondary_number,
         customer_email: data.customer_email,
         orders_by: order_by,
+        is_assigned_product_scan: false,
 
         items,
         total_items,
@@ -516,7 +522,7 @@ class Service {
       for (const item of enrichedOrder.products) {
         // console.log(item.variant, "for stock");
 
-        const stock = await StockModel.findOne(
+        const stock = await GlobalStockModel.findOne(
           {
             product: item.product,
             variant: item.variant,
@@ -525,7 +531,11 @@ class Service {
           { session }
         );
 
-        if (!stock || stock.available_quantity < item.quantity) {
+        if (
+          !stock ||
+          Math.abs(stock.qty_reserved - stock.available_quantity) <
+            item.quantity
+        ) {
           // await session.abortTransaction();
 
           throw new ApiError(
@@ -535,7 +545,7 @@ class Service {
         }
 
         // lot consumption (FIFO)
-        const consumedLots = await this.consumeLotsFIFO(
+        const consumedLots = await this.simulateConsumeLotsFIFO(
           item.product,
           item.variant,
           item.quantity,
@@ -543,7 +553,7 @@ class Service {
         );
         item.lots = consumedLots;
 
-        stock.available_quantity -= item.quantity;
+        stock.qty_reserved += item.quantity;
         stock.total_sold = (stock.total_sold || 0) + item.quantity;
         item.total_sold = (item.total_sold || 0) + item.quantity;
         await stock.save({ session });
@@ -585,6 +595,7 @@ class Service {
         customer_secondary_number: prevOrder.customer_secondary_number,
         customer_email: prevOrder.customer_email,
         orders_by: order_by,
+        is_assigned_product_scan: false,
 
         items,
         total_items,
@@ -706,7 +717,6 @@ class Service {
         order.order_status === ORDER_STATUS.PENDING_RETURN ||
         order.order_status === ORDER_STATUS.EXCHANGED ||
         order.order_status === ORDER_STATUS.PARTIAL ||
-        order.order_status === ORDER_STATUS.AWAITING_STOCK ||
         order.order_status === ORDER_STATUS.FAILED
       ) {
         throw new ApiError(
@@ -731,28 +741,29 @@ class Service {
         //   continue;
         // }
 
-        const stock = await StockModel.findOne({
+        const stock = await GlobalStockModel.findOne({
           product: prevItem.product,
           variant: prevItem.variant,
         }).session(session);
 
-        const lots = await LotModel.findOne({
-          variant: prevItem.variant,
-        }).session(session);
+        // const lots = await LotModel.findOne({
+        //   variant: prevItem.variant,
+        // }).session(session);
 
-        if (lots) {
-          // পূর্বে কাটাকাটা lot গুলো ফিরিয়ে দিন
-          lots.qty_available += prevItem.quantity;
-          await lots.save({ session });
-        }
+        // if (lots) {
+        //   // পূর্বে কাটাকাটা lot গুলো ফিরিয়ে দিন
+        //   lots.qty_reserved -= prevItem.quantity;
+        //   await lots.save({ session });
+        // }
 
         if (stock) {
           // স্টকে quantity ফেরত দিন
-          await StockModel.findByIdAndUpdate(
-            stock._id,
-            { $inc: { available_quantity: prevItem.quantity } },
+          await GlobalStockModel.findOneAndUpdate(
+            { product: stock.product, variant: stock.variant },
+            { $inc: { qty_reserved: -prevItem.quantity } },
             { session }
           );
+
           // total_sold কমান
           stock.total_sold = (stock.total_sold || 0) - prevItem.quantity;
           if (stock.total_sold < 0) stock.total_sold = 0; // নেগেটিভ হলে ০
@@ -763,12 +774,16 @@ class Service {
       // ৪. নতুন/পরিবর্তিত আইটেমের জন্য stock allocate + total_sold বাড়ানো
       let total_price = 0;
       for (const item of enrichedOrder.products) {
-        const stock = await StockModel.findOne(
+        const stock = await GlobalStockModel.findOne(
           { product: item.product, variant: item.variant },
           null,
           { session }
         );
-        if (!stock || stock.available_quantity < item.quantity) {
+        if (
+          !stock ||
+          Math.abs(stock.qty_reserved - stock.available_quantity) <
+            item.quantity
+        ) {
           throw new ApiError(
             HttpStatusCode.BAD_REQUEST,
             `Product ${item.product.name ?? item.product} is out of stock`
@@ -776,7 +791,7 @@ class Service {
         }
 
         // FIFO lots থেকে কাটছে, lots ডিটেইল সেট হচ্ছে
-        const consumedLots = await this.consumeLotsFIFO(
+        const consumedLots = await this.simulateConsumeLotsFIFO(
           item.product,
           item.variant,
           item.quantity,
@@ -788,7 +803,7 @@ class Service {
         total_price += item.subtotal;
 
         // স্টক কমাও
-        stock.available_quantity -= item.quantity;
+        stock.qty_reserved += item.quantity;
         // total_sold বাড়াও
         stock.total_sold = (stock.total_sold || 0) + item.quantity;
         await stock.save({ session });
@@ -2086,7 +2101,7 @@ class Service {
             continue; // skip stock restore for items that were never in stock
           }
 
-          const stock = await StockModel.findOne(
+          const stock = await GlobalStockModel.findOne(
             {
               product: item.product,
               variant: item.variant,
@@ -2096,22 +2111,8 @@ class Service {
           );
 
           if (stock) {
-            stock.available_quantity += item.quantity;
+            stock.qty_reserved -= item.quantity;
             await stock.save({ session });
-          }
-
-          const lots = await LotModel.findOne(
-            {
-              variant: item.variant,
-            },
-            null,
-            { session }
-          );
-
-          if (lots) {
-            // পূর্বে কাটাকাটা lot গুলো ফিরিয়ে দিন
-            lots.qty_available += item.quantity;
-            await lots.save({ session });
           }
 
           // restore lots
@@ -2144,7 +2145,10 @@ class Service {
   }
 
   async cancleOrder(order_id: string, user_id: string): Promise<IOrder | null> {
+    // throw new Error("");
+
     const order = await OrderModel.findOne({ order_id: order_id });
+
     if (!order) {
       throw new ApiError(
         HttpStatusCode.NOT_FOUND,
@@ -2204,7 +2208,7 @@ class Service {
     if (!Array.isArray(ids) || ids.length === 0) {
       throw new ApiError(
         HttpStatusCode.BAD_REQUEST,
-        "ids must be a non-empty array"
+        "ids must be a non-empty array for bulk status update"
       );
     }
 
@@ -2284,25 +2288,25 @@ class Service {
             status === ORDER_STATUS.FAILED
           ) {
             for (const item of updated.items ?? []) {
-              const stock = await StockModel.findOne(
+              const stock = await GlobalStockModel.findOne(
                 { product: item.product, variant: item.variant },
                 null,
                 { session }
               );
               if (stock) {
-                stock.available_quantity += item.quantity;
+                stock.qty_reserved -= item.quantity;
                 await stock.save({ session });
               }
 
-              const lotDoc = await LotModel.findOne(
-                { variant: item.variant },
-                null,
-                { session }
-              );
-              if (lotDoc) {
-                lotDoc.qty_available += item.quantity;
-                await lotDoc.save({ session });
-              }
+              // const lotDoc = await LotModel.findOne(
+              //   { variant: item.variant },
+              //   null,
+              //   { session }
+              // );
+              // if (lotDoc) {
+              //   lotDoc.qty_available += item.quantity;
+              //   await lotDoc.save({ session });
+              // }
             }
           }
 
@@ -2464,11 +2468,11 @@ class Service {
 
       for (const item of order.items || []) {
         // console.log(item.variant, "for stock");
-        if (String(item.status) !== String(ORDER_STATUS.AWAITING_STOCK)) {
-          continue;
-        }
+        // if (String(item.status) !== String(ORDER_STATUS.AWAITING_STOCK)) {
+        //   continue;
+        // }
 
-        const stock = await StockModel.findOne(
+        const stock = await GlobalStockModel.findOne(
           {
             product: item.product,
             variant: item.variant,
@@ -2477,24 +2481,21 @@ class Service {
           { session }
         );
 
-        if (!stock || stock.available_quantity < item.quantity) {
+        if (
+          !stock ||
+          stock.available_quantity - stock.qty_reserved < item.quantity
+        ) {
           // await session.abortTransaction();
 
-          // Guard: item.product may be an ObjectId; fallback to its string form if name is not available
-          const productName =
-            item.product &&
-            typeof item.product === "object" &&
-            "name" in item.product
-              ? (item.product as any).name
-              : String(item.product);
+          // Guard: item.product may be an ObjectId; fallback to its string form if name is not availabl
           throw new ApiError(
             HttpStatusCode.BAD_REQUEST,
-            `Product ${productName} is Insufficient stock`
+            `Produc is Insufficient stock`
           );
         }
 
         // lot consumption (FIFO)
-        const consumedLots = await this.consumeLotsFIFO(
+        const consumedLots = await this.simulateConsumeLotsFIFO(
           item.product._id ? (item.product as any)._id : item.product,
           item.variant._id ? (item.variant as any)._id : item.variant,
           item.quantity,
@@ -2507,12 +2508,14 @@ class Service {
         })) as any;
         // console.log(consumedLots, "consumed lots `");
 
-        stock.available_quantity -= item.quantity;
+        stock.qty_reserved += item.quantity;
         stock.total_sold = (stock.total_sold || 0) + item.quantity;
         item.total_sold = (item.total_sold || 0) + item.quantity;
         item.status = ORDER_STATUS.PLACED;
         await stock.save({ session });
       }
+      console.log("return ob");
+      // return ;
 
       // update status and log
       order.order_status = ORDER_STATUS.ACCEPTED;
@@ -2645,7 +2648,7 @@ class Service {
     };
   }
 
-  private async consumeLotsFIFO(
+  private async simulateConsumeLotsFIFO(
     productId: string,
     variantId: string,
     requiredQty: number,
@@ -2679,7 +2682,7 @@ class Service {
         lot.qty_available -= remaining;
         remaining = 0;
       }
-      await lot.save({ session });
+      // await lot.save({ session });
 
       consumption.push({
         lotId: lot._id.toString(),

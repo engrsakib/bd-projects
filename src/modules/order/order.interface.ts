@@ -52,6 +52,7 @@ export type IOrderItem = {
   new_cod?: number;
   subtotal: number;
   total_sold?: number;
+  barcode?: string[];
   status?: IOrderStatus;
 };
 
@@ -72,6 +73,9 @@ export type IOrder = {
   customer_secondary_number?: string;
 
   user_or_admin_model?: "User" | "Admin";
+
+  is_assigned_product_scan: boolean;
+  is_return_product_scan?: boolean;
 
   items?: IOrderItem[];
   orders_by: IOrderBy;

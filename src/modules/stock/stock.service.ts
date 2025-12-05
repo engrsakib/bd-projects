@@ -15,6 +15,9 @@ import { ProductModel } from "../product/product.model";
 import { VariantModel } from "../variant/variant.model";
 import { AdjustedStocks } from "./adjustment.model";
 import { IAdjustStocks } from "./adjusment.interface";
+import { GlobalStockModel } from "./globalStock.model";
+import { OrderModel } from "../order/order.model";
+import { ORDER_STATUS } from "../order/order.enums";
 
 class Service {
   private async generateTransferNumber(): Promise<string> {
@@ -677,33 +680,256 @@ class Service {
   }
 
   // stock adjustment log can be added here
+  // async stocksAdjustment(payload: IAdjustStocks): Promise<IAdjustStocks> {
+  //   const session = await mongoose.startSession();
+  //   session.startTransaction();
+
+  //   try {
+  //     // Pre-generate adjustmentId for use in movement refs
+  //     const adjustmentId = new Types.ObjectId();
+
+  //     // Initialize total_cost which will become total_amount
+  //     let total_cost = 0;
+
+  //     // Loop through each product in the adjustment payload
+  //     for (const adjustItem of payload.products) {
+  //       const sku = adjustItem.selected_variant.sku;
+  //       const productId = adjustItem.product;
+  //       const quantity = adjustItem.quantity;
+
+  //       // console.log(barcode, "sku adjst")
+
+  //       // Find variant by barcode (assuming unique)
+  //       const variant = await VariantModel.findOne({sku: sku }).session(
+  //         session
+  //       );
+  //       if (!variant) {
+  //         throw new ApiError(, `Variant not found for sku ${sku}`);
+  //       }
+  //       const variantId = variant._id;
+
+  //       // Find stock record
+  //       const stock = await StockModel.findOne({
+  //         product: productId,
+  //         variant: variantId,
+  //       }).session(session);
+
+  //       if (!stock) {
+  //         throw new ApiError(
+  //           404,
+  //           `Stock not found for product ${productId} and variant ${variantId}`
+  //         );
+  //       }
+
+  //       let item_cost = 0;
+
+  //       if (payload.action === "DEDUCTION") {
+  //         // For DEDUCTION: Check sufficient stock
+  //         if (stock.available_quantity < quantity) {
+  //           throw new ApiError(
+  //             400,
+  //             `Insufficient stock for sku ${sku}. Available: ${stock?.available_quantity || 0}, Requested: ${quantity}`
+  //           );
+  //         }
+
+  //         // Find active, non-expired lots sorted by received_at ascending (FIFO - oldest first)
+  //         const lots = await LotModel.find({
+  //           stock: stock._id,
+  //           status: "active",
+  //           qty_available: { $gt: 0 },
+  //         })
+  //           .sort({ received_at: 1 }) // 1 for ascending, FIFO
+  //           .session(session);
+
+  //         let remaining = quantity;
+
+  //         // Process each lot in FIFO order
+  //         for (const lot of lots) {
+  //           if (remaining <= 0) break;
+  //           const alloc = Math.min(remaining, lot.qty_available);
+  //           item_cost += alloc * lot.cost_per_unit;
+
+  //           // Update lot qty_available and status if depleted
+  //           const update: any = {
+  //             $inc: { qty_available: -alloc },
+  //           };
+  //           if (alloc === lot.qty_available) {
+  //             update.status = "closed";
+  //           }
+  //           await LotModel.findByIdAndUpdate(lot._id, update, { session });
+
+  //           // Create inventory movement for each allocation (negative qty for deduction)
+  //           // await InventoryMovementModel.create(
+  //           //   [
+  //           //     {
+  //           //       type: "adjustment",
+  //           //       ref: adjustmentId, // Reference to the adjustment doc
+  //           //       variant: variantId,
+  //           //       product: productId,
+  //           //       qty: -alloc, // Negative for deduction (out)
+  //           //       cost_per_unit: lot.cost_per_unit,
+  //           //       lot: lot._id, // Source lot
+  //           //       note: `Adjustment Stock by ${payload.adjust_by}, action ${payload.action}, stock id ${adjustItem.stock}`,
+  //           //     },
+  //           //   ],
+  //           //   { session }
+  //           // );
+
+  //           remaining -= alloc;
+  //         }
+
+  //         // If still remaining after all lots, throw error
+  //         if (remaining > 0) {
+  //           throw new ApiError(
+  //             400,
+  //             `Insufficient available lots for sku ${sku} despite stock record`
+  //           );
+  //         }
+
+  //         // Update stock: reduce available_quantity and increase total_sold
+  //         await StockModel.findByIdAndUpdate(
+  //           stock._id,
+  //           {
+  //             $inc: {
+  //               available_quantity: -quantity,
+  //             },
+  //           },
+  //           { session }
+  //         );
+
+  //         // Calculate average unit_price and total_price for deduction (weighted average from lots)
+  //         adjustItem.unit_price = item_cost / quantity;
+  //         adjustItem.total_price = item_cost;
+  //       } else if (payload.action === "ADDITION") {
+  //         // For ADDITION: Find the last (newest) lot for this stock
+  //         const lastLot = await LotModel.findOne({
+  //           stock: stock._id,
+  //         })
+  //           .sort({ received_at: -1 }) // -1 for descending, newest first
+  //           .session(session);
+
+  //         if (!lastLot) {
+  //           throw new ApiError(
+  //             404,
+  //             `No lots found for stock ${stock._id}. Cannot add without existing lot.`
+  //           );
+  //         }
+
+  //         // If the last lot is closed, reopen it by setting status to active
+  //         if (lastLot.status === "closed") {
+  //           await LotModel.findByIdAndUpdate(
+  //             lastLot._id,
+  //             { status: "active" },
+  //             { session }
+  //           );
+  //         }
+
+  //         // Update the last lot: increase qty_available
+  //         await LotModel.findByIdAndUpdate(
+  //           lastLot._id,
+  //           {
+  //             $inc: { qty_available: quantity },
+  //           },
+  //           { session }
+  //         );
+
+  //         // Use the last lot's cost_per_unit for calculations (ignore payload unit_price)
+  //         const cost_per_unit = lastLot.cost_per_unit;
+  //         item_cost = quantity * cost_per_unit;
+
+  //         // Set unit_price and total_price based on last lot
+  //         adjustItem.unit_price = cost_per_unit;
+  //         adjustItem.total_price = item_cost;
+
+  //         // Create inventory movement for addition (positive qty)
+  //         // await InventoryMovementModel.create(
+  //         //   [
+  //         //     {
+  //         //       type: "adjustment",
+  //         //       ref: adjustmentId,
+  //         //       variant: variantId,
+  //         //       product: productId,
+
+  //         //       qty: quantity, // Positive for addition (in)
+  //         //       cost_per_unit: cost_per_unit,
+  //         //       lot: lastLot._id,
+  //         //       note: `Adjustment Stock by ${payload.adjust_by}, action ${payload.action}, stock id ${adjustItem.stock}`,
+  //         //     },
+  //         //   ],
+  //         //   { session }
+  //         // );
+
+  //         // Update stock: increase available_quantity (no total_sold for addition)
+  //         await StockModel.findByIdAndUpdate(
+  //           stock._id,
+  //           {
+  //             $inc: {
+  //               available_quantity: quantity,
+  //             },
+  //           },
+  //           { session }
+  //         );
+  //       } else {
+  //         // Invalid action
+  //         throw new ApiError(
+  //           400,
+  //           "Invalid action. Must be ADDITION or DEDUCTION"
+  //         );
+  //       }
+
+  //       // Add item_cost to total_cost
+  //       total_cost += item_cost;
+  //     }
+
+  //     // Set total_amount on payload
+  //     payload.total_amount = total_cost;
+  //     payload.activities_date = new Date();
+
+  //     // Create the AdjustedStocks document with pre-generated _id
+  //     const adjustmentDocs = await AdjustedStocks.create(
+  //       [{ ...payload, _id: adjustmentId }],
+  //       { session }
+  //     );
+  //     const adjustment = adjustmentDocs[0];
+
+  //     // Commit transaction
+  //     await session.commitTransaction();
+  //     return adjustment;
+  //   } catch (error: any) {
+  //     await session.abortTransaction();
+  //     throw new ApiError(
+  //       error.statusCode,
+  //       error?.message || "Server error during stock adjustment"
+  //     );
+  //   } finally {
+  //     session.endSession();
+  //   }
+  // }
+
   async stocksAdjustment(payload: IAdjustStocks): Promise<IAdjustStocks> {
     const session = await mongoose.startSession();
     session.startTransaction();
 
     try {
-      // Pre-generate adjustmentId for use in movement refs
       const adjustmentId = new Types.ObjectId();
-
-      // Initialize total_cost which will become total_amount
       let total_cost = 0;
 
-      // Loop through each product in the adjustment payload
       for (const adjustItem of payload.products) {
-        const barcode = adjustItem.selected_variant.sku;
+        const sku = adjustItem.selected_variant.sku;
         const productId = adjustItem.product;
         const quantity = adjustItem.quantity;
 
-        // Find variant by barcode (assuming unique)
-        const variant = await VariantModel.findOne({ barcode }).session(
-          session
-        );
+        // ১. ভ্যারিয়েন্ট খোঁজা
+        const variant = await VariantModel.findOne({
+          $or: [{ sku: sku }, { barcode: sku }],
+        }).session(session);
+
         if (!variant) {
-          throw new ApiError(404, `Variant not found for barcode ${barcode}`);
+          throw new ApiError(404, `Variant not found for sku ${sku}`);
         }
         const variantId = variant._id;
 
-        // Find stock record
+        // ২. স্টক খোঁজা
         const stock = await StockModel.findOne({
           product: productId,
           variant: variantId,
@@ -716,190 +942,779 @@ class Service {
           );
         }
 
+        // ✅ FIX START: এখানে মিসিং ডাটাগুলো payload-এ সেট করে দিন
+        adjustItem.stock = stock._id; // stock ID সেট করা হলো
+
+        // ভ্যারিয়েন্টের বাকি তথ্যগুলো সেট করা হলো (যা এররে চাচ্ছে)
+        adjustItem.selected_variant = {
+          ...adjustItem.selected_variant, // আগের sku ঠিক থাকবে
+          barcode: variant.barcode,
+          sale_price: variant.sale_price,
+          regular_price: variant.regular_price,
+          attribute_values: variant.attribute_values, // Size, Color ইত্যাদি
+          image: variant.image, // যদি স্কিমায় থাকে
+        };
+        // ✅ FIX END
+
         let item_cost = 0;
 
         if (payload.action === "DEDUCTION") {
-          // For DEDUCTION: Check sufficient stock
+          // ... আপনার আগের লজিক (DEDUCTION) ...
           if (stock.available_quantity < quantity) {
-            throw new ApiError(
-              400,
-              `Insufficient stock for barcode ${barcode}. Available: ${stock?.available_quantity || 0}, Requested: ${quantity}`
-            );
+            throw new ApiError(400, `Insufficient stock...`);
           }
+          // ... (বাকি DEDUCTION কোড) ...
 
-          // Find active, non-expired lots sorted by received_at ascending (FIFO - oldest first)
+          // আমি লজিক সংক্ষেপ করলাম, আপনার আগের কোডই থাকবে এখানে
           const lots = await LotModel.find({
             stock: stock._id,
             status: "active",
             qty_available: { $gt: 0 },
           })
-            .sort({ received_at: 1 }) // 1 for ascending, FIFO
+            .sort({ received_at: 1 })
             .session(session);
-
           let remaining = quantity;
-
-          // Process each lot in FIFO order
           for (const lot of lots) {
             if (remaining <= 0) break;
             const alloc = Math.min(remaining, lot.qty_available);
             item_cost += alloc * lot.cost_per_unit;
-
-            // Update lot qty_available and status if depleted
-            const update: any = {
-              $inc: { qty_available: -alloc },
-            };
-            if (alloc === lot.qty_available) {
-              update.status = "closed";
-            }
+            const update: any = { $inc: { qty_available: -alloc } };
+            if (alloc === lot.qty_available) update.status = "closed";
             await LotModel.findByIdAndUpdate(lot._id, update, { session });
-
-            // Create inventory movement for each allocation (negative qty for deduction)
-            // await InventoryMovementModel.create(
-            //   [
-            //     {
-            //       type: "adjustment",
-            //       ref: adjustmentId, // Reference to the adjustment doc
-            //       variant: variantId,
-            //       product: productId,
-            //       qty: -alloc, // Negative for deduction (out)
-            //       cost_per_unit: lot.cost_per_unit,
-            //       lot: lot._id, // Source lot
-            //       note: `Adjustment Stock by ${payload.adjust_by}, action ${payload.action}, stock id ${adjustItem.stock}`,
-            //     },
-            //   ],
-            //   { session }
-            // );
-
             remaining -= alloc;
           }
+          if (remaining > 0) throw new ApiError(400, "Insufficient lots...");
 
-          // If still remaining after all lots, throw error
-          if (remaining > 0) {
-            throw new ApiError(
-              400,
-              `Insufficient available lots for barcode ${barcode} despite stock record`
-            );
-          }
-
-          // Update stock: reduce available_quantity and increase total_sold
           await StockModel.findByIdAndUpdate(
             stock._id,
-            {
-              $inc: {
-                available_quantity: -quantity,
-              },
-            },
+            { $inc: { available_quantity: -quantity } },
             { session }
           );
 
-          // Calculate average unit_price and total_price for deduction (weighted average from lots)
           adjustItem.unit_price = item_cost / quantity;
           adjustItem.total_price = item_cost;
         } else if (payload.action === "ADDITION") {
-          // For ADDITION: Find the last (newest) lot for this stock
-          const lastLot = await LotModel.findOne({
-            stock: stock._id,
-          })
-            .sort({ received_at: -1 }) // -1 for descending, newest first
+          // ... আপনার আগের লজিক (ADDITION) ...
+          const lastLot = await LotModel.findOne({ stock: stock._id })
+            .sort({ received_at: -1 })
             .session(session);
+          if (!lastLot) throw new ApiError(404, "No lots found...");
 
-          if (!lastLot) {
-            throw new ApiError(
-              404,
-              `No lots found for stock ${stock._id}. Cannot add without existing lot.`
-            );
-          }
-
-          // If the last lot is closed, reopen it by setting status to active
-          if (lastLot.status === "closed") {
+          if (lastLot.status === "closed")
             await LotModel.findByIdAndUpdate(
               lastLot._id,
               { status: "active" },
               { session }
             );
-          }
-
-          // Update the last lot: increase qty_available
           await LotModel.findByIdAndUpdate(
             lastLot._id,
-            {
-              $inc: { qty_available: quantity },
-            },
+            { $inc: { qty_available: quantity } },
             { session }
           );
 
-          // Use the last lot's cost_per_unit for calculations (ignore payload unit_price)
           const cost_per_unit = lastLot.cost_per_unit;
           item_cost = quantity * cost_per_unit;
-
-          // Set unit_price and total_price based on last lot
           adjustItem.unit_price = cost_per_unit;
           adjustItem.total_price = item_cost;
 
-          // Create inventory movement for addition (positive qty)
-          // await InventoryMovementModel.create(
-          //   [
-          //     {
-          //       type: "adjustment",
-          //       ref: adjustmentId,
-          //       variant: variantId,
-          //       product: productId,
-
-          //       qty: quantity, // Positive for addition (in)
-          //       cost_per_unit: cost_per_unit,
-          //       lot: lastLot._id,
-          //       note: `Adjustment Stock by ${payload.adjust_by}, action ${payload.action}, stock id ${adjustItem.stock}`,
-          //     },
-          //   ],
-          //   { session }
-          // );
-
-          // Update stock: increase available_quantity (no total_sold for addition)
           await StockModel.findByIdAndUpdate(
             stock._id,
-            {
-              $inc: {
-                available_quantity: quantity,
-              },
-            },
+            { $inc: { available_quantity: quantity } },
             { session }
           );
         } else {
-          // Invalid action
-          throw new ApiError(
-            400,
-            "Invalid action. Must be ADDITION or DEDUCTION"
-          );
+          throw new ApiError(400, "Invalid action");
         }
 
-        // Add item_cost to total_cost
         total_cost += item_cost;
       }
 
-      // Set total_amount on payload
       payload.total_amount = total_cost;
       payload.activities_date = new Date();
 
-      // Create the AdjustedStocks document with pre-generated _id
       const adjustmentDocs = await AdjustedStocks.create(
         [{ ...payload, _id: adjustmentId }],
         { session }
       );
       const adjustment = adjustmentDocs[0];
 
-      // Commit transaction
       await session.commitTransaction();
       return adjustment;
     } catch (error: any) {
       await session.abortTransaction();
       throw new ApiError(
-        error.statusCode,
+        error.statusCode || 500,
         error?.message || "Server error during stock adjustment"
       );
     } finally {
       session.endSession();
     }
   }
-}
 
+  async resetInventoryAndResetOrders() {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      await StockModel.updateMany(
+        {},
+        {
+          $set: { available_quantity: 0 },
+        },
+        { session }
+      );
+
+      await LotModel.updateMany(
+        {},
+        {
+          $set: {
+            qty_available: 0,
+            status: "closed",
+          },
+        },
+        { session }
+      );
+
+      await GlobalStockModel.updateMany(
+        {},
+        {
+          $set: { available_quantity: 0 },
+        },
+        { session }
+      );
+
+      const orderUpdateResult = await OrderModel.updateMany(
+        {
+          order_status: {
+            $in: [ORDER_STATUS.PLACED, ORDER_STATUS.ACCEPTED],
+          },
+        },
+        {
+          $set: { order_status: ORDER_STATUS.AWAITING_STOCK },
+        },
+        { session }
+      );
+
+      await session.commitTransaction();
+
+      return {
+        success: true,
+        message: `System Reset Complete: Inventory cleared & ${orderUpdateResult.modifiedCount} orders moved to Awaiting Stock.`,
+      };
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
+  }
+
+  // async getAllStocksAdjustment(params: any) {
+  //   const page = Math.max(1, params.page ?? 1);
+  //   const limit = Math.max(1, Math.min(100, params.limit ?? 20));
+  //   const skip = (page - 1) * limit;
+  //   const sortBy = params.sortBy ?? "createdAt";
+  //   const order = params.order === "asc" ? 1 : -1;
+  //   const search =
+  //     typeof params.search === "string" && params.search.trim().length > 0
+  //       ? params.search.trim()
+  //       : null;
+  //   const filters = params.filters ?? {};
+
+  //   // Base top-level match
+  //   const matchTop: any = {};
+
+  //   if (filters.business_location) {
+  //     if (Types.ObjectId.isValid(filters.business_location))
+  //       matchTop.business_location = new Types.ObjectId(
+  //         filters.business_location
+  //       );
+  //   }
+  //   if (filters.action) matchTop.action = filters.action;
+  //   if (filters.adjust_by && Types.ObjectId.isValid(filters.adjust_by))
+  //     matchTop.adjust_by = new Types.ObjectId(filters.adjust_by);
+
+  //   if (filters.minTotalAmount != null || filters.maxTotalAmount != null) {
+  //     matchTop.total_amount = {};
+  //     if (filters.minTotalAmount != null)
+  //       matchTop.total_amount.$gte = filters.minTotalAmount;
+  //     if (filters.maxTotalAmount != null)
+  //       matchTop.total_amount.$lte = filters.maxTotalAmount;
+  //   }
+
+  //   if (filters.startDate || filters.endDate) {
+  //     matchTop.activities_date = {};
+  //     if (filters.startDate)
+  //       matchTop.activities_date.$gte = new Date(filters.startDate);
+  //     if (filters.endDate)
+  //       matchTop.activities_date.$lte = new Date(filters.endDate);
+  //   }
+
+  //   // Build product-level match that will be applied after unwind (if any product filters exist)
+  //   const productFilters = filters.products ?? {};
+  //   const productMatch: any = {};
+
+  //   if (
+  //     productFilters.product &&
+  //     Types.ObjectId.isValid(productFilters.product)
+  //   ) {
+  //     productMatch["products.product"] = new Types.ObjectId(
+  //       productFilters.product
+  //     );
+  //   }
+  //   if (productFilters.stock && Types.ObjectId.isValid(productFilters.stock)) {
+  //     productMatch["products.stock"] = new Types.ObjectId(productFilters.stock);
+  //   }
+  //   if (productFilters.sku) {
+  //     productMatch["products.selected_variant.sku"] = {
+  //       $regex: new RegExp(escapeRegex(productFilters.sku), "i"),
+  //     };
+  //   }
+  //   if (productFilters.barcode) {
+  //     productMatch["products.selected_variant.barcode"] = {
+  //       $regex: new RegExp(escapeRegex(productFilters.barcode), "i"),
+  //     };
+  //   }
+  //   if (
+  //     productFilters.minQuantity != null ||
+  //     productFilters.maxQuantity != null
+  //   ) {
+  //     productMatch["products.quantity"] = {};
+  //     if (productFilters.minQuantity != null)
+  //       productMatch["products.quantity"].$gte = productFilters.minQuantity;
+  //     if (productFilters.maxQuantity != null)
+  //       productMatch["products.quantity"].$lte = productFilters.maxQuantity;
+  //   }
+  //   if (
+  //     productFilters.minUnitPrice != null ||
+  //     productFilters.maxUnitPrice != null
+  //   ) {
+  //     productMatch["products.unit_price"] = {};
+  //     if (productFilters.minUnitPrice != null)
+  //       productMatch["products.unit_price"].$gte = productFilters.minUnitPrice;
+  //     if (productFilters.maxUnitPrice != null)
+  //       productMatch["products.unit_price"].$lte = productFilters.maxUnitPrice;
+  //   }
+  //   if (productFilters.product_note) {
+  //     productMatch["products.product_note"] = {
+  //       $regex: new RegExp(escapeRegex(productFilters.product_note), "i"),
+  //     };
+  //   }
+
+  //   // attribute_values map filters (e.g. { Size: "M" })
+  //   if (productFilters.attribute_values) {
+  //     for (const [k, v] of Object.entries(productFilters.attribute_values)) {
+  //       // attribute_values stored as Map -> key becomes a property
+  //       productMatch[`products.selected_variant.attribute_values.${k}`] = {
+  //         $regex: new RegExp(escapeRegex(v as string), "i"),
+  //       };
+  //     }
+  //   }
+
+  //   // Aggregation pipeline
+  //   const pipeline: any[] = [];
+
+  //   // initial top-level match
+  //   pipeline.push({ $match: matchTop });
+
+  //   // unwind products to enable product-level matching and lookups & searching across product name
+  //   pipeline.push({
+  //     $unwind: { path: "$products", preserveNullAndEmptyArrays: true }, // preserve docs with empty products
+  //   });
+
+  //   // If there are product-level filters, apply them now (matching at least one array element)
+  //   if (Object.keys(productMatch).length > 0) {
+  //     pipeline.push({ $match: productMatch });
+  //   }
+
+  //   // Lookup product document to get product name (useful for searching)
+  //   pipeline.push({
+  //     $lookup: {
+  //       from: "products",
+  //       localField: "products.product",
+  //       foreignField: "_id",
+  //       as: "products.product_doc",
+  //     },
+  //   });
+  //   // product_doc is an array; unwind to get single doc (preserve if not found)
+  //   pipeline.push({
+  //     $unwind: {
+  //       path: "$products.product_doc",
+  //       preserveNullAndEmptyArrays: true,
+  //     },
+  //   });
+  //   // --- Populate business_location ---
+
+  //   // --- Populate adjust_by ---
+  //   pipeline.push({
+  //     $lookup: {
+  //       from: "users",
+  //       localField: "adjust_by",
+  //       foreignField: "_id",
+  //       as: "adjust_by",
+  //     },
+  //   });
+  //   pipeline.push({
+  //     $unwind: { path: "$adjust_by", preserveNullAndEmptyArrays: true },
+  //   });
+
+  //   // ... the rest of the pipeline (product, variant, etc.)
+  //   // Build a searchable combined field (concatenate several fields)
+  //   const searchableFields = [
+  //     { $ifNull: ["$note", ""] },
+  //     { $ifNull: ["$products.product_doc.name", ""] },
+  //     { $ifNull: ["$products.selected_variant.sku", ""] },
+  //     { $ifNull: ["$products.selected_variant.barcode", ""] },
+  //     { $ifNull: ["$products.product_note", ""] },
+  //   ];
+
+  //   pipeline.push({
+  //     $addFields: {
+  //       __searchable: {
+  //         $trim: {
+  //           input: {
+  //             $reduce: {
+  //               input: searchableFields,
+  //               initialValue: "",
+  //               in: { $concat: ["$$value", " ", "$$this"] },
+  //             },
+  //           },
+  //         },
+  //       },
+  //     },
+  //   });
+
+  //   // If `search` is provided, apply it (case-insensitive regex on the combined field)
+  //   if (search) {
+  //     const regex = new RegExp(escapeRegex(search), "i");
+  //     pipeline.push({
+  //       $match: {
+  //         __searchable: { $regex: regex },
+  //       },
+  //     });
+  //   }
+
+  //   // Re-group back to original document shape: collect products back into array
+  //   pipeline.push({
+  //     $group: {
+  //       _id: "$_id",
+  //       doc: { $first: "$$ROOT" },
+  //       products: {
+  //         $push: {
+  //           $cond: [{ $ne: ["$products", null] }, "$products", "$$REMOVE"],
+  //         },
+  //       },
+  //     },
+  //   });
+
+  //   // Replace doc.products with reconstructed array and remove helper fields
+  //   pipeline.push({
+  //     $addFields: {
+  //       "doc.products": {
+  //         $cond: [
+  //           {
+  //             $and: [
+  //               { $isArray: "$products" },
+  //               { $gt: [{ $size: "$products" }, 0] },
+  //             ],
+  //           },
+  //           "$products",
+  //           [],
+  //         ],
+  //       },
+  //     },
+  //   });
+
+  //   // Project final document
+  //   pipeline.push({
+  //     $replaceRoot: { newRoot: "$doc" },
+  //   });
+
+  //   // Shape the output to the desired structure
+  //   pipeline.push({
+  //     $project: {
+  //       _id: 1,
+  //       business_location: {
+  //         _id: 1,
+  //         name: 1,
+  //         address: {
+  //           division: 1,
+  //           district: 1,
+  //           thana: 1,
+  //           local_address: 1,
+  //         },
+  //         type: 1,
+  //       },
+  //       products: {
+  //         $map: {
+  //           input: "$products",
+  //           as: "prod",
+  //           in: {
+  //             product: {
+  //               _id: "$$prod.product",
+  //               name: "$$prod.product_doc.name",
+  //               thumbnail: "$$prod.product_doc.thumbnail",
+  //               sku: "$$prod.product_doc.sku",
+  //             },
+  //             quantity: "$$prod.quantity",
+  //             selected_variant: {
+  //               attribute_values: "$$prod.selected_variant.attribute_values",
+  //               sku: "$$prod.selected_variant.sku",
+  //               image: "$$prod.selected_variant.image",
+  //               regular_price: "$$prod.selected_variant.regular_price",
+  //               sale_price: "$$prod.selected_variant.sale_price",
+  //               barcode: "$$prod.selected_variant.barcode",
+  //             },
+  //             unit_price: "$$prod.unit_price",
+  //             total_price: "$$prod.total_price",
+  //             product_note: "$$prod.product_note",
+  //             stock: "$$prod.stock",
+  //             _id: "$$prod._id",
+  //           },
+  //         },
+  //       },
+  //       note: 1,
+  //       action: 1,
+  //       total_amount: 1,
+  //       adjust_by: {
+  //         _id: 1,
+  //         phone_number: 1,
+  //         full_name: 1,
+  //         role: 1,
+  //       },
+  //       activities_date: 1,
+  //       createdAt: 1,
+  //       updatedAt: 1,
+  //     },
+  //   });
+
+  //   // Facet to get total count and paginated results
+  //   pipeline.push({
+  //     $facet: {
+  //       meta: [{ $count: "total" }],
+  //       data: [
+  //         { $sort: { [sortBy]: order, _id: 1 } },
+  //         { $skip: skip },
+  //         { $limit: limit },
+  //       ],
+  //     },
+  //   });
+
+  //   // Execute aggregation
+  //   const result = await AdjustedStocks.aggregate(pipeline).exec();
+
+  //   const meta = result[0]?.meta?.[0] ?? { total: 0 };
+  //   const docs = result[0]?.data ?? [];
+
+  //   const total = meta.total ?? 0;
+  //   const pages = Math.max(1, Math.ceil(total / limit));
+
+  //   return {
+  //     meta: {
+  //       total,
+  //       page,
+  //       limit,
+  //       pages,
+  //     },
+  //     data: docs,
+  //   };
+  // }
+
+  async getAllStocksAdjustment(params: any) {
+    const pageInput = Number(params.page);
+    const limitInput = Number(params.limit);
+
+    const page = Math.max(1, !isNaN(pageInput) ? pageInput : 1);
+    const limit = Math.max(
+      1,
+      Math.min(100, !isNaN(limitInput) ? limitInput : 20)
+    );
+
+    const skip = (page - 1) * limit;
+    const sortBy = params.sortBy ?? "createdAt";
+    const order = params.order === "asc" ? 1 : -1;
+    const search =
+      typeof params.search === "string" && params.search.trim().length > 0
+        ? params.search.trim()
+        : null;
+    const filters = params.filters ?? {};
+
+    const matchTop: any = {};
+
+    if (filters.action) matchTop.action = filters.action;
+    if (filters.adjust_by && Types.ObjectId.isValid(filters.adjust_by))
+      matchTop.adjust_by = new Types.ObjectId(filters.adjust_by);
+
+    if (filters.minTotalAmount != null || filters.maxTotalAmount != null) {
+      matchTop.total_amount = {};
+      if (filters.minTotalAmount != null)
+        matchTop.total_amount.$gte = Number(filters.minTotalAmount);
+      if (filters.maxTotalAmount != null)
+        matchTop.total_amount.$lte = Number(filters.maxTotalAmount);
+    }
+
+    if (filters.startDate || filters.endDate) {
+      matchTop.activities_date = {};
+      if (filters.startDate)
+        matchTop.activities_date.$gte = new Date(filters.startDate);
+      if (filters.endDate)
+        matchTop.activities_date.$lte = new Date(filters.endDate);
+    }
+
+    const productFilters = filters.products ?? {};
+    const productMatch: any = {};
+
+    if (
+      productFilters.product &&
+      Types.ObjectId.isValid(productFilters.product)
+    ) {
+      productMatch["products.product"] = new Types.ObjectId(
+        productFilters.product
+      );
+    }
+    if (productFilters.sku) {
+      productMatch["products.selected_variant.sku"] = {
+        $regex: new RegExp(
+          productFilters.sku.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+          "i"
+        ),
+      };
+    }
+    if (productFilters.barcode) {
+      productMatch["products.selected_variant.barcode"] = {
+        $regex: new RegExp(
+          productFilters.barcode.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+          "i"
+        ),
+      };
+    }
+    if (
+      productFilters.minQuantity != null ||
+      productFilters.maxQuantity != null
+    ) {
+      productMatch["products.quantity"] = {};
+      if (productFilters.minQuantity != null)
+        productMatch["products.quantity"].$gte = Number(
+          productFilters.minQuantity
+        );
+      if (productFilters.maxQuantity != null)
+        productMatch["products.quantity"].$lte = Number(
+          productFilters.maxQuantity
+        );
+    }
+    if (
+      productFilters.minUnitPrice != null ||
+      productFilters.maxUnitPrice != null
+    ) {
+      productMatch["products.unit_price"] = {};
+      if (productFilters.minUnitPrice != null)
+        productMatch["products.unit_price"].$gte = Number(
+          productFilters.minUnitPrice
+        );
+      if (productFilters.maxUnitPrice != null)
+        productMatch["products.unit_price"].$lte = Number(
+          productFilters.maxUnitPrice
+        );
+    }
+
+    if (productFilters.attribute_values) {
+      for (const [k, v] of Object.entries(productFilters.attribute_values)) {
+        productMatch[`products.selected_variant.attribute_values.${k}`] = {
+          $regex: new RegExp(
+            (v as string).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+            "i"
+          ),
+        };
+      }
+    }
+
+    const pipeline: any[] = [];
+
+    pipeline.push({ $match: matchTop });
+
+    pipeline.push({
+      $unwind: { path: "$products", preserveNullAndEmptyArrays: true },
+    });
+
+    if (Object.keys(productMatch).length > 0) {
+      pipeline.push({ $match: productMatch });
+    }
+
+    pipeline.push({
+      $lookup: {
+        from: "products",
+        localField: "products.product",
+        foreignField: "_id",
+        as: "products.product_doc",
+      },
+    });
+
+    pipeline.push({
+      $unwind: {
+        path: "$products.product_doc",
+        preserveNullAndEmptyArrays: true,
+      },
+    });
+
+    pipeline.push({
+      $lookup: {
+        from: "users",
+        localField: "adjust_by",
+        foreignField: "_id",
+        as: "adjust_by",
+      },
+    });
+
+    pipeline.push({
+      $unwind: { path: "$adjust_by", preserveNullAndEmptyArrays: true },
+    });
+
+    const searchableFields = [
+      { $ifNull: ["$notes", ""] },
+      { $ifNull: ["$reason", ""] },
+      { $ifNull: ["$products.product_doc.name", ""] },
+      { $ifNull: ["$products.selected_variant.sku", ""] },
+      { $ifNull: ["$products.selected_variant.barcode", ""] },
+    ];
+
+    pipeline.push({
+      $addFields: {
+        __searchable: {
+          $trim: {
+            input: {
+              $reduce: {
+                input: searchableFields,
+                initialValue: "",
+                in: { $concat: ["$$value", " ", "$$this"] },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (search) {
+      const regex = new RegExp(
+        search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+        "i"
+      );
+      pipeline.push({
+        $match: {
+          __searchable: { $regex: regex },
+        },
+      });
+    }
+
+    pipeline.push({
+      $group: {
+        _id: "$_id",
+        doc: { $first: "$$ROOT" },
+        products: {
+          $push: {
+            $cond: [{ $ne: ["$products", null] }, "$products", "$$REMOVE"],
+          },
+        },
+      },
+    });
+
+    pipeline.push({
+      $addFields: {
+        "doc.products": {
+          $cond: [
+            {
+              $and: [
+                { $isArray: "$products" },
+                { $gt: [{ $size: "$products" }, 0] },
+              ],
+            },
+            "$products",
+            [],
+          ],
+        },
+      },
+    });
+
+    pipeline.push({
+      $replaceRoot: { newRoot: "$doc" },
+    });
+
+    pipeline.push({
+      $project: {
+        _id: 1,
+        products: {
+          $map: {
+            input: "$products",
+            as: "prod",
+            in: {
+              product: {
+                _id: "$$prod.product",
+                name: "$$prod.product_doc.name",
+                thumbnail: "$$prod.product_doc.thumbnail",
+                sku: "$$prod.product_doc.sku",
+              },
+              quantity: "$$prod.quantity",
+              selected_variant: {
+                sku: "$$prod.selected_variant.sku",
+                attribute_values: "$$prod.selected_variant.attribute_values",
+                image: "$$prod.selected_variant.image",
+                regular_price: "$$prod.selected_variant.regular_price",
+                sale_price: "$$prod.selected_variant.sale_price",
+                barcode: "$$prod.selected_variant.barcode",
+              },
+              unit_price: "$$prod.unit_price",
+              total_price: "$$prod.total_price",
+              _id: "$$prod._id",
+            },
+          },
+        },
+        notes: 1,
+        reason: 1,
+        action: 1,
+        total_amount: 1,
+        adjust_by: {
+          _id: 1,
+          full_name: 1,
+          phone_number: 1,
+          role: 1,
+        },
+        activities_date: 1,
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    });
+
+    pipeline.push({
+      $facet: {
+        meta: [{ $count: "total" }],
+        data: [
+          { $sort: { [sortBy]: order, _id: 1 } },
+          { $skip: skip },
+          { $limit: limit },
+        ],
+      },
+    });
+
+    const result = await AdjustedStocks.aggregate(pipeline).exec();
+
+    const meta = result[0]?.meta?.[0] ?? { total: 0 };
+    const docs = result[0]?.data ?? [];
+
+    const total = meta.total ?? 0;
+    const pages = Math.max(1, Math.ceil(total / limit));
+
+    return {
+      meta: {
+        total,
+        page,
+        limit,
+        pages,
+      },
+      data: docs,
+    };
+  }
+}
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function escapeRegex(str: string) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 export const StockService = new Service();

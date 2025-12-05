@@ -5,6 +5,7 @@ import { HttpStatusCode } from "@/lib/httpStatus";
 import pickQueries from "@/shared/pickQueries";
 import { paginationFields } from "@/constants/paginationFields";
 import { stockFilterableFields } from "./stock.interface";
+import ApiError from "@/middlewares/error";
 
 class Controller extends BaseController {
   transferStocks = this.catchAsync(async (req: Request, res: Response) => {
@@ -108,6 +109,98 @@ class Controller extends BaseController {
       success: true,
       message: "Low stock products fetched successfully",
       data: report,
+    });
+  });
+
+  stocksAdjustment = this.catchAsync(async (req: Request, res: Response) => {
+    if (!req.body || !req.body.products || req.body.products.length === 0) {
+      throw new ApiError(
+        HttpStatusCode.BAD_REQUEST,
+        "Invalid payload: Products array is required"
+      );
+    }
+
+    const payload = {
+      ...req.body,
+
+      adjust_by: req.user ? req.user._id : req.body.adjust_by,
+    };
+
+    const result = await StockService.stocksAdjustment(payload);
+
+    this.sendResponse(res, {
+      statusCode: HttpStatusCode.CREATED,
+      success: true,
+      message: "Stock adjustment processed successfully",
+      data: result,
+    });
+  });
+
+  getAllStocksAdjustment = this.catchAsync(
+    async (req: Request, res: Response) => {
+      const filters = pickQueries(req.query, [
+        "action",
+        "adjust_by",
+        "minTotalAmount",
+        "maxTotalAmount",
+        "startDate",
+        "endDate",
+        "search",
+      ]);
+
+      // Nested filters for products
+      const productFilters = pickQueries(req.query, [
+        "products.product",
+        "products.sku",
+        "products.barcode",
+        "products.minQuantity",
+        "products.maxQuantity",
+        "products.minUnitPrice",
+        "products.maxUnitPrice",
+        "products.product_note",
+      ]);
+
+      // Handle attribute_values separately if needed, or pass via query object
+      // Assuming query parser handles nested objects for attribute_values
+
+      const options = pickQueries(req.query, [
+        "limit",
+        "page",
+        "sortBy",
+        "order",
+      ]);
+
+      // Merge top-level and product-level filters
+      const finalFilters = {
+        ...filters,
+        products: { ...productFilters },
+        // attribute_values usually come as nested query params, ensure they are structured correctly
+        attribute_values: req.query.attribute_values,
+      };
+
+      const result = await StockService.getAllStocksAdjustment({
+        ...options,
+        filters: finalFilters,
+        search: req.query.search as string,
+      });
+
+      this.sendResponse(res, {
+        statusCode: HttpStatusCode.OK,
+        success: true,
+        message: "Stock adjustments retrieved successfully",
+        data: result,
+      });
+    }
+  );
+
+  resetSystem = this.catchAsync(async (req: Request, res: Response) => {
+    const result = await StockService.resetInventoryAndResetOrders();
+
+    this.sendResponse(res, {
+      statusCode: HttpStatusCode.OK,
+      success: true,
+      message: result.message,
+      data: null,
     });
   });
 }

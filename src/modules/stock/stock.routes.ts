@@ -45,11 +45,31 @@ router.patch(
   StockController.updateStock
 );
 
+router.post(
+  "/adjustment",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.STOCK_UPDATE),
+  StockController.stocksAdjustment
+);
+router.get(
+  "/adjustment",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.STOCK_UPDATE),
+  StockController.getAllStocksAdjustment
+);
+
 router.delete(
   "/:id",
   JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.STOCK_DELETE),
   StockController.deleteStock
+);
+
+router.post(
+  "/reset-system",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.STOCK_UPDATE),
+  StockController.resetSystem
 );
 
 export const StocksRoutes = router;
