@@ -720,7 +720,6 @@ class Service {
         order.order_status === ORDER_STATUS.PENDING_RETURN ||
         order.order_status === ORDER_STATUS.EXCHANGED ||
         order.order_status === ORDER_STATUS.PARTIAL ||
-        order.order_status === ORDER_STATUS.AWAITING_STOCK ||
         order.order_status === ORDER_STATUS.FAILED
       ) {
         throw new ApiError(
