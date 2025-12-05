@@ -527,11 +527,10 @@ class Service {
       // 4) Get atomic purchase_number via CounterModel (one counter per location)
       // CounterModel schema assumed: { _id: locationId (string/ObjectId), seq: Number }
 
-      const purchase_number =
-        (await PurchaseModel.countDocuments({
-          location: location,
-        }).session(session)) + 1;
-
+      const purchase_number = await this.generatePurchaseNumber(
+        location,
+        session
+      );
       // Decide purchase.supplier:
       // - If exactly one distinct supplier found across groups, use it
       // - Otherwise leave undefined (or change policy if you want)
@@ -1207,6 +1206,19 @@ class Service {
     } finally {
       session.endSession();
     }
+  }
+
+  private async generatePurchaseNumber(
+    locationId: Types.ObjectId | string,
+    session: mongoose.ClientSession
+  ): Promise<number> {
+    const counter = await CounterModel.findOneAndUpdate(
+      { _id: locationId },
+      { $inc: { sequence: 1 } },
+      { new: true, upsert: true, session }
+    );
+    console.log(counter);
+    return counter.sequence;
   }
 }
 
