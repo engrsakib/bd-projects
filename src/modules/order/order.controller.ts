@@ -130,7 +130,7 @@ class Controller extends BaseController {
         message: "Order ID is required",
       });
     }
-    const data = await OrderService.cancleOrder(
+    const data = await OrderService.cancelOrder(
       id as string,
       req.user?.id as string
     );

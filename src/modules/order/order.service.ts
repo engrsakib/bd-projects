@@ -2144,50 +2144,88 @@ class Service {
     }
   }
 
-  async cancleOrder(order_id: string, user_id: string): Promise<IOrder | null> {
-    // throw new Error("");
+  async cancelOrder(order_id: string, user_id: string): Promise<IOrder | null> {
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-    const order = await OrderModel.findOne({ order_id: order_id });
-
-    if (!order) {
-      throw new ApiError(
-        HttpStatusCode.NOT_FOUND,
-        `Order was not found with id: ${order_id}`
+    try {
+      const order = await OrderModel.findOne({ order_id: order_id }).session(
+        session
       );
-    }
 
-    if (order.order_status === ORDER_STATUS.CANCELLED) {
-      throw new ApiError(
-        HttpStatusCode.BAD_REQUEST,
-        `Order is already cancelled: ${order_id}`
-      );
-    }
+      if (!order) {
+        throw new ApiError(
+          HttpStatusCode.NOT_FOUND,
+          `Order was not found with id: ${order_id}`
+        );
+      }
 
-    if (order.order_status !== ORDER_STATUS.AWAITING_STOCK) {
-      throw new ApiError(
-        HttpStatusCode.BAD_REQUEST,
-        `Only orders with status AWAITING_STOCK can be cancelled: ${order_id}`
-      );
-    }
+      if (order.order_status === ORDER_STATUS.CANCELLED) {
+        throw new ApiError(
+          HttpStatusCode.BAD_REQUEST,
+          `Order is already cancelled: ${order_id}`
+        );
+      }
 
-    const previousStatus = order.order_status || "N/A";
+      // স্টক রিলিজ করার জন্য সাধারণত এই স্ট্যাটাসগুলো ক্যানসেল করা হয়
+      const allowedStatuses = [
+        ORDER_STATUS.AWAITING_STOCK,
+        ORDER_STATUS.PLACED,
+        ORDER_STATUS.ACCEPTED,
+      ];
 
-    const updatedOrder = await OrderModel.findOneAndUpdate(
-      { order_id: order_id },
-      {
-        $set: { order_status: ORDER_STATUS.CANCELLED },
-        $push: {
-          logs: {
-            user: user_id,
-            time: new Date(),
-            action: `ORDER_STATUS_UPDATED: ${previousStatus} -> ${ORDER_STATUS.CANCELLED}`,
+      if (!allowedStatuses.includes(order.order_status as any)) {
+        throw new ApiError(
+          HttpStatusCode.BAD_REQUEST,
+          `Cannot cancel order with status '${order.order_status}'. Only Pending/Placed/Accepted orders can be cancelled.`
+        );
+      }
+
+      // === ১. Global Stock Rollback (আপনার লজিক) ===
+      if (order.items && order.items.length > 0) {
+        for (const item of order.items) {
+          await GlobalStockModel.findOneAndUpdate(
+            {
+              product: item.product,
+              variant: item.variant,
+            },
+            {
+              $inc: {
+                qty_reserved: -item.quantity, // রিজার্ভেশন ফ্রি করে দেওয়া হলো (Stock Release)
+                total_sold: -item.quantity, // বিক্রির হিসাব কমিয়ে দেওয়া হলো
+              },
+            },
+            { session }
+          );
+        }
+      }
+
+      // === ২. Order Status Update ===
+      const previousStatus = order.order_status || "N/A";
+
+      const updatedOrder = await OrderModel.findOneAndUpdate(
+        { order_id: order_id },
+        {
+          $set: { order_status: ORDER_STATUS.CANCELLED },
+          $push: {
+            logs: {
+              user: user_id, // যে ইউজার ক্যানসেল করছে
+              time: new Date(),
+              action: `ORDER_CANCELLED: Stock reverted & Status changed from ${previousStatus} to ${ORDER_STATUS.CANCELLED}`,
+            },
           },
         },
-      },
-      { new: true }
-    );
+        { new: true, session }
+      );
 
-    return updatedOrder;
+      await session.commitTransaction();
+      return updatedOrder;
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
   }
 
   async updateOrdersStatusBulk(params: {
