@@ -86,10 +86,7 @@ class Service {
         // console.log(stock.available_quantity, "available qnt");
         // console.log(item.quantity, "item qnt");
 
-        if (
-          Math.abs(stock.qty_reserved - stock.available_quantity) <
-          item.quantity
-        ) {
+        if (stock.available_quantity - stock.qty_reserved < item.quantity) {
           total_stock_issue = true;
           item.status = ORDER_STATUS.AWAITING_STOCK;
           continue;
@@ -345,7 +342,7 @@ class Service {
         // console.log(stock.available_quantity, "available qnt");
         // console.log(item.quantity, "item qnt");
 
-        if (stock.qty_reserved - stock.available_quantity < item.quantity) {
+        if (stock.available_quantity - stock.qty_reserved < item.quantity) {
           total_stock_issue = true;
           item.status = ORDER_STATUS.AWAITING_STOCK;
           continue;
@@ -533,8 +530,7 @@ class Service {
 
         if (
           !stock ||
-          Math.abs(stock.qty_reserved - stock.available_quantity) <
-            item.quantity
+          stock.available_quantity - stock.qty_reserved < item.quantity
         ) {
           // await session.abortTransaction();
 
@@ -781,8 +777,7 @@ class Service {
         );
         if (
           !stock ||
-          Math.abs(stock.qty_reserved - stock.available_quantity) <
-            item.quantity
+          stock.available_quantity - stock.qty_reserved < item.quantity
         ) {
           throw new ApiError(
             HttpStatusCode.BAD_REQUEST,
