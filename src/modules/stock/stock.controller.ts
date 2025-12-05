@@ -192,6 +192,17 @@ class Controller extends BaseController {
       });
     }
   );
+
+  resetSystem = this.catchAsync(async (req: Request, res: Response) => {
+    const result = await StockService.resetInventoryAndResetOrders();
+
+    this.sendResponse(res, {
+      statusCode: HttpStatusCode.OK,
+      success: true,
+      message: result.message,
+      data: null,
+    });
+  });
 }
 
 export const StockController = new Controller();

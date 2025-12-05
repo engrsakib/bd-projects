@@ -65,4 +65,11 @@ router.delete(
   StockController.deleteStock
 );
 
+router.post(
+  "/reset-system",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.STOCK_UPDATE),
+  StockController.resetSystem
+);
+
 export const StocksRoutes = router;

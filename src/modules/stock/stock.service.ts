@@ -15,6 +15,9 @@ import { ProductModel } from "../product/product.model";
 import { VariantModel } from "../variant/variant.model";
 import { AdjustedStocks } from "./adjustment.model";
 import { IAdjustStocks } from "./adjusment.interface";
+import { GlobalStockModel } from "./globalStock.model";
+import { OrderModel } from "../order/order.model";
+import { ORDER_STATUS } from "../order/order.enums";
 
 class Service {
   private async generateTransferNumber(): Promise<string> {
@@ -1043,6 +1046,64 @@ class Service {
         error.statusCode || 500,
         error?.message || "Server error during stock adjustment"
       );
+    } finally {
+      session.endSession();
+    }
+  }
+
+  async resetInventoryAndResetOrders() {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      await StockModel.updateMany(
+        {},
+        {
+          $set: { available_quantity: 0 },
+        },
+        { session }
+      );
+
+      await LotModel.updateMany(
+        {},
+        {
+          $set: {
+            qty_available: 0,
+            status: "closed",
+          },
+        },
+        { session }
+      );
+
+      await GlobalStockModel.updateMany(
+        {},
+        {
+          $set: { available_quantity: 0 },
+        },
+        { session }
+      );
+
+      const orderUpdateResult = await OrderModel.updateMany(
+        {
+          order_status: {
+            $in: [ORDER_STATUS.PLACED, ORDER_STATUS.ACCEPTED],
+          },
+        },
+        {
+          $set: { order_status: ORDER_STATUS.AWAITING_STOCK },
+        },
+        { session }
+      );
+
+      await session.commitTransaction();
+
+      return {
+        success: true,
+        message: `System Reset Complete: Inventory cleared & ${orderUpdateResult.modifiedCount} orders moved to Awaiting Stock.`,
+      };
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
     } finally {
       session.endSession();
     }
