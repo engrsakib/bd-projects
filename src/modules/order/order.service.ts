@@ -59,9 +59,7 @@ class Service {
 
       let total_stock_issue = false;
 
-      // check stock availability [most important]
       for (const item of enrichedOrder.products) {
-        // console.log(item.variant, "for stock");
         const stock = await GlobalStockModel.findOne(
           {
             product: item.product,
@@ -72,43 +70,37 @@ class Service {
         );
 
         if (!stock) {
-          // await session.abortTransaction();
-          // throw new ApiError(
-          //   HttpStatusCode.BAD_REQUEST,
-          //   `Product ${item.product.name} is out of stock or does not have enough quantity for this order`
-          // );
-
           total_stock_issue = true;
-          item.status = ORDER_STATUS.AWAITING_STOCK;
-          continue;
+          break;
         }
 
-        // console.log(stock.available_quantity, "available qnt");
-        // console.log(item.quantity, "item qnt");
-
-        if (
-          Math.abs(stock.qty_reserved - stock.available_quantity) <
-          item.quantity
-        ) {
+        if (stock.available_quantity - stock.qty_reserved < item.quantity) {
           total_stock_issue = true;
-          item.status = ORDER_STATUS.AWAITING_STOCK;
-          continue;
-        } else {
-          // lot consumption (FIFO)
-          const consumedLots = await this.simulateConsumeLotsFIFO(
-            item.product,
-            item.variant,
-            item.quantity,
-            session
+          break;
+        }
+      }
+
+      if (total_stock_issue === false) {
+        for (const item of enrichedOrder.products) {
+          const stock = await GlobalStockModel.findOne(
+            {
+              product: item.product,
+              variant: item.variant,
+            },
+            null,
+            { session }
           );
 
-          item.lots = consumedLots;
-          // console.log(consumedLots, "consumed lots `");
+          // console.log(stock,"stocks")
 
-          stock.qty_reserved += item.quantity;
-          stock.total_sold = (stock.total_sold || 0) + item.quantity;
-          item.total_sold = (item.total_sold || 0) + item.quantity;
-          await stock.save({ session });
+          if (stock && total_stock_issue === false) {
+            // ✅ স্টক আপডেট (যেহেতু সব স্টক আছে)
+            stock.qty_reserved += item.quantity;
+            stock.total_sold = (stock.total_sold || 0) + item.quantity;
+            item.total_sold = (item.total_sold || 0) + item.quantity;
+
+            await stock.save({ session });
+          }
         }
       }
 
@@ -314,11 +306,7 @@ class Service {
 
       let total_stock_issue = false;
 
-      // console.log(cartItems, "cart items");
-
-      // check stock availability [most important]
       for (const item of enrichedOrder.products) {
-        // console.log(item.variant, "for stock");
         const stock = await GlobalStockModel.findOne(
           {
             product: item.product,
@@ -328,42 +316,38 @@ class Service {
           { session }
         );
 
-        // console.log(stock, "stocks data");
-
         if (!stock) {
-          // await session.abortTransaction();
-          // session.endSession();
-          // throw new ApiError(
-          //   HttpStatusCode.BAD_REQUEST,
-          //   `Product ${item.product.name} is out of stock or does not have enough quantity`
-          // );
           total_stock_issue = true;
-          item.status = ORDER_STATUS.AWAITING_STOCK;
-          continue;
+          break;
         }
 
-        // console.log(stock.available_quantity, "available qnt");
-        // console.log(item.quantity, "item qnt");
-
-        if (stock.qty_reserved - stock.available_quantity < item.quantity) {
+        if (stock.available_quantity - stock.qty_reserved < item.quantity) {
           total_stock_issue = true;
-          item.status = ORDER_STATUS.AWAITING_STOCK;
-          continue;
-        } else {
-          // lot consumption (FIFO)
-          const consumedLots = await this.simulateConsumeLotsFIFO(
-            item.product,
-            item.variant,
-            item.quantity,
-            session
-          );
-          item.lots = consumedLots;
-          // console.log(consumedLots, "consumed lots `");
+          break;
+        }
+      }
 
-          stock.qty_reserved += item.quantity;
-          stock.total_sold = (stock.total_sold || 0) + item.quantity;
-          item.total_sold = (item.total_sold || 0) + item.quantity;
-          await stock.save({ session });
+      if (total_stock_issue === false) {
+        for (const item of enrichedOrder.products) {
+          const stock = await GlobalStockModel.findOne(
+            {
+              product: item.product,
+              variant: item.variant,
+            },
+            null,
+            { session }
+          );
+
+          // console.log(stock,"stocks")
+
+          if (stock && total_stock_issue === false) {
+            // ✅ স্টক আপডেট (যেহেতু সব স্টক আছে)
+            stock.qty_reserved += item.quantity;
+            stock.total_sold = (stock.total_sold || 0) + item.quantity;
+            item.total_sold = (item.total_sold || 0) + item.quantity;
+
+            await stock.save({ session });
+          }
         }
       }
 
@@ -533,8 +517,7 @@ class Service {
 
         if (
           !stock ||
-          Math.abs(stock.qty_reserved - stock.available_quantity) <
-            item.quantity
+          stock.available_quantity - stock.qty_reserved < item.quantity
         ) {
           // await session.abortTransaction();
 
@@ -717,7 +700,8 @@ class Service {
         order.order_status === ORDER_STATUS.PENDING_RETURN ||
         order.order_status === ORDER_STATUS.EXCHANGED ||
         order.order_status === ORDER_STATUS.PARTIAL ||
-        order.order_status === ORDER_STATUS.FAILED
+        order.order_status === ORDER_STATUS.FAILED ||
+        order.order_status === ORDER_STATUS.AWAITING_STOCK
       ) {
         throw new ApiError(
           HttpStatusCode.BAD_REQUEST,
@@ -737,7 +721,7 @@ class Service {
 
       // ৩. পুরাতন order.items এর stock rollback + total_sold কমানো
       for (const prevItem of order.items ?? []) {
-        // if (prevItem.status === ORDER_STATUS.AWAITING_STOCK) {
+        // if (order.order_status === ORDER_STATUS.AWAITING_STOCK) {
         //   continue;
         // }
 
@@ -781,8 +765,7 @@ class Service {
         );
         if (
           !stock ||
-          Math.abs(stock.qty_reserved - stock.available_quantity) <
-            item.quantity
+          stock.available_quantity - stock.qty_reserved < item.quantity
         ) {
           throw new ApiError(
             HttpStatusCode.BAD_REQUEST,
@@ -2144,50 +2127,88 @@ class Service {
     }
   }
 
-  async cancleOrder(order_id: string, user_id: string): Promise<IOrder | null> {
-    // throw new Error("");
+  async cancelOrder(order_id: string, user_id: string): Promise<IOrder | null> {
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-    const order = await OrderModel.findOne({ order_id: order_id });
-
-    if (!order) {
-      throw new ApiError(
-        HttpStatusCode.NOT_FOUND,
-        `Order was not found with id: ${order_id}`
+    try {
+      const order = await OrderModel.findOne({ order_id: order_id }).session(
+        session
       );
-    }
 
-    if (order.order_status === ORDER_STATUS.CANCELLED) {
-      throw new ApiError(
-        HttpStatusCode.BAD_REQUEST,
-        `Order is already cancelled: ${order_id}`
-      );
-    }
+      if (!order) {
+        throw new ApiError(
+          HttpStatusCode.NOT_FOUND,
+          `Order was not found with id: ${order_id}`
+        );
+      }
 
-    if (order.order_status !== ORDER_STATUS.AWAITING_STOCK) {
-      throw new ApiError(
-        HttpStatusCode.BAD_REQUEST,
-        `Only orders with status AWAITING_STOCK can be cancelled: ${order_id}`
-      );
-    }
+      if (order.order_status === ORDER_STATUS.CANCELLED) {
+        throw new ApiError(
+          HttpStatusCode.BAD_REQUEST,
+          `Order is already cancelled: ${order_id}`
+        );
+      }
 
-    const previousStatus = order.order_status || "N/A";
+      // স্টক রিলিজ করার জন্য সাধারণত এই স্ট্যাটাসগুলো ক্যানসেল করা হয়
+      const allowedStatuses = [
+        ORDER_STATUS.AWAITING_STOCK,
+        ORDER_STATUS.PLACED,
+        ORDER_STATUS.ACCEPTED,
+      ];
 
-    const updatedOrder = await OrderModel.findOneAndUpdate(
-      { order_id: order_id },
-      {
-        $set: { order_status: ORDER_STATUS.CANCELLED },
-        $push: {
-          logs: {
-            user: user_id,
-            time: new Date(),
-            action: `ORDER_STATUS_UPDATED: ${previousStatus} -> ${ORDER_STATUS.CANCELLED}`,
+      if (!allowedStatuses.includes(order.order_status as any)) {
+        throw new ApiError(
+          HttpStatusCode.BAD_REQUEST,
+          `Cannot cancel order with status '${order.order_status}'. Only Pending/Placed/Accepted orders can be cancelled.`
+        );
+      }
+
+      // === ১. Global Stock Rollback (আপনার লজিক) ===
+      if (order.items && order.items.length > 0) {
+        for (const item of order.items) {
+          await GlobalStockModel.findOneAndUpdate(
+            {
+              product: item.product,
+              variant: item.variant,
+            },
+            {
+              $inc: {
+                qty_reserved: -item.quantity, // রিজার্ভেশন ফ্রি করে দেওয়া হলো (Stock Release)
+                total_sold: -item.quantity, // বিক্রির হিসাব কমিয়ে দেওয়া হলো
+              },
+            },
+            { session }
+          );
+        }
+      }
+
+      // === ২. Order Status Update ===
+      const previousStatus = order.order_status || "N/A";
+
+      const updatedOrder = await OrderModel.findOneAndUpdate(
+        { order_id: order_id },
+        {
+          $set: { order_status: ORDER_STATUS.CANCELLED },
+          $push: {
+            logs: {
+              user: user_id, // যে ইউজার ক্যানসেল করছে
+              time: new Date(),
+              action: `ORDER_CANCELLED: Stock reverted & Status changed from ${previousStatus} to ${ORDER_STATUS.CANCELLED}`,
+            },
           },
         },
-      },
-      { new: true }
-    );
+        { new: true, session }
+      );
 
-    return updatedOrder;
+      await session.commitTransaction();
+      return updatedOrder;
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
   }
 
   async updateOrdersStatusBulk(params: {
@@ -2690,9 +2711,9 @@ class Service {
       });
     }
 
-    if (remaining > 0) {
-      throw new Error("Insufficient lots stock!");
-    }
+    // if (remaining > 0) {
+    //   throw new Error("Insufficient lots stock!");
+    // }
 
     // Return consumption details
     return consumption;
