@@ -2139,7 +2139,6 @@ class Service {
     session.startTransaction();
 
     try {
-      // ১. অর্ডার খুঁজে বের করা
       const order = await OrderModel.findById(order_id).session(session);
       if (!order) {
         throw new ApiError(
@@ -2150,7 +2149,6 @@ class Service {
 
       const previousStatus = order.order_status || "N/A";
 
-      // ২. ভ্যালিডেশন: কোন কোন স্ট্যাটাস থেকে পরিবর্তন করা যাবে না
       if (
         previousStatus === ORDER_STATUS.CANCELLED ||
         previousStatus === ORDER_STATUS.RETURNED ||
@@ -2159,15 +2157,13 @@ class Service {
         previousStatus === ORDER_STATUS.EXCHANGED ||
         previousStatus === ORDER_STATUS.INCOMPLETE ||
         previousStatus === ORDER_STATUS.PARTIAL
-        // 🛠️ FIX 1: AWAITING_STOCK এখান থেকে সরিয়ে দেওয়া হয়েছে
       ) {
         throw new ApiError(
           HttpStatusCode.BAD_REQUEST,
-          `Cannot change status from ${previousStatus} to ${status}`
+          `status Cannot change from ${previousStatus} to ${status}`
         );
       }
 
-      // বিশেষ চেক: কুরিয়ারে দেওয়ার পর নির্দিষ্ট কিছু স্ট্যাটাসে যাওয়া যাবে না
       if (
         order.order_status === ORDER_STATUS.HANDED_OVER_TO_COURIER &&
         [ORDER_STATUS.RTS, ORDER_STATUS.ACCEPTED, ORDER_STATUS.PLACED].includes(
@@ -2180,7 +2176,6 @@ class Service {
         );
       }
 
-      // ৩. অর্ডার স্ট্যাটাস আপডেট করা এবং লগ রাখা
       const updatedOrder = await OrderModel.findOneAndUpdate(
         { _id: order_id },
         {
@@ -2203,17 +2198,13 @@ class Service {
         );
       }
 
-      // ৪. স্টক রিলিজ লজিক (যদি ক্যানসেল বা রিটার্ন হয়)
       if (
         status === ORDER_STATUS.CANCELLED ||
         status === ORDER_STATUS.RETURNED ||
         status === ORDER_STATUS.FAILED
       ) {
-        // 🛠️ FIX 2: যদি আগের স্ট্যাটাস AWAITING_STOCK হয়, তবে স্টক রিলিজ হবে না
-        // কারণ তখন কোনো স্টক রিজার্ভ করা ছিল না
         if (previousStatus !== ORDER_STATUS.AWAITING_STOCK) {
           for (const item of updatedOrder.items ?? []) {
-            // গ্লোবাল স্টক আপডেট
             const stock = await GlobalStockModel.findOne(
               {
                 product: item.product,
@@ -2224,7 +2215,6 @@ class Service {
             );
 
             if (stock) {
-              // রিজার্ভেশন কমানো হচ্ছে
               stock.qty_reserved -= item.quantity;
 
               // (অপশনাল) চাইলে total_sold ও কমাতে পারেন, যদি আপনার লজিকে থাকে
@@ -2233,7 +2223,6 @@ class Service {
               await stock.save({ session });
             }
 
-            // (অপশনাল) লট আপডেট লজিক যদি থাকে, তবে এখানে আনকমেন্ট করে দিতে পারেন
             /*
             for (const lotUsage of item.lots) {
               const lot = await LotModel.findById(lotUsage.lotId).session(session);
