@@ -273,6 +273,34 @@ class Controller extends BaseController {
       });
     }
   );
+
+  superUpdateOrderStatus = this.catchAsync(
+    async (req: Request, res: Response) => {
+      const { id } = req.params;
+      const { status } = req.body;
+
+      if (!id || !status) {
+        throw new ApiError(
+          HttpStatusCode.BAD_REQUEST,
+          "Order ID and Status are required"
+        );
+      }
+      console.log(req.user);
+
+      const result = await OrderService.superUpdateOrderStatus(
+        id,
+        req.user?.name as string,
+        status
+      );
+
+      this.sendResponse(res, {
+        statusCode: HttpStatusCode.OK,
+        success: true,
+        message: "Order status updated successfully by Super Admin",
+        data: result,
+      });
+    }
+  );
 }
 
 export const OrderController = new Controller();

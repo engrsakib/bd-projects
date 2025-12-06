@@ -689,20 +689,22 @@ class Service {
         throw new ApiError(404, `Order with ID ${orderId} does not exist`);
       }
 
-      if (
-        order.order_status === ORDER_STATUS.CANCELLED ||
-        order.order_status === ORDER_STATUS.RETURNED ||
-        order.order_status === ORDER_STATUS.LOST ||
-        order.order_status === ORDER_STATUS.UNKNOWN ||
-        order.order_status === ORDER_STATUS.RTS ||
-        order.order_status === ORDER_STATUS.DELIVERED ||
-        order.order_status === ORDER_STATUS.HANDED_OVER_TO_COURIER ||
-        order.order_status === ORDER_STATUS.PENDING_RETURN ||
-        order.order_status === ORDER_STATUS.EXCHANGED ||
-        order.order_status === ORDER_STATUS.PARTIAL ||
-        order.order_status === ORDER_STATUS.FAILED ||
-        order.order_status === ORDER_STATUS.AWAITING_STOCK
-      ) {
+      // স্ট্যাটাস চেক (যেই স্ট্যাটাসগুলো এডিট করা যাবে না)
+      const restrictedStatuses = [
+        ORDER_STATUS.CANCELLED,
+        ORDER_STATUS.RETURNED,
+        ORDER_STATUS.LOST,
+        ORDER_STATUS.UNKNOWN,
+        ORDER_STATUS.RTS,
+        ORDER_STATUS.DELIVERED,
+        ORDER_STATUS.HANDED_OVER_TO_COURIER,
+        ORDER_STATUS.PENDING_RETURN,
+        ORDER_STATUS.EXCHANGED,
+        ORDER_STATUS.PARTIAL,
+        ORDER_STATUS.FAILED,
+      ];
+
+      if (restrictedStatuses.includes(order.order_status as any)) {
         throw new ApiError(
           HttpStatusCode.BAD_REQUEST,
           `Cannot edit ${order.order_status} order`
@@ -719,77 +721,85 @@ class Service {
         );
       }
 
-      // ৩. পুরাতন order.items এর stock rollback + total_sold কমানো
-      for (const prevItem of order.items ?? []) {
-        // if (order.order_status === ORDER_STATUS.AWAITING_STOCK) {
-        //   continue;
-        // }
+      let total_price = 0;
 
-        const stock = await GlobalStockModel.findOne({
-          product: prevItem.product,
-          variant: prevItem.variant,
-        }).session(session);
+      // ⚠️ বিশেষ শর্ত: যদি অর্ডার স্ট্যাটাস AWAITING_STOCK হয়, তবে স্টক আপডেট হবে না।
+      // অন্যথায় (যেমন PLACED, ACCEPTED হলে) স্টক আপডেট হবে।
+      const shouldUpdateStock =
+        order.order_status !== ORDER_STATUS.AWAITING_STOCK;
 
-        // const lots = await LotModel.findOne({
-        //   variant: prevItem.variant,
-        // }).session(session);
+      if (shouldUpdateStock) {
+        // ৩. পুরাতন order.items এর stock rollback + total_sold কমানো
+        for (const prevItem of order.items ?? []) {
+          const stock = await GlobalStockModel.findOne({
+            product: prevItem.product,
+            variant: prevItem.variant,
+          }).session(session);
 
-        // if (lots) {
-        //   // পূর্বে কাটাকাটা lot গুলো ফিরিয়ে দিন
-        //   lots.qty_reserved -= prevItem.quantity;
-        //   await lots.save({ session });
-        // }
+          if (stock) {
+            await GlobalStockModel.findOneAndUpdate(
+              { product: stock.product, variant: stock.variant },
+              {
+                $inc: {
+                  qty_reserved: -prevItem.quantity, // রিজার্ভ কমানো
+                  total_sold: -prevItem.quantity, // সোল্ড কমানো
+                },
+              },
+              { session }
+            );
+          }
+        }
 
-        if (stock) {
-          // স্টকে quantity ফেরত দিন
-          await GlobalStockModel.findOneAndUpdate(
-            { product: stock.product, variant: stock.variant },
-            { $inc: { qty_reserved: -prevItem.quantity } },
+        // ৪. নতুন/পরিবর্তিত আইটেমের জন্য stock allocate + total_sold বাড়ানো
+        for (const item of enrichedOrder.products) {
+          const stock = await GlobalStockModel.findOne(
+            { product: item.product, variant: item.variant },
+            null,
             { session }
           );
 
-          // total_sold কমান
-          stock.total_sold = (stock.total_sold || 0) - prevItem.quantity;
-          if (stock.total_sold < 0) stock.total_sold = 0; // নেগেটিভ হলে ০
-          await stock.save({ session });
-        }
-      }
+          if (
+            !stock ||
+            stock.available_quantity - stock.qty_reserved < item.quantity
+          ) {
+            throw new ApiError(
+              HttpStatusCode.BAD_REQUEST,
+              `Product ${item.product.name ?? item.product} is out of stock`
+            );
+          }
 
-      // ৪. নতুন/পরিবর্তিত আইটেমের জন্য stock allocate + total_sold বাড়ানো
-      let total_price = 0;
-      for (const item of enrichedOrder.products) {
-        const stock = await GlobalStockModel.findOne(
-          { product: item.product, variant: item.variant },
-          null,
-          { session }
-        );
-        if (
-          !stock ||
-          stock.available_quantity - stock.qty_reserved < item.quantity
-        ) {
-          throw new ApiError(
-            HttpStatusCode.BAD_REQUEST,
-            `Product ${item.product.name ?? item.product} is out of stock`
+          // লট কনজাম্পশন সিমুলেশন
+          const consumedLots = await this.simulateConsumeLotsFIFO(
+            item.product,
+            item.variant,
+            item.quantity,
+            session
+          );
+
+          item.lots = consumedLots;
+          item.subtotal = item.price * item.quantity;
+          total_price += item.subtotal;
+
+          // স্টক আপডেট (রিজার্ভ এবং সোল্ড বাড়ানো)
+          await GlobalStockModel.findOneAndUpdate(
+            { product: item.product, variant: item.variant },
+            {
+              $inc: {
+                qty_reserved: item.quantity,
+                total_sold: item.quantity,
+              },
+            },
+            { session }
           );
         }
-
-        // FIFO lots থেকে কাটছে, lots ডিটেইল সেট হচ্ছে
-        const consumedLots = await this.simulateConsumeLotsFIFO(
-          item.product,
-          item.variant,
-          item.quantity,
-          session
-        );
-
-        item.lots = consumedLots;
-        item.subtotal = item.price * item.quantity;
-        total_price += item.subtotal;
-
-        // স্টক কমাও
-        stock.qty_reserved += item.quantity;
-        // total_sold বাড়াও
-        stock.total_sold = (stock.total_sold || 0) + item.quantity;
-        await stock.save({ session });
+      } else {
+        // যদি AWAITING_STOCK হয়, তবে শুধু প্রাইস ক্যালকুলেট হবে, স্টক আপডেট হবে না
+        for (const item of enrichedOrder.products) {
+          item.subtotal = item.price * item.quantity;
+          total_price += item.subtotal;
+          // AWAITING_STOCK আইটেমের স্ট্যাটাস সাধারণত AWAITING_STOCK-ই থাকে
+          item.status = ORDER_STATUS.AWAITING_STOCK;
+        }
       }
 
       // ৫. আইটেমস, টোটাল প্রাইস আপডেট (items first, then amounts)
@@ -815,10 +825,8 @@ class Service {
         order.paid_amount = Number(payload.paid_amount);
       }
       if (payload.delivery_charge !== undefined) {
-        // if payload provides delivery_charge (even 0), use it
         order.delivery_charge = Number(payload.delivery_charge);
       } else {
-        // if payload doesn't provide delivery_charge, keep existing (or default to 0)
         order.delivery_charge = order.delivery_charge ?? 0;
       }
 
@@ -826,7 +834,7 @@ class Service {
       order.total_amount =
         Number(order.total_price ?? 0) + Number(order.delivery_charge ?? 0);
 
-      // payable_amount typically = total_amount - paid_amount (adjust as per your business logic)
+      // payable_amount typically = total_amount - paid_amount
       order.payable_amount =
         Number(order.total_amount) - Number(order.paid_amount ?? 0);
       if (order.payable_amount < 0) order.payable_amount = 0;
@@ -834,13 +842,13 @@ class Service {
       // save within session
       await order.save({ session });
 
-      await order.save({ session });
-
-      // ৭. cart ক্লিয়ার (যদি থাকে)
-      await CartService.clearCartAfterCheckout(
-        order.user as Types.ObjectId,
-        session
-      );
+      // ৭. cart ক্লিয়ার (যদি থাকে) - এডিটের সময় সাধারণত দরকার হয় না, কিন্তু লজিকে থাকলে থাকুক
+      if (order.user) {
+        await CartService.clearCartAfterCheckout(
+          order.user as Types.ObjectId,
+          session
+        );
+      }
 
       await session.commitTransaction();
       session.endSession();
@@ -2080,10 +2088,6 @@ class Service {
       ) {
         // restore stock if order is cancelled
         for (const item of updatedOrder.items ?? []) {
-          if (item.status === ORDER_STATUS.AWAITING_STOCK) {
-            continue; // skip stock restore for items that were never in stock
-          }
-
           const stock = await GlobalStockModel.findOne(
             {
               product: item.product,
@@ -2115,6 +2119,140 @@ class Service {
           //   }
           // }
         }
+      }
+
+      await session.commitTransaction();
+      return updatedOrder;
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
+  }
+
+  async superUpdateOrderStatus(
+    order_id: string,
+    user_id: string,
+    status: ORDER_STATUS
+  ): Promise<IOrder | null> {
+    const session = await OrderModel.startSession();
+    session.startTransaction();
+
+    try {
+      const order = await OrderModel.findOne({ order_id: order_id }).session(
+        session
+      );
+
+      // console.log(order, "order id ")
+
+      if (!order) {
+        throw new ApiError(
+          HttpStatusCode.NOT_FOUND,
+          `Order was not found with id: ${order_id}`
+        );
+      }
+
+      const previousStatus = order.order_status as ORDER_STATUS;
+      if (!previousStatus) {
+        throw new ApiError(
+          HttpStatusCode.BAD_REQUEST,
+          `Order has no previous status, cannot update via super admin`
+        );
+      }
+      if (previousStatus === status) {
+        throw new ApiError(
+          HttpStatusCode.BAD_REQUEST,
+          `Order status is already ${status}, no change needed`
+        );
+      }
+      if (
+        previousStatus === ORDER_STATUS.CANCELLED ||
+        previousStatus === ORDER_STATUS.RETURNED
+      ) {
+        throw new ApiError(
+          HttpStatusCode.BAD_REQUEST,
+          `Cannot change status from ${previousStatus} to ${status} via super admin update`
+        );
+      }
+
+      const resticstStatuses = [ORDER_STATUS.RTS];
+
+      if (resticstStatuses.includes(status)) {
+        throw new ApiError(
+          HttpStatusCode.BAD_REQUEST,
+          `Cannot change status from ${previousStatus} to ${status} via super admin update`
+        );
+      }
+
+      const terminalStatuses = [
+        ORDER_STATUS.CANCELLED,
+        ORDER_STATUS.RETURNED,
+        ORDER_STATUS.FAILED,
+        ORDER_STATUS.INCOMPLETE,
+        ORDER_STATUS.LOST,
+        ORDER_STATUS.UNKNOWN, // যদি থাকে
+      ];
+
+      const wasTerminal = terminalStatuses.includes(previousStatus);
+      const isTerminal = terminalStatuses.includes(status);
+
+      // যদি স্ট্যাটাস পরিবর্তন হয়, তবেই স্টক আপডেট হবে
+      if (previousStatus !== status) {
+        // CASE A: Active -> Terminal (অর্ডার ক্যানসেল হচ্ছে) -> স্টক ফেরত দাও
+        if (!wasTerminal && isTerminal) {
+          for (const item of order.items ?? []) {
+            await GlobalStockModel.findOneAndUpdate(
+              { product: item.product, variant: item.variant },
+              {
+                $inc: {
+                  qty_reserved: -item.quantity, // রিজার্ভ কমানো (মুক্ত করা)
+                  total_sold: -item.quantity, // বিক্রি কমানো
+                },
+              },
+              { session }
+            );
+          }
+        }
+
+        // CASE B: Terminal -> Active (ভুল করে ক্যানসেল হয়েছিল, এখন ঠিক হচ্ছে) -> স্টক আবার কাটো
+        else if (wasTerminal && !isTerminal) {
+          for (const item of order.items ?? []) {
+            // এখানে স্টক চেক করা হচ্ছে না, কারণ সুপার এডমিন ফোর্সফুলি করছে
+            // তবে চাইলে আপনি স্টক চেক বসাতে পারেন
+            await GlobalStockModel.findOneAndUpdate(
+              { product: item.product, variant: item.variant },
+              {
+                $inc: {
+                  qty_reserved: item.quantity,
+                  total_sold: item.quantity,
+                },
+              },
+              { session }
+            );
+          }
+        }
+
+        // CASE C: Active -> Active (Processing -> Delivered) -> স্টকের কোনো পরিবর্তন নেই
+      }
+
+      const updatedOrder = await OrderModel.findOneAndUpdate(
+        { _id: order._id },
+        {
+          $set: { order_status: status },
+          $push: {
+            logs: {
+              user: user_id,
+              time: new Date(),
+              action: `SUPER_ADMIN_UPDATE: ${previousStatus} -> ${status}`,
+            },
+          },
+        },
+        { new: true, session }
+      );
+
+      if (!updatedOrder) {
+        throw new ApiError(HttpStatusCode.NOT_FOUND, "Order update failed");
       }
 
       await session.commitTransaction();
