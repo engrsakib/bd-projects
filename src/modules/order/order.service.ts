@@ -2140,7 +2140,9 @@ class Service {
     session.startTransaction();
 
     try {
-      const order = await OrderModel.findById(order_id).session(session);
+      const order = await OrderModel.findOne({ order_id: order_id }).session(
+        session
+      );
 
       if (!order) {
         throw new ApiError(
