@@ -2150,22 +2150,37 @@ class Service {
       }
 
       const previousStatus = order.order_status as ORDER_STATUS;
-
-      const resticstStatuses = [ORDER_STATUS.RTS];
-
-      if (resticstStatuses.includes(previousStatus)) {
+      if (!previousStatus) {
+        throw new ApiError(
+          HttpStatusCode.BAD_REQUEST,
+          `Order has no previous status, cannot update via super admin`
+        );
+      }
+      if (previousStatus === status) {
+        throw new ApiError(
+          HttpStatusCode.BAD_REQUEST,
+          `Order status is already ${status}, no change needed`
+        );
+      }
+      if (
+        previousStatus === ORDER_STATUS.CANCELLED ||
+        previousStatus === ORDER_STATUS.RETURNED
+      ) {
         throw new ApiError(
           HttpStatusCode.BAD_REQUEST,
           `Cannot change status from ${previousStatus} to ${status} via super admin update`
         );
       }
 
-      // ⚠️ সুপার এডমিনের জন্য কোনো রেস্ট্রিকশন চেক নেই (Bypass Validations)
-      // আমরা সরাসরি লজিকে চলে যাব
+      const resticstStatuses = [ORDER_STATUS.RTS];
 
-      // ==== স্টক ম্যানেজমেন্ট লজিক (Smart Stock Toggle) ====
+      if (resticstStatuses.includes(status)) {
+        throw new ApiError(
+          HttpStatusCode.BAD_REQUEST,
+          `Cannot change status from ${previousStatus} to ${status} via super admin update`
+        );
+      }
 
-      // ১. টার্মিনাল স্ট্যাটাসগুলো (যেগুলোতে স্টক রিলিজ থাকে)
       const terminalStatuses = [
         ORDER_STATUS.CANCELLED,
         ORDER_STATUS.RETURNED,
