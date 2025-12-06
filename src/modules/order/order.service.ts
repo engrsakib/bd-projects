@@ -2088,10 +2088,6 @@ class Service {
       ) {
         // restore stock if order is cancelled
         for (const item of updatedOrder.items ?? []) {
-          if (item.status === ORDER_STATUS.AWAITING_STOCK) {
-            continue; // skip stock restore for items that were never in stock
-          }
-
           const stock = await GlobalStockModel.findOne(
             {
               product: item.product,
@@ -2123,6 +2119,111 @@ class Service {
           //   }
           // }
         }
+      }
+
+      await session.commitTransaction();
+      return updatedOrder;
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
+  }
+
+  async superUpdateOrderStatus(
+    order_id: string | Types.ObjectId,
+    user_id: string,
+    status: ORDER_STATUS
+  ): Promise<IOrder | null> {
+    const session = await OrderModel.startSession();
+    session.startTransaction();
+
+    try {
+      const order = await OrderModel.findById(order_id).session(session);
+
+      if (!order) {
+        throw new ApiError(
+          HttpStatusCode.NOT_FOUND,
+          `Order was not found with id: ${order_id}`
+        );
+      }
+
+      const previousStatus = order.order_status as ORDER_STATUS;
+
+      // ⚠️ সুপার এডমিনের জন্য কোনো রেস্ট্রিকশন চেক নেই (Bypass Validations)
+      // আমরা সরাসরি লজিকে চলে যাব
+
+      // ==== স্টক ম্যানেজমেন্ট লজিক (Smart Stock Toggle) ====
+
+      // ১. টার্মিনাল স্ট্যাটাসগুলো (যেগুলোতে স্টক রিলিজ থাকে)
+      const terminalStatuses = [
+        ORDER_STATUS.CANCELLED,
+        ORDER_STATUS.RETURNED,
+        ORDER_STATUS.FAILED,
+        ORDER_STATUS.LOST,
+        ORDER_STATUS.UNKNOWN, // যদি থাকে
+      ];
+
+      const wasTerminal = terminalStatuses.includes(previousStatus);
+      const isTerminal = terminalStatuses.includes(status);
+
+      // যদি স্ট্যাটাস পরিবর্তন হয়, তবেই স্টক আপডেট হবে
+      if (previousStatus !== status) {
+        // CASE A: Active -> Terminal (অর্ডার ক্যানসেল হচ্ছে) -> স্টক ফেরত দাও
+        if (!wasTerminal && isTerminal) {
+          for (const item of order.items ?? []) {
+            await GlobalStockModel.findOneAndUpdate(
+              { product: item.product, variant: item.variant },
+              {
+                $inc: {
+                  qty_reserved: -item.quantity, // রিজার্ভ কমানো (মুক্ত করা)
+                  total_sold: -item.quantity, // বিক্রি কমানো
+                },
+              },
+              { session }
+            );
+          }
+        }
+
+        // CASE B: Terminal -> Active (ভুল করে ক্যানসেল হয়েছিল, এখন ঠিক হচ্ছে) -> স্টক আবার কাটো
+        else if (wasTerminal && !isTerminal) {
+          for (const item of order.items ?? []) {
+            // এখানে স্টক চেক করা হচ্ছে না, কারণ সুপার এডমিন ফোর্সফুলি করছে
+            // তবে চাইলে আপনি স্টক চেক বসাতে পারেন
+            await GlobalStockModel.findOneAndUpdate(
+              { product: item.product, variant: item.variant },
+              {
+                $inc: {
+                  qty_reserved: item.quantity,
+                  total_sold: item.quantity,
+                },
+              },
+              { session }
+            );
+          }
+        }
+
+        // CASE C: Active -> Active (Processing -> Delivered) -> স্টকের কোনো পরিবর্তন নেই
+      }
+
+      const updatedOrder = await OrderModel.findOneAndUpdate(
+        { _id: order_id },
+        {
+          $set: { order_status: status },
+          $push: {
+            logs: {
+              user: user_id,
+              time: new Date(),
+              action: `SUPER_ADMIN_UPDATE: ${previousStatus} -> ${status}`,
+            },
+          },
+        },
+        { new: true, session }
+      );
+
+      if (!updatedOrder) {
+        throw new ApiError(HttpStatusCode.NOT_FOUND, "Order update failed");
       }
 
       await session.commitTransaction();
