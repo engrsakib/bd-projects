@@ -2151,6 +2151,15 @@ class Service {
 
       const previousStatus = order.order_status as ORDER_STATUS;
 
+      const resticstStatuses = [ORDER_STATUS.RTS];
+
+      if (resticstStatuses.includes(previousStatus)) {
+        throw new ApiError(
+          HttpStatusCode.BAD_REQUEST,
+          `Cannot change status from ${previousStatus} to ${status} via super admin update`
+        );
+      }
+
       // ⚠️ সুপার এডমিনের জন্য কোনো রেস্ট্রিকশন চেক নেই (Bypass Validations)
       // আমরা সরাসরি লজিকে চলে যাব
 
@@ -2161,6 +2170,7 @@ class Service {
         ORDER_STATUS.CANCELLED,
         ORDER_STATUS.RETURNED,
         ORDER_STATUS.FAILED,
+        ORDER_STATUS.INCOMPLETE,
         ORDER_STATUS.LOST,
         ORDER_STATUS.UNKNOWN, // যদি থাকে
       ];
