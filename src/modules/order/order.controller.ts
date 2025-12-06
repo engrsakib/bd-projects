@@ -285,15 +285,11 @@ class Controller extends BaseController {
           "Order ID and Status are required"
         );
       }
-
-      const userId = req.user?._id;
-      if (!userId) {
-        throw new ApiError(HttpStatusCode.UNAUTHORIZED, "Unauthorized access");
-      }
+      console.log(req.user);
 
       const result = await OrderService.superUpdateOrderStatus(
         id,
-        userId,
+        req.user?.name as string,
         status
       );
 

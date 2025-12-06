@@ -2132,7 +2132,7 @@ class Service {
   }
 
   async superUpdateOrderStatus(
-    order_id: string | Types.ObjectId,
+    order_id: string,
     user_id: string,
     status: ORDER_STATUS
   ): Promise<IOrder | null> {
@@ -2143,6 +2143,8 @@ class Service {
       const order = await OrderModel.findOne({ order_id: order_id }).session(
         session
       );
+
+      // console.log(order, "order id ")
 
       if (!order) {
         throw new ApiError(
@@ -2235,7 +2237,7 @@ class Service {
       }
 
       const updatedOrder = await OrderModel.findOneAndUpdate(
-        { _id: order_id },
+        { _id: order._id },
         {
           $set: { order_status: status },
           $push: {
