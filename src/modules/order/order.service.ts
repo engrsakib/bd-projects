@@ -2013,6 +2013,123 @@ class Service {
     };
   }
 
+  // async updateOrderStatus(
+  //   order_id: string | Types.ObjectId,
+  //   user_id: string,
+  //   status: ORDER_STATUS
+  // ): Promise<IOrder | null> {
+  //   const session = await OrderModel.startSession();
+  //   session.startTransaction();
+  //   try {
+  //     const order = await OrderModel.findById(order_id).session(session);
+  //     if (!order) {
+  //       throw new ApiError(
+  //         HttpStatusCode.NOT_FOUND,
+  //         `Order was not found with id: ${order_id}`
+  //       );
+  //     }
+
+  //     const previousStatus = order.order_status || "N/A";
+
+  //     if (
+  //       previousStatus === ORDER_STATUS.CANCELLED ||
+  //       previousStatus === ORDER_STATUS.RETURNED ||
+  //       previousStatus === ORDER_STATUS.FAILED ||
+  //       previousStatus === ORDER_STATUS.LOST ||
+  //       previousStatus === ORDER_STATUS.EXCHANGED ||
+  //       previousStatus === ORDER_STATUS.INCOMPLETE ||
+  //       previousStatus === ORDER_STATUS.PARTIAL
+  //     ) {
+  //       throw new ApiError(
+  //         HttpStatusCode.BAD_REQUEST,
+  //         `Cannot change status from ${previousStatus} to ${status}`
+  //       );
+  //     }
+
+  //     if (
+  //       order.order_status === ORDER_STATUS.HANDED_OVER_TO_COURIER &&
+  //       [ORDER_STATUS.RTS, ORDER_STATUS.ACCEPTED, ORDER_STATUS.PLACED].includes(
+  //         status
+  //       )
+  //     ) {
+  //       throw new ApiError(
+  //         HttpStatusCode.BAD_REQUEST,
+  //         `Cannot change status from handed_over_to_courier to ${status}`
+  //       );
+  //     }
+
+  //     const updatedOrder = await OrderModel.findOneAndUpdate(
+  //       { _id: order_id },
+  //       {
+  //         $set: { order_status: status },
+  //         $push: {
+  //           logs: {
+  //             user: user_id,
+  //             time: new Date(),
+  //             action: `ORDER_STATUS_UPDATED: ${previousStatus} -> ${status}`,
+  //           },
+  //         },
+  //       },
+  //       { new: true, session }
+  //     );
+
+  //     if (!updatedOrder) {
+  //       throw new ApiError(
+  //         HttpStatusCode.NOT_FOUND,
+  //         `Order was not found with id: ${order_id}`
+  //       );
+  //     }
+
+  //     if (
+  //       status === ORDER_STATUS.CANCELLED ||
+  //       status === ORDER_STATUS.RETURNED ||
+  //       status === ORDER_STATUS.FAILED
+  //     ) {
+  //       // restore stock if order is cancelled
+  //       for (const item of updatedOrder.items ?? []) {
+  //         const stock = await GlobalStockModel.findOne(
+  //           {
+  //             product: item.product,
+  //             variant: item.variant,
+  //           },
+  //           null,
+  //           { session }
+  //         );
+
+  //         if (stock) {
+  //           stock.qty_reserved -= item.quantity;
+  //           await stock.save({ session });
+  //         }
+
+  //         // restore lots
+  //         // for (const lotUsage of item.lots) {
+  //         //   const lot = await LotModel.findById(lotUsage.lotId).session(
+  //         //     session
+  //         //   );
+  //         //   if (!lot) {
+  //         //     throw new ApiError(
+  //         //       HttpStatusCode.NOT_FOUND,
+  //         //       `Lot not found with id: ${lotUsage.lotId}`
+  //         //     );
+  //         //   }
+  //         //   if (lot) {
+  //         //     lot.qty_available += lotUsage.deducted;
+  //         //     await lot.save({ session });
+  //         //   }
+  //         // }
+  //       }
+  //     }
+
+  //     await session.commitTransaction();
+  //     return updatedOrder;
+  //   } catch (error) {
+  //     await session.abortTransaction();
+  //     throw error;
+  //   } finally {
+  //     session.endSession();
+  //   }
+  // }
+
   async updateOrderStatus(
     order_id: string | Types.ObjectId,
     user_id: string,
@@ -2020,7 +2137,9 @@ class Service {
   ): Promise<IOrder | null> {
     const session = await OrderModel.startSession();
     session.startTransaction();
+
     try {
+      // ১. অর্ডার খুঁজে বের করা
       const order = await OrderModel.findById(order_id).session(session);
       if (!order) {
         throw new ApiError(
@@ -2031,6 +2150,7 @@ class Service {
 
       const previousStatus = order.order_status || "N/A";
 
+      // ২. ভ্যালিডেশন: কোন কোন স্ট্যাটাস থেকে পরিবর্তন করা যাবে না
       if (
         previousStatus === ORDER_STATUS.CANCELLED ||
         previousStatus === ORDER_STATUS.RETURNED ||
@@ -2038,8 +2158,8 @@ class Service {
         previousStatus === ORDER_STATUS.LOST ||
         previousStatus === ORDER_STATUS.EXCHANGED ||
         previousStatus === ORDER_STATUS.INCOMPLETE ||
-        previousStatus === ORDER_STATUS.PARTIAL ||
-        previousStatus === ORDER_STATUS.AWAITING_STOCK
+        previousStatus === ORDER_STATUS.PARTIAL
+        // 🛠️ FIX 1: AWAITING_STOCK এখান থেকে সরিয়ে দেওয়া হয়েছে
       ) {
         throw new ApiError(
           HttpStatusCode.BAD_REQUEST,
@@ -2047,6 +2167,7 @@ class Service {
         );
       }
 
+      // বিশেষ চেক: কুরিয়ারে দেওয়ার পর নির্দিষ্ট কিছু স্ট্যাটাসে যাওয়া যাবে না
       if (
         order.order_status === ORDER_STATUS.HANDED_OVER_TO_COURIER &&
         [ORDER_STATUS.RTS, ORDER_STATUS.ACCEPTED, ORDER_STATUS.PLACED].includes(
@@ -2059,6 +2180,7 @@ class Service {
         );
       }
 
+      // ৩. অর্ডার স্ট্যাটাস আপডেট করা এবং লগ রাখা
       const updatedOrder = await OrderModel.findOneAndUpdate(
         { _id: order_id },
         {
@@ -2081,43 +2203,47 @@ class Service {
         );
       }
 
+      // ৪. স্টক রিলিজ লজিক (যদি ক্যানসেল বা রিটার্ন হয়)
       if (
         status === ORDER_STATUS.CANCELLED ||
         status === ORDER_STATUS.RETURNED ||
         status === ORDER_STATUS.FAILED
       ) {
-        // restore stock if order is cancelled
-        for (const item of updatedOrder.items ?? []) {
-          const stock = await GlobalStockModel.findOne(
-            {
-              product: item.product,
-              variant: item.variant,
-            },
-            null,
-            { session }
-          );
+        // 🛠️ FIX 2: যদি আগের স্ট্যাটাস AWAITING_STOCK হয়, তবে স্টক রিলিজ হবে না
+        // কারণ তখন কোনো স্টক রিজার্ভ করা ছিল না
+        if (previousStatus !== ORDER_STATUS.AWAITING_STOCK) {
+          for (const item of updatedOrder.items ?? []) {
+            // গ্লোবাল স্টক আপডেট
+            const stock = await GlobalStockModel.findOne(
+              {
+                product: item.product,
+                variant: item.variant,
+              },
+              null,
+              { session }
+            );
 
-          if (stock) {
-            stock.qty_reserved -= item.quantity;
-            await stock.save({ session });
+            if (stock) {
+              // রিজার্ভেশন কমানো হচ্ছে
+              stock.qty_reserved -= item.quantity;
+
+              // (অপশনাল) চাইলে total_sold ও কমাতে পারেন, যদি আপনার লজিকে থাকে
+              // stock.total_sold = Math.max(0, (stock.total_sold || 0) - item.quantity);
+
+              await stock.save({ session });
+            }
+
+            // (অপশনাল) লট আপডেট লজিক যদি থাকে, তবে এখানে আনকমেন্ট করে দিতে পারেন
+            /*
+            for (const lotUsage of item.lots) {
+              const lot = await LotModel.findById(lotUsage.lotId).session(session);
+              if (lot) {
+                lot.qty_available += lotUsage.deducted;
+                await lot.save({ session });
+              }
+            }
+            */
           }
-
-          // restore lots
-          // for (const lotUsage of item.lots) {
-          //   const lot = await LotModel.findById(lotUsage.lotId).session(
-          //     session
-          //   );
-          //   if (!lot) {
-          //     throw new ApiError(
-          //       HttpStatusCode.NOT_FOUND,
-          //       `Lot not found with id: ${lotUsage.lotId}`
-          //     );
-          //   }
-          //   if (lot) {
-          //     lot.qty_available += lotUsage.deducted;
-          //     await lot.save({ session });
-          //   }
-          // }
         }
       }
 
