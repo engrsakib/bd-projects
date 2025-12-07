@@ -942,7 +942,7 @@ class Service {
         await GlobalStockModel.findOneAndUpdate(
           { product: group.product, variant: group.variant },
           { $inc: { qty_reserved: -qty, available_quantity: -qty } },
-          { session }
+          { session, new: true }
         );
       }
       order.is_assigned_product_scan = true;
