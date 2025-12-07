@@ -7,7 +7,9 @@ import { HttpStatusCode } from "@/lib/httpStatus";
 import { ProductModel } from "../product/product.model";
 import { IPaginationOptions } from "@/interfaces/pagination.interfaces";
 import { paginationHelpers } from "@/helpers/paginationHelpers";
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { StockModel } from "../stock/stock.model";
+import { GlobalStockModel } from "../stock/globalStock.model";
 
 class Service {
   // this is for product service
@@ -294,6 +296,171 @@ class Service {
     };
   }
 
+  // async searchVariantsBySkuForAdmin(
+  //   search_query: string,
+  //   options: IPaginationOptions
+  // ) {
+  //   const {
+  //     limit = 10,
+  //     page = 1,
+  //     skip,
+  //     sortBy = "createdAt",
+  //     sortOrder = "desc",
+  //   } = paginationHelpers.calculatePagination(options);
+
+  //   // Accept either options.product_type or options.order_type (clients may send either)
+  //   const rawTypeFilter =
+  //     (options as any)?.product_type ?? (options as any)?.order_type;
+  //   console.log(rawTypeFilter, "product_type/order_type filter (raw)");
+
+  //   let productTypesLower: string[] | null = null;
+  //   if (rawTypeFilter) {
+  //     let productTypes: string[] = [];
+  //     if (Array.isArray(rawTypeFilter)) {
+  //       productTypes = rawTypeFilter.map((v: string) => String(v).trim());
+  //     } else {
+  //       productTypes = String(rawTypeFilter)
+  //         .split(",")
+  //         .map((s) => s.trim())
+  //         .filter(Boolean);
+  //     }
+
+  //     // Normalize common typos and casing (extend map if necessary)
+  //     const corrections: Record<string, string> = {
+  //       pre_orde: "pre_order",
+  //       preorder: "pre_order",
+  //       preorde: "pre_order",
+  //       PREORDER: "pre_order",
+  //       PRE_ORDE: "pre_order",
+  //       // add more if you observe other common mistakes
+  //     };
+  //     const normalized = productTypes.map((p) => {
+  //       const key = p;
+  //       const keyLower = p.toLowerCase();
+  //       return corrections[key] ?? corrections[keyLower] ?? p;
+  //     });
+
+  //     // Use lowercase version for case-insensitive matching in pipeline
+  //     productTypesLower = normalized.map((p) => String(p).toLowerCase());
+  //     // remove empties
+  //     productTypesLower = productTypesLower.filter(Boolean);
+  //     if (productTypesLower.length === 0) productTypesLower = null;
+  //   }
+
+  //   /**
+  //    * Pipeline:
+  //    * 1) $lookup products
+  //    * 2) $unwind product
+  //    * 3) $match product.is_published
+  //    * 4) IF productTypesLower -> case-insensitive match using $expr + $toLower
+  //    * 5) variant-level sku match, sort, skip, limit
+  //    */
+
+  //   const pipeline: any[] = [
+  //     {
+  //       $lookup: {
+  //         from: "products",
+  //         localField: "product",
+  //         foreignField: "_id",
+  //         as: "product",
+  //       },
+  //     },
+  //     { $unwind: "$product" },
+
+  //     // always require published products
+  //     // { $match: { "product.is_published": true } },
+  //   ];
+
+  //   // add case-insensitive product_type match if filter provided
+  //   if (productTypesLower) {
+  //     pipeline.push({
+  //       $match: {
+  //         $expr: {
+  //           $in: [{ $toLower: "$product.product_type" }, productTypesLower],
+  //         },
+  //       },
+  //     });
+  //   }
+
+  //   // variant-level search
+  //   if (search_query) {
+  //     pipeline.push({
+  //       $match: {
+  //         sku: { $regex: search_query, $options: "i" },
+  //       },
+  //     });
+  //   }
+
+  //   // sorting & pagination
+  //   pipeline.push(
+  //     { $sort: { [sortBy]: sortOrder === "desc" ? -1 : 1 } },
+  //     { $skip: skip },
+  //     { $limit: limit }
+  //   );
+
+  //   // Fetch variants
+  //   const variants = await VariantModel.aggregate(pipeline);
+
+  //   // Total count pipeline (mirror same filters)
+  //   const countPipeline: any[] = [
+  //     {
+  //       $lookup: {
+  //         from: "products",
+  //         localField: "product",
+  //         foreignField: "_id",
+  //         as: "product",
+  //       },
+  //     },
+  //     { $unwind: "$product" },
+  //     { $match: { "product.is_published": true } },
+  //   ];
+
+  //   if (productTypesLower) {
+  //     countPipeline.push({
+  //       $match: {
+  //         $expr: {
+  //           $in: [{ $toLower: "$product.product_type" }, productTypesLower],
+  //         },
+  //       },
+  //     });
+  //   }
+
+  //   if (search_query) {
+  //     countPipeline.push({
+  //       $match: {
+  //         sku: { $regex: search_query, $options: "i" },
+  //       },
+  //     });
+  //   }
+
+  //   countPipeline.push({ $count: "total" });
+
+  //   const totalCountAgg = await VariantModel.aggregate(countPipeline);
+  //   const total = totalCountAgg[0]?.total || 0;
+
+  //   // Prepare data: inject stock for all items (response shape preserved)
+  //   const data = await Promise.all(
+  //     variants.map(async (item) => {
+  //       const stock = await StockModel.findOne({
+  //         product: item.product._id,
+  //         variant: item._id,
+  //       }).lean();
+  //       return {
+  //         ...item,
+  //         stock: stock?.available_quantity || 0,
+  //       };
+  //     })
+  //   );
+
+  //   return {
+  //     meta: {
+  //       page,
+  //       limit,
+  //       total,
+  //     },
+  //     data,
+  //   };
+  // }
   async searchVariantsBySkuForAdmin(
     search_query: string,
     options: IPaginationOptions
@@ -436,16 +603,22 @@ class Service {
     const totalCountAgg = await VariantModel.aggregate(countPipeline);
     const total = totalCountAgg[0]?.total || 0;
 
-    // Prepare data: inject stock for all items (response shape preserved)
+    // Prepare data: inject stock for all items (using GlobalStockModel logic)
     const data = await Promise.all(
       variants.map(async (item) => {
-        const stock = await StockModel.findOne({
+        // এখানে StockModel এর পরিবর্তে GlobalStockModel ব্যবহার করা হয়েছে
+        const stock = await GlobalStockModel.findOne({
           product: item.product._id,
           variant: item._id,
         }).lean();
+
+        const available = stock?.available_quantity || 0;
+        const reserved = stock?.qty_reserved || 0;
+
         return {
           ...item,
-          stock: stock?.available_quantity || 0,
+          // রিকোয়ারমেন্ট অনুযায়ী: available_quantity থেকে qty_reserved বিয়োগ করে পাঠানো হচ্ছে
+          stock: available - reserved,
         };
       })
     );
