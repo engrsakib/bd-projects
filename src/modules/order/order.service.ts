@@ -1274,6 +1274,309 @@ class Service {
     return order as IOrder;
   }
 
+  async getOrderByOrder_Id(id: string): Promise<IOrder | null> {
+    const orderArr = await OrderModel.aggregate([
+      { $match: { order_id: id } },
+
+      // Populate previous_order (only one level, light fields)
+      // --- User or Admin dynamic populate ---
+      {
+        $lookup: {
+          from: "users",
+          localField: "user",
+          foreignField: "_id",
+          as: "userFromUsers",
+        },
+      },
+      {
+        $lookup: {
+          from: "admins",
+          localField: "user",
+          foreignField: "_id",
+          as: "userFromAdmins",
+        },
+      },
+      {
+        $addFields: {
+          order_by: {
+            $cond: {
+              if: { $eq: ["$user_or_admin_model", "User"] },
+              then: "$userFromUsers",
+              else: "$userFromAdmins",
+            },
+          },
+        },
+      },
+      {
+        $project: {
+          userFromUsers: 0,
+          userFromAdmins: 0,
+        },
+      },
+
+      {
+        $lookup: {
+          from: "orders",
+          localField: "previous_order",
+          foreignField: "_id",
+          as: "previousOrderData",
+        },
+      },
+      {
+        $unwind: {
+          path: "$previousOrder",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+
+      // --- Admin Notes Populate ---
+      {
+        $addFields: {
+          _admin_note_userIds: {
+            $map: {
+              input: { $ifNull: ["$admin_notes", []] },
+              as: "note",
+              in: "$$note.added_by",
+            },
+          },
+        },
+      },
+      {
+        $lookup: {
+          from: "admins",
+          let: { adminUserIds: "$_admin_note_userIds" },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $in: ["$_id", { $ifNull: ["$$adminUserIds", []] }] },
+              },
+            },
+            {
+              $project: {
+                _id: 1,
+                name: 1,
+                phone_number: 1,
+                role: 1,
+              },
+            },
+          ],
+          as: "_admin_note_users",
+        },
+      },
+      {
+        $addFields: {
+          admin_notes: {
+            $map: {
+              input: { $ifNull: ["$admin_notes", []] },
+              as: "note",
+              in: {
+                $mergeObjects: [
+                  "$$note",
+                  {
+                    added_by: {
+                      $arrayElemAt: [
+                        {
+                          $filter: {
+                            input: "$_admin_note_users",
+                            as: "u",
+                            cond: { $eq: ["$$u._id", "$$note.added_by"] },
+                          },
+                        },
+                        0,
+                      ],
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+      {
+        $project: {
+          _admin_note_userIds: 0,
+          _admin_note_users: 0,
+        },
+      },
+
+      // Populate previous_variant from previousOrderData.items.previous_variant
+      // {
+      //   $lookup: {
+      //     from: "variants",
+      //     let: { previousVariants: "$previousOrderData.items.previous_variant" },
+      //     pipeline: [
+      //       {
+      //         $match: {
+      //           $expr: { $in: ["$_id", { $ifNull: ["$$previousVariants", []] }] },
+      //         },
+      //       },
+      //     ],
+      //     as: "previousVariantsData",
+      //   },
+      // },
+
+      // Attach only select fields from previous_order & previous_variant
+      {
+        $addFields: {
+          previous_order: {
+            $cond: [
+              { $ifNull: ["$previousOrderData._id", false] },
+              {
+                _id: "$previousOrderData._id",
+                order_id: "$previousOrderData.order_id",
+                invoice_number: "$previousOrderData.invoice_number",
+                total_items: "$previousOrderData.total_items",
+                total_price: "$previousOrderData.total_price",
+                payable_amount: "$previousOrderData.payable_amount",
+                order_status: "$previousOrderData.order_status",
+                order_at: "$previousOrderData.order_at",
+                // Attach previous_variant array
+                previous_variant: "$previousVariantsData",
+              },
+              null,
+            ],
+          },
+        },
+      },
+
+      // Populate product, variant, courier, logs for main order
+      {
+        $lookup: {
+          from: "products",
+          localField: "items.product",
+          foreignField: "_id",
+          as: "productsData",
+        },
+      },
+      {
+        $lookup: {
+          from: "variants",
+          localField: "items.variant",
+          foreignField: "_id",
+          as: "variantsData",
+        },
+      },
+      {
+        $lookup: {
+          from: "couriers",
+          localField: "courier",
+          foreignField: "_id",
+          as: "courierData",
+        },
+      },
+      {
+        $lookup: {
+          from: "admins",
+          localField: "logs.user",
+          foreignField: "_id",
+          as: "logUsers",
+        },
+      },
+      {
+        $addFields: {
+          items: {
+            $map: {
+              input: { $sortArray: { input: "$items", sortBy: { _id: 1 } } },
+              as: "item",
+              in: {
+                $mergeObjects: [
+                  "$$item",
+                  {
+                    product: {
+                      $arrayElemAt: [
+                        {
+                          $filter: {
+                            input: "$productsData",
+                            as: "pd",
+                            cond: { $eq: ["$$pd._id", "$$item.product"] },
+                          },
+                        },
+                        0,
+                      ],
+                    },
+                    variant: {
+                      $arrayElemAt: [
+                        {
+                          $filter: {
+                            input: "$variantsData",
+                            as: "vd",
+                            cond: { $eq: ["$$vd._id", "$$item.variant"] },
+                          },
+                        },
+                        0,
+                      ],
+                    },
+                    previous_variant: {
+                      $arrayElemAt: [
+                        {
+                          $filter: {
+                            input: "$variantsData",
+                            as: "pv",
+                            cond: {
+                              $eq: ["$$pv._id", "$$item.previous_variant"],
+                            },
+                          },
+                        },
+                        0,
+                      ],
+                    },
+                  },
+                ],
+              },
+            },
+          },
+          courier: { $arrayElemAt: ["$courierData", 0] },
+          logs: {
+            $map: {
+              input: { $sortArray: { input: "$logs", sortBy: { time: -1 } } },
+              as: "log",
+              in: {
+                _id: "$$log._id",
+                time: "$$log.time",
+                action: "$$log.action",
+                user: {
+                  $let: {
+                    vars: {
+                      u: {
+                        $arrayElemAt: [
+                          {
+                            $filter: {
+                              input: "$logUsers",
+                              as: "lu",
+                              cond: { $eq: ["$$lu._id", "$$log.user"] },
+                            },
+                          },
+                          0,
+                        ],
+                      },
+                    },
+                    in: {
+                      _id: "$$u._id",
+                      name: "$$u.name",
+                      image: "$$u.image",
+                      phone_number: "$$u.phone_number",
+                      email: "$$u.email",
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    ]);
+
+    const order = orderArr[0];
+    if (!order) {
+      throw new ApiError(
+        HttpStatusCode.NOT_FOUND,
+        `Order was not found with id: ${id}`
+      );
+    }
+
+    return order as IOrder;
+  }
+
   async getOrders(query: OrderQuery): Promise<{
     meta: { page: number; limit: number; total: number };
     status_count: Istatus_count & { all: number };
