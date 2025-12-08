@@ -86,6 +86,17 @@ class Controller extends BaseController {
     });
   });
 
+  getOrderByOrder_Id = this.catchAsync(async (req: Request, res: Response) => {
+    // console.log(req.params.id, req.user);
+    const data = await OrderService.getOrderByOrder_Id(req.params.id as string);
+    this.sendResponse(res, {
+      statusCode: HttpStatusCode.OK,
+      success: true,
+      message: "Order retrieved successfully",
+      data,
+    });
+  });
+
   getOrders = this.catchAsync(async (req: Request, res: Response) => {
     // console.log(req.query, "params")
     const query: any = req.query;
