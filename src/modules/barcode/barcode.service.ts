@@ -49,7 +49,7 @@ class Service {
         admin_note:
           admin_note ||
           `barcode initialized for stock by ${(user as any).name || "System"} and not assigned yet`,
-        system_message: "Barcode created for stock initialization",
+        system_message: `Barcode created for stock initialization on ${new Date().toLocaleString("en-GB", { timeZone: "Asia/Dhaka" })}`,
       };
 
       const doc: Partial<IBarcode>[] = [];
@@ -100,7 +100,7 @@ class Service {
       const updateLog = {
         ...updated_by,
         admin_note: admin_note ?? undefined,
-        system_message: `Status changed from ${barcodeDoc.status} to ${status ? status : barcodeDoc.status} on ${new Date().toISOString()} and conditions set from ${barcodeDoc.conditions} to ${conditions ? conditions : barcodeDoc.conditions}`,
+        system_message: `Status changed from ${barcodeDoc.status} to ${status ? status : barcodeDoc.status} on ${new Date().toLocaleString("en-GB", { timeZone: "Asia/Dhaka" })} and conditions set from ${barcodeDoc.conditions} to ${conditions ? conditions : barcodeDoc.conditions}`,
       };
 
       if (!Array.isArray(barcodeDoc.updated_logs)) {
@@ -342,11 +342,11 @@ class Service {
     ) {
       throw new ApiError(
         HttpStatusCode.BAD_REQUEST,
-        `Barcode status is ${barcodeDoc.status}, not ready for use`
+        `Barcode status is already ${barcodeDoc.status},`
       );
     }
 
-    console.log(check_for, "check for");
+    // console.log(check_for, "check for");
 
     if (
       check_for === checkFor.RETURNED &&
@@ -354,7 +354,7 @@ class Service {
     ) {
       throw new ApiError(
         HttpStatusCode.BAD_REQUEST,
-        `Barcode status is ${barcodeDoc.status}, not ready for returning`
+        `Barcode status is ${barcodeDoc.status}, only assigned barcode can be returned.`
       );
     }
 
@@ -672,7 +672,7 @@ class Service {
           const updateLog = {
             ...updated_by,
             admin_note: admin_note ?? undefined,
-            system_message: `Status changed to assigned on ${new Date().toISOString()}; assigned to lot ${lot._id} and stock ${stock._id}. Prev status: ${prevStatus}; prev conditions: ${prevConditions}`,
+            system_message: `Status changed to assigned on ${new Date().toLocaleString("en-GB", { timeZone: "Asia/Dhaka" })}; assigned to lot ${lot._id} and stock ${stock._id}. Prev status: ${prevStatus}; prev conditions: ${prevConditions}`,
           };
 
           const updated = await BarcodeModel.findOneAndUpdate(
@@ -846,7 +846,7 @@ class Service {
             name: updatedBy.name,
             role: updatedBy.role,
             date: updatedBy.date,
-            system_message: `Assigned to Order #${order.order_id} on ${new Date().toISOString()}; Prev status: ${prevStatus}; Prev conditions: ${prevConditions}`,
+            system_message: `Assigned to Order #${order.order_id} on ${new Date().toLocaleString("en-GB", { timeZone: "Asia/Dhaka" })}; Prev status: ${prevStatus}; Prev conditions: ${prevConditions}`,
           };
 
           const claimed = await BarcodeModel.findOneAndUpdate(
@@ -1334,7 +1334,7 @@ class Service {
             name: updatedBy.name,
             role: updatedBy.role,
             date: updatedBy.date,
-            system_message: `Returned Order #${order.order_id} on ${new Date().toISOString()}; Prev status: ${prevStatus}; Prev conditions: ${prevConditions}`,
+            system_message: `Returned Order #${order.order_id} on ${new Date().toLocaleString("en-GB", { timeZone: "Asia/Dhaka" })}; Prev status: ${prevStatus}; Prev conditions: ${prevConditions}`,
           };
 
           const claimed = await BarcodeModel.findOneAndUpdate(
