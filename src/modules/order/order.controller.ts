@@ -87,6 +87,7 @@ class Controller extends BaseController {
   });
 
   getOrderByOrder_Id = this.catchAsync(async (req: Request, res: Response) => {
+    // console.log("Getting order by order_id", req.params.id);
     // console.log(req.params.id, req.user);
     const data = await OrderService.getOrderByOrder_Id(req.params.id as string);
     this.sendResponse(res, {

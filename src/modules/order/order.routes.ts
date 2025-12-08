@@ -99,6 +99,13 @@ router.get(
 );
 
 router.get(
+  "/orders/:id/by-order-id",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.ORDER_VIEW),
+  OrderController.getOrderByOrder_Id
+);
+
+router.get(
   "/all-orders",
   JwtInstance.authenticate(Object.values(ROLES)),
   JwtInstance.hasPermissions(PermissionEnum.ORDER_VIEW),

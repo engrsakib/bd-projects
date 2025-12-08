@@ -1276,7 +1276,7 @@ class Service {
 
   async getOrderByOrder_Id(id: string): Promise<IOrder | null> {
     const orderArr = await OrderModel.aggregate([
-      { $match: { order_id: id } },
+      { $match: { order_id: Number(id) } },
 
       // Populate previous_order (only one level, light fields)
       // --- User or Admin dynamic populate ---
