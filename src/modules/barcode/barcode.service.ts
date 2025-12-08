@@ -55,7 +55,7 @@ class Service {
       const doc: Partial<IBarcode>[] = [];
       for (let i = 0; i < product_count; i++) {
         const barcodeValue = BarcodeService.generateEAN13();
-        doc.push({
+        doc.unshift({
           barcode: barcodeValue,
           sku: sku,
           variant: variant._id,

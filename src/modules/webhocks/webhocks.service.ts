@@ -5,6 +5,9 @@ import { ORDER_STATUS } from "@/modules/order/order.enums";
 import CourierModel from "../courier/courier.model";
 import { IOrderStatus } from "../order/order.interface";
 import { OrderService } from "../order/order.service";
+import { BarcodeModel } from "../barcode/barcode.model";
+import { productBarcodeStatus } from "../barcode/barcode.enum";
+import { IOrderItem } from "@/interfaces/common.interface";
 
 // Map steadfast status to system status
 const STATUS_MAP: Record<string, string> = {
@@ -73,6 +76,42 @@ class service extends BaseController {
       }
       order.order_status = mappedStatus as IOrderStatus;
       courier.order_status = mappedStatus as ORDER_STATUS;
+
+      if (String(data.status).toLowerCase() === "delivered") {
+        const allBarcodes = (order.items as IOrderItem[]).reduce(
+          (acc: string[], item: any) => {
+            if (item.barcode && item.barcode.length > 0) {
+              acc.push(...item.barcode);
+            }
+            return acc;
+          },
+          []
+        );
+
+        if (allBarcodes.length > 0) {
+          await BarcodeModel.updateMany(
+            { barcode: { $in: allBarcodes } },
+            {
+              $set: { status: productBarcodeStatus.SOLD },
+              $push: {
+                updated_logs: {
+                  $each: [
+                    // ডাটা অবজেক্টটি এখানে থাকবে
+                    {
+                      name: "System Webhook",
+                      role: "system",
+                      admin_note: "Auto updated to sold via Courier Webhook",
+                      system_message: `Order Delivered. Consignment: ${data.consignment_id} -- customer-name: ${order.customer_name} - customer-phone: ${order.customer_number} and order-id: ${order.order_id}`,
+                      date: new Date(),
+                    },
+                  ],
+                  $position: 0, // এটি নিশ্চিত করে যে লগটি শুরুতে বসবে
+                },
+              },
+            }
+          );
+        }
+      }
 
       if ("cod_amount" in data) {
         if (
