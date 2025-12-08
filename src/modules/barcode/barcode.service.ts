@@ -150,7 +150,6 @@ class Service {
     const limit = Math.max(1, options?.limit ?? 10);
     const skip = (page - 1) * limit;
 
-    // Build dynamic match object — only add keys if value is provided (non-empty)
     const match: Record<string, any> = {};
     if (sku) match.sku = sku;
     if (barcode) match.barcode = barcode;
@@ -164,14 +163,11 @@ class Service {
       match.conditions = options.conditions;
     }
 
-    // Collection name for Variant model (use actual model import in file)
     const variantColl = VariantModel.collection.name; // e.g. "variants"
 
-    // Aggregation pipeline with $facet to get total + paginated data in one query
-    // and $lookup inside the data facet to "populate" variant (projecting only required fields)
     const pipeline: any[] = [
       { $match: match },
-      { $sort: { createdAt: -1 } },
+      { $sort: { updatedAt: -1 } },
       {
         $facet: {
           metadata: [{ $count: "total" }],
