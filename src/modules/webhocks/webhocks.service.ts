@@ -101,7 +101,7 @@ class service extends BaseController {
                       name: "System Webhook",
                       role: "system",
                       admin_note: "Auto updated to sold via Courier Webhook",
-                      system_message: `Order Delivered. Consignment: ${data.consignment_id} -- customer-name: ${order.customer_name} - customer-phone: ${order.customer_number} and order-id: ${order.order_id}`,
+                      system_message: `Order Delivered. Consignment: ${data.consignment_id} -- customer-name: ${order.customer_name} - customer-phone: ${order.customer_number} and order-id: ${order.order_id} on ${new Date().toISOString()}`,
                       date: new Date(),
                     },
                   ],
