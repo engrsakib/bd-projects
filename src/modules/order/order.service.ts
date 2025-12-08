@@ -483,16 +483,11 @@ class Service {
   ): Promise<{ order: IOrder[]; payment_url: string }> {
     const session = await mongoose.startSession();
     session.startTransaction();
-    // console.log("exchanges data");
-    try {
-      // retrieve user cart
-      const enrichedOrder = await this.enrichProducts(data);
-      // enrichedOrder
-      // console.log(JSON.stringify(enrichedOrder, null, 2), "enriched order");
 
-      // const cartItems = await CartService.getCartByUser(
-      //   data.user_id as Types.ObjectId
-      // );
+    try {
+      // 1. Enrich Products
+      const enrichedOrder = await this.enrichProducts(data);
+
       if (enrichedOrder?.length <= 0) {
         throw new ApiError(
           HttpStatusCode.BAD_REQUEST,
@@ -500,12 +495,14 @@ class Service {
         );
       }
 
-      // console.log(cartItems, "cart items");
+      // ============================================================
+      // 🔄 UPDATED LOGIC START: Stock Check & Reserve (Like Admin)
+      // ============================================================
 
-      // check stock availability [most important]
+      let total_stock_issue = false;
+
+      // ধাপ ১: শুধু চেক করা (কোনো আপডেট বা এরর থ্রো হবে না)
       for (const item of enrichedOrder.products) {
-        // console.log(item.variant, "for stock");
-
         const stock = await GlobalStockModel.findOne(
           {
             product: item.product,
@@ -515,32 +512,52 @@ class Service {
           { session }
         );
 
-        if (
-          !stock ||
-          stock.available_quantity - stock.qty_reserved < item.quantity
-        ) {
-          // await session.abortTransaction();
-
-          throw new ApiError(
-            HttpStatusCode.BAD_REQUEST,
-            `Product ${item.product.name} is out of stock or does not have enough quantity`
-          );
+        if (!stock) {
+          total_stock_issue = true;
+          break;
         }
 
-        // lot consumption (FIFO)
-        const consumedLots = await this.simulateConsumeLotsFIFO(
-          item.product,
-          item.variant,
-          item.quantity,
-          session
-        );
-        item.lots = consumedLots;
-
-        stock.qty_reserved += item.quantity;
-        stock.total_sold = (stock.total_sold || 0) + item.quantity;
-        item.total_sold = (item.total_sold || 0) + item.quantity;
-        await stock.save({ session });
+        if (stock.available_quantity - stock.qty_reserved < item.quantity) {
+          total_stock_issue = true;
+          break;
+        }
       }
+
+      // ধাপ ২: যদি কোনো স্টক ইস্যু না থাকে, তবেই রিজার্ভ এবং লট আপডেট হবে
+      if (total_stock_issue === false) {
+        for (const item of enrichedOrder.products) {
+          const stock = await GlobalStockModel.findOne(
+            {
+              product: item.product,
+              variant: item.variant,
+            },
+            null,
+            { session }
+          );
+
+          if (stock) {
+            // লট সিমুলেশন (আপনার আগের কোডে ছিল, তাই রাখা হয়েছে)
+            const consumedLots = await this.simulateConsumeLotsFIFO(
+              item.product,
+              item.variant,
+              item.quantity,
+              session
+            );
+            item.lots = consumedLots;
+
+            // স্টক আপডেট
+            stock.qty_reserved += item.quantity;
+            stock.total_sold = (stock.total_sold || 0) + item.quantity;
+            item.total_sold = (item.total_sold || 0) + item.quantity;
+
+            await stock.save({ session });
+          }
+        }
+      }
+
+      // ============================================================
+      // 🔄 UPDATED LOGIC END
+      // ============================================================
 
       const { total_price, items, total_items } =
         await this.calculateCart(enrichedOrder);
@@ -593,9 +610,15 @@ class Service {
         order_id,
         order_type: "exchange",
         payment_type: data.payment_type,
+        // পেমেন্ট স্ট্যাটাস আপনার লজিক অনুযায়ী PAID রাখা হয়েছে
         payment_status: PAYMENT_STATUS.PAID,
         order_at: new Date(),
-        order_status: ORDER_STATUS.EXCHANGE_REQUESTED,
+
+        // ✅ STATUS LOGIC UPDATED
+        // স্টক থাকলে EXCHANGE_REQUESTED, না থাকলে AWAITING_STOCK
+        order_status: total_stock_issue
+          ? ORDER_STATUS.AWAITING_STOCK
+          : ORDER_STATUS.EXCHANGE_REQUESTED,
 
         previous_order: prevOrder._id,
       };
@@ -605,11 +628,6 @@ class Service {
         payload.total_amount += data.tax;
       }
 
-      // console.log(data.delivery_charge, "delivery address");
-
-      // data.delivery_charge = Number(data?.delivery_charge.toFixed());
-
-      // dakha 70TK OUT SIDE DELIVERY CHARGE 120 TK
       if (data?.delivery_charge && data?.delivery_charge > 0) {
         data.delivery_charge = Number(data?.delivery_charge.toFixed());
         payload.total_amount += data.delivery_charge;
@@ -617,7 +635,7 @@ class Service {
         payload.is_delivery_charge_paid = true;
       }
 
-      console.log(payload, "data payload");
+      // console.log(payload, "data payload");
 
       payload.payment_status = PAYMENT_STATUS.PAID;
       payload.payable_amount = payload.new_cod || 0;
@@ -630,7 +648,10 @@ class Service {
         payload.payable_amount -= data.paid_amount;
       }
 
-      payload.order_status = ORDER_STATUS.EXCHANGE_REQUESTED;
+      // ✅ Re-confirming status logic just before create
+      payload.order_status = total_stock_issue
+        ? ORDER_STATUS.AWAITING_STOCK
+        : ORDER_STATUS.EXCHANGE_REQUESTED;
 
       payload.total_amount = Number(payload.total_amount.toFixed());
 
@@ -643,8 +664,6 @@ class Service {
           "Failed to create order"
         );
       }
-      // const createdOrder = createdOrders[0];
-      // console.log(createdOrder);
 
       // 6. Clear cart (with session)
       await CartService.clearCartAfterCheckout(
