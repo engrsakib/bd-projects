@@ -57,7 +57,7 @@ export type IOrderItem = {
 };
 
 export type IOrderLog = {
-  user?: Types.ObjectId | "webhook" | null;
+  user?: Types.ObjectId | "webhook" | null | any;
   time: Date;
   action: string;
 };
