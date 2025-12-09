@@ -85,6 +85,8 @@ export type IOrder = {
   delivery_charge?: number;
   total_amount: number;
   paid_amount?: number;
+  return_amount?: number;
+  prev_total_amount?: number;
   courier_cod_amount?: number;
   payable_amount?: number;
   new_cod?: number;
