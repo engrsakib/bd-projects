@@ -178,6 +178,17 @@ class Controller extends BaseController {
       });
     }
   );
+
+  cleanUpCouriers = this.catchAsync(async (req: Request, res: Response) => {
+    const result = await CourierService.removeCourierFromPendingOrders();
+
+    return this.sendResponse(res, {
+      statusCode: HttpStatus.OK,
+      success: true,
+      message: "Courier cleanup process completed successfully",
+      data: result,
+    });
+  });
 }
 
 export const CourierController = new Controller();

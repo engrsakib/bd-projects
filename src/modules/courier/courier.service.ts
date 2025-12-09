@@ -827,6 +827,95 @@ class Service {
     }
   }
 
+  removeCourierFromPendingOrders = async () => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      // ১. টার্গেট স্ট্যাটাসগুলো ডিফাইন করা
+      // আপনার এনাম (Enum) অনুযায়ী নামগুলো নিশ্চিত হয়ে নিন
+      const targetStatuses = [
+        ORDER_STATUS.PLACED,
+        ORDER_STATUS.ACCEPTED, // যদি ACCEPTED নামে স্ট্যাটাস থাকে
+        ORDER_STATUS.AWAITING_STOCK,
+      ];
+
+      // ২. এমন অর্ডার খোঁজা যেগুলোর স্ট্যাটাস মিলছে এবং কুরিয়ার অ্যাসাইন করা আছে
+      const ordersWithCourier = await OrderModel.find({
+        order_status: { $in: targetStatuses },
+        courier: { $ne: null }, // courier ফিল্ড নাল নয় এমন
+      }).session(session);
+
+      // যদি এমন কোনো অর্ডার না থাকে, ট্রানজ্যাকশন শেষ করে খালি অ্যারে রিটার্ন করুন
+      if (ordersWithCourier.length === 0) {
+        await session.commitTransaction();
+        session.endSession();
+        return {
+          message: "No orders found with courier in specified statuses",
+          deletedConsignments: [],
+        };
+      }
+
+      // ৩. অর্ডারগুলো থেকে কুরিয়ার আইডি (ObjectId) গুলো আলাদা করা
+      const courierIds = ordersWithCourier.map((order) => order.courier);
+      const orderIds = ordersWithCourier.map((order) => order._id);
+
+      // ৪. ডিলিট করার আগে Consignment ID গুলো ফেচ করা (রেসপন্সের জন্য)
+      const couriersToDelete = await CourierModel.find({
+        _id: { $in: courierIds },
+      })
+        .session(session)
+        .select("consignment_id"); // শুধু consignment_id ফিল্ড নিচ্ছি
+
+      // Consignment ID গুলোর লিস্ট তৈরি (নাল বা আনডিফাইনড বাদ দিয়ে)
+      const deletedConsignmentIds = couriersToDelete
+        .map((c) => c.consignment_id)
+        .filter((id) => id); // Filter out null/undefined/empty strings
+
+      // ৫. CourierModel থেকে ডাটা ডিলিট করা
+      await CourierModel.deleteMany({
+        _id: { $in: courierIds },
+      }).session(session);
+
+      // ৬. অর্ডারগুলো আপডেট করা (Courier রেফারেন্স রিমুভ করা)
+      await OrderModel.updateMany(
+        { _id: { $in: orderIds } },
+        {
+          $set: {
+            courier: null,
+            transfer_to_courier: false,
+          },
+          // অপশনাল: লগ রাখা
+          $push: {
+            logs: {
+              user: null, // বা সিস্টেম অ্যাডমিন আইডি
+              time: new Date(),
+              action:
+                "SYSTEM_AUTO: Removed courier assignment & deleted courier data",
+            },
+          },
+        }
+      ).session(session);
+
+      // ৭. ট্রানজ্যাকশন কমিট করা
+      await session.commitTransaction();
+      session.endSession();
+
+      console.log(`Cleaned up ${deletedConsignmentIds.length} couriers.`);
+
+      return {
+        success: true,
+        deletedCount: deletedConsignmentIds.length,
+        deletedConsignments: deletedConsignmentIds,
+      };
+    } catch (error) {
+      // কোনো এরর হলে রোলব্যাক করা
+      await session.abortTransaction();
+      session.endSession();
+      throw error;
+    }
+  };
+
   // enrich products with details
   private extractProductVariantQuantity(
     orderData: any

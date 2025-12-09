@@ -44,7 +44,7 @@ router.patch(
 router.patch(
   "/super-update-order-status/:id",
   JwtInstance.authenticate(Object.values(ROLES)),
-  JwtInstance.hasPermissions(PermissionEnum.ORDER_UPDATE),
+  JwtInstance.hasPermissions(PermissionEnum.ORDER_SUPER_UPDATE),
   OrderController.superUpdateOrderStatus
 );
 

@@ -62,4 +62,11 @@ router.get(
   CourierController.statusByTrackingCode
 );
 
+router.delete(
+  "/clean-up-couriers",
+  JwtInstance.authenticate(Object.values(ROLES)),
+  JwtInstance.hasPermissions(PermissionEnum.COURIER_DELETE),
+  CourierController.cleanUpCouriers
+);
+
 export const courierRouter = router;
